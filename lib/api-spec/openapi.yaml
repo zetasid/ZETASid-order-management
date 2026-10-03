@@ -45,7 +45,25 @@ paths:
       operationId: listOrders
       tags: [orders]
       summary: List orders
+      description: Up to 100 newest matching orders; search is applied in PostgreSQL before the limit.
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, completed, cancelled]
       responses:
+        "400":
+          description: Invalid search or status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Orders
           content:
@@ -102,6 +120,8 @@ components:
           format: uuid
         marketplaceOrderId:
           type: string
+        lazadaOrderId:
+          type: string
         productName:
           type: string
         buyerName:
@@ -111,24 +131,62 @@ components:
           minimum: 0
         status:
           type: string
-          enum: [pending, completed, cancelled]
+          enum: [pending, processing, completed, cancelled]
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
       required:
         - id
         - marketplaceOrderId
+        - lazadaOrderId
         - productName
         - buyerName
         - amount
         - status
         - createdAt
+        - updatedAt
+        - items
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        lazadaOrderItemId:
+          type: string
+        orderId:
+          type: string
+          format: uuid
+        productName:
+          type: string
+        digitalDetail:
+          type: ["string", "null"]
+          description: Original string or pretty-printed JSON for structured PostgreSQL digital_detail.
+        status:
+          type: string
+          enum: [pending, processing, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, lazadaOrderItemId, orderId, productName, digitalDetail, status, createdAt, updatedAt]
     DashboardSummary:
       type: object
       properties:
         totalOrders:
           type: integer
         pendingOrders:
+          type: integer
+        processingOrders:
           type: integer
         completedOrders:
           type: integer
@@ -143,6 +201,7 @@ components:
       required:
         - totalOrders
         - pendingOrders
+        - processingOrders
         - completedOrders
         - cancelledOrders
         - totalRevenue

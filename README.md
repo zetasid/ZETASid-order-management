@@ -7,6 +7,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Halaman Login, Dashboard, Pesanan, Detail Pesanan, dan Pengaturan.
 - API modular baca-saja, PostgreSQL, versioned migration, dan data awal kosong.
 - Fase 2 menyiapkan `users`, `orders`, `order_items`, `sync_logs`, `system_logs`; rincian relasi, preservasi data, dan constraint ada di `docs/database.md`.
+- Fase 3 menambahkan pencarian ID/produk, filter Menunggu/Diproses/Selesai, semua item pada detail, dan salin Digital Detail dengan konfirmasi atau fallback pemilihan teks manual. Pencarian/filter tersimpan di URL saat membuka detail dan kembali.
 - Login hanya UI; **autentikasi belum diimplementasikan**. Aplikasi ini belum boleh diisi data pelanggan atau dibuka sebagai sistem produksi publik sebelum autentikasi dan otorisasi dibuat.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
 - Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
@@ -39,7 +40,7 @@ pnpm run test:db
 pnpm test
 ```
 
-Tes API menggunakan proxy lokal `http://localhost:80`. Untuk lingkungan lain, set `TEST_BASE_URL` untuk frontend dan `TEST_API_URL` untuk API. Tes migration/schema memakai schema terisolasi yang di-rollback; tes API membuat satu fixture ber-ID acak dan menghapus **hanya fixture tersebut** setelah selesai.
+Tes API menggunakan proxy lokal `http://localhost:80`. Untuk lingkungan lain, set `TEST_BASE_URL` untuk frontend dan `TEST_API_URL` untuk API. Tes migration/schema memakai schema terisolasi yang di-rollback; tes API membuat fixture ber-ID acak dan menghapus **hanya fixture milik tes** setelah selesai. Tes pencarian mencakup order lama di luar 100 data terbaru, karakter `%`/`_` literal, filter status, dan Digital Detail JSON/string/null.
 
 ## Docker Compose: Linux amd64 dan arm64
 
@@ -112,8 +113,8 @@ Instalasi PWA memerlukan HTTPS (kecuali localhost). Untuk host Linux, pasang HTT
 
 - `GET /api/healthz` — konektivitas server dan PostgreSQL
 - `GET /api/dashboard/summary` — jumlah tiap status, total nilai pesanan selesai, 5 pesanan terbaru
-- `GET /api/orders` — maksimal 100 pesanan terbaru
-- `GET /api/orders/:orderId` — detail berdasarkan UUID, 400/404 untuk ID salah/tidak ada
+- `GET /api/orders?search=...&status=...` — maksimal 100 pesanan terbaru yang cocok; pencarian ID Lazada/nama produk dan filter dijalankan di PostgreSQL sebelum limit. Parameter invalid menghasilkan 400.
+- `GET /api/orders/:orderId` — header dan semua item beserta Digital Detail berdasarkan UUID, 400/404 untuk ID salah/tidak ada
 
 Kontrak berada di OpenAPI. Setelah kontrak diubah:
 

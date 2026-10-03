@@ -6,6 +6,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 
 - Fase 1 menyiapkan fondasi project dan UI dasar: Login, Dashboard, Pesanan, Detail Pesanan, Pengaturan.
 - Fase 2 hanya menyiapkan database: users, orders, order_items, sync_logs, system_logs, relasi, unique constraint, dan migration aman. Tidak menambahkan UI atau integrasi.
+- Fase 3 UI pesanan mobile-first: dashboard, daftar/detail semua item, pencarian PostgreSQL, filter status, dan salin Digital Detail. Perubahan schema hanya menambahkan enum processing untuk Diproses; cancelled tetap dipertahankan untuk data lama.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, maupun auto-processing order.
 - Data awal kosong. Login belum mengautentikasi dan UI tidak boleh berpura-pura memiliki sesi pengguna.
 - Jangan menambah fitur di luar permintaan. Setelah implementasi dan tes, berhenti menunggu instruksi berikutnya.

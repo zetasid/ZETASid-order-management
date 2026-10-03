@@ -4,4 +4,4 @@ export const rupiah = (n: number) =>
 export const tanggal = (iso: string) =>
   new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
 
-export const STATUS_LABEL = { pending: 'Menunggu', completed: 'Selesai', cancelled: 'Dibatalkan' } as const;
+export const STATUS_LABEL = { pending: 'Menunggu', processing: 'Diproses', completed: 'Selesai', cancelled: 'Dibatalkan' } as const;

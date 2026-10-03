@@ -27,24 +27,47 @@ export const getDashboardSummaryResponseRecentOrdersItemAmountMin = 0;
 export const GetDashboardSummaryResponse = zod.object({
   "totalOrders": zod.number().int(),
   "pendingOrders": zod.number().int(),
+  "processingOrders": zod.number().int(),
   "completedOrders": zod.number().int(),
   "cancelledOrders": zod.number().int(),
   "totalRevenue": zod.number().int(),
   "recentOrders": zod.array(zod.object({
   "id": zod.string().uuid(),
   "marketplaceOrderId": zod.string(),
+  "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
   "amount": zod.number().int().min(getDashboardSummaryResponseRecentOrdersItemAmountMin),
-  "status": zod.enum(['pending', 'completed', 'cancelled']),
-  "createdAt": zod.coerce.date()
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "lazadaOrderItemId": zod.string(),
+  "orderId": zod.string().uuid(),
+  "productName": zod.string(),
+  "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
 }))
 })
 
 
 /**
+ * Up to 100 newest matching orders; search is applied in PostgreSQL before the limit.
  * @summary List orders
  */
+export const listOrdersQuerySearchMax = 200;
+
+
+
+export const ListOrdersQueryParams = zod.object({
+  "search": zod.coerce.string().max(listOrdersQuerySearchMax).optional(),
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']).optional()
+})
+
 export const listOrdersResponseAmountMin = 0;
 
 
@@ -52,11 +75,23 @@ export const listOrdersResponseAmountMin = 0;
 export const ListOrdersResponseItem = zod.object({
   "id": zod.string().uuid(),
   "marketplaceOrderId": zod.string(),
+  "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
   "amount": zod.number().int().min(listOrdersResponseAmountMin),
-  "status": zod.enum(['pending', 'completed', 'cancelled']),
-  "createdAt": zod.coerce.date()
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "lazadaOrderItemId": zod.string(),
+  "orderId": zod.string().uuid(),
+  "productName": zod.string(),
+  "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
 })
 export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 
@@ -75,11 +110,23 @@ export const getOrderResponseAmountMin = 0;
 export const GetOrderResponse = zod.object({
   "id": zod.string().uuid(),
   "marketplaceOrderId": zod.string(),
+  "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
   "amount": zod.number().int().min(getOrderResponseAmountMin),
-  "status": zod.enum(['pending', 'completed', 'cancelled']),
-  "createdAt": zod.coerce.date()
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "lazadaOrderItemId": zod.string(),
+  "orderId": zod.string().uuid(),
+  "productName": zod.string(),
+  "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
 })
 
 

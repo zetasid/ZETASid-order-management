@@ -14,6 +14,7 @@ export function PageHeading({ title, sub }: { title: string; sub: string }) {
 
 const TONE = {
   pending: 'bg-accent/25 text-foreground',
+  processing: 'bg-primary/10 text-primary',
   completed: 'bg-[hsl(160_40%_35%/0.15)] text-[hsl(160_45%_24%)]',
   cancelled: 'bg-destructive/10 text-destructive',
 } as const;

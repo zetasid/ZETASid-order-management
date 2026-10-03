@@ -5,11 +5,13 @@
  * ZETAS.id order management API
  * OpenAPI spec version: 0.1.0
  */
+import type { OrderItem } from './orderItem';
 import type { OrderStatus } from './orderStatus';
 
 export interface Order {
   id: string;
   marketplaceOrderId: string;
+  lazadaOrderId: string;
   productName: string;
   /** @nullable */
   buyerName: string | null;
@@ -17,4 +19,6 @@ export interface Order {
   amount: number;
   status: OrderStatus;
   createdAt: Date;
+  updatedAt: Date;
+  items: OrderItem[];
 }

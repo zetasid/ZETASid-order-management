@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const orderStatus = pgEnum("order_status", ["pending", "completed", "cancelled"]);
+export const orderStatus = pgEnum("order_status", ["pending", "processing", "completed", "cancelled"]);
 
 export const ordersTable = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),

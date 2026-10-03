@@ -14,13 +14,40 @@ export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
 
 export const OrderStatus = {
   pending: 'pending',
+  processing: 'processing',
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;
 
+export type OrderItemStatus = typeof OrderItemStatus[keyof typeof OrderItemStatus];
+
+
+export const OrderItemStatus = {
+  pending: 'pending',
+  processing: 'processing',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface OrderItem {
+  id: string;
+  lazadaOrderItemId: string;
+  orderId: string;
+  productName: string;
+  /**
+     * Original string or pretty-printed JSON for structured PostgreSQL digital_detail.
+     * @nullable
+     */
+  digitalDetail: string | null;
+  status: OrderItemStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Order {
   id: string;
   marketplaceOrderId: string;
+  lazadaOrderId: string;
   productName: string;
   /** @nullable */
   buyerName: string | null;
@@ -28,11 +55,14 @@ export interface Order {
   amount: number;
   status: OrderStatus;
   createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
 }
 
 export interface DashboardSummary {
   totalOrders: number;
   pendingOrders: number;
+  processingOrders: number;
   completedOrders: number;
   cancelledOrders: number;
   totalRevenue: number;
@@ -42,4 +72,22 @@ export interface DashboardSummary {
 export interface ErrorResponse {
   error: string;
 }
+
+export type ListOrdersParams = {
+/**
+ * @maxLength 200
+ */
+search?: string;
+status?: ListOrdersStatus;
+};
+
+export type ListOrdersStatus = typeof ListOrdersStatus[keyof typeof ListOrdersStatus];
+
+
+export const ListOrdersStatus = {
+  pending: 'pending',
+  processing: 'processing',
+  completed: 'completed',
+  cancelled: 'cancelled',
+} as const;
 

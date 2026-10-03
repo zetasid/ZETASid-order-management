@@ -8,11 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
   usePageMeta('Ringkasan', 'Ringkasan pesanan digital Lazada Anda di ZETAS.id.');
-  const q = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
+  const q = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey(), staleTime: 15000, refetchOnWindowFocus: true, refetchOnMount: true } });
   const d = q.data;
   const stats = d && [
     { k: 'total', l: 'Total pesanan', v: String(d.totalOrders) },
     { k: 'pending', l: 'Menunggu', v: String(d.pendingOrders) },
+    { k: 'processing', l: 'Diproses', v: String(d.processingOrders) },
     { k: 'completed', l: 'Selesai', v: String(d.completedOrders) },
     { k: 'cancelled', l: 'Dibatalkan', v: String(d.cancelledOrders) },
   ];

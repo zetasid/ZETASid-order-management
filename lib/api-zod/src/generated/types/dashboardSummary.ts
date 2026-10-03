@@ -10,6 +10,7 @@ import type { Order } from './order';
 export interface DashboardSummary {
   totalOrders: number;
   pendingOrders: number;
+  processingOrders: number;
   completedOrders: number;
   cancelledOrders: number;
   totalRevenue: number;

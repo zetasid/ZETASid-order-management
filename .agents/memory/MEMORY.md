@@ -1,1 +1,2 @@
 - [Drizzle migration output](drizzle-migration-output.md) — use a relative output directory; absolute paths can fail when generating later migrations.
+- [Drizzle relational search](drizzle-relational-search.md) — embedded correlated subqueries may retain the original parent table name instead of its relational alias.

@@ -14,7 +14,7 @@ ID Lazada memakai `text` untuk menjaga nilai identifier persis tanpa batas integ
 
 Satu `orders` memiliki banyak `order_items`. Foreign key `order_items.order_id` wajib dan terindeks. `ON DELETE RESTRICT` mencegah penghapusan order yang masih memiliki item; tidak ada cascade delete yang menghapus data item tanpa disadari.
 
-Status order dan item memakai enum fondasi `pending`, `completed`, `cancelled`. JSONB `digital_detail` boleh null sampai detail digital tersedia; isi dapat berupa objek sesuai produk tanpa mengubah schema. Jangan menyimpan credential, token, atau secret dalam detail maupun kolom metadata log.
+Status order dan item memakai enum `pending`, `processing`, `completed`, `cancelled`. Fase 3 menambahkan hanya nilai enum `processing` untuk status Diproses melalui migration tambahan; nilai/data lama tetap utuh. JSONB `digital_detail` boleh null sampai detail digital tersedia; isi dapat berupa objek sesuai produk tanpa mengubah schema. Jangan menyimpan credential, token, atau secret dalam detail maupun kolom metadata log.
 
 Timestamp memakai `timestamptz`. Trigger PostgreSQL memperbarui `updated_at` pada `users`, `orders`, dan `order_items`, termasuk penulisan melalui SQL langsung. `created_at` tidak diubah oleh trigger.
 
@@ -29,7 +29,7 @@ Migration awal tidak diubah. Migration fase 2:
 
 Drizzle menjalankan migration dalam transaksi PostgreSQL. ID lama kosong/invalid menyebabkan kegagalan dan rollback, bukan penghapusan atau perbaikan data diam-diam. Perbaiki data invalid secara terkontrol sebelum mencoba lagi.
 
-Kolom header lama `marketplace_order_id`, `product_name`, `buyer_name`, dan `amount` tetap disimpan untuk mempertahankan seluruh data yang sudah ada. Identifier lama sekarang opsional; penulisan baru memakai `lazada_order_id`. API baca fase 1 mempertahankan nama field `marketplaceOrderId`, tetapi mengambil nilainya dari identifier kanonis tersebut. Belum ada perubahan kontrak API atau UI item pada fase ini.
+Kolom header lama `marketplace_order_id`, `product_name`, `buyer_name`, dan `amount` tetap disimpan untuk mempertahankan seluruh data yang sudah ada. Identifier lama sekarang opsional; penulisan baru memakai `lazada_order_id`. API baca mempertahankan nama field `marketplaceOrderId`, tetapi mengambil nilainya dari identifier kanonis tersebut. Fase 3 menambahkan `lazadaOrderId`, `updatedAt`, dan seluruh `items` ke respons; produk diambil dari item, dengan header lama sebagai sumber hanya bila item belum tersedia. Digital Detail dibaca dari JSONB: string ditampilkan persis, objek/JSON terstruktur diserialisasi dengan indentasi untuk ditampilkan dan disalin.
 
 Produk header lama tidak diubah menjadi item fiktif: ID Lazada item tidak tersedia pada data fase awal, sehingga tidak boleh dibuat secara sembarang. Tidak ada data order, item, user, atau log contoh yang ditambahkan oleh migration.
 

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ZETAS.id"
+description = "Mobile-first PWA for managing digital Lazada orders, with a modular API foundation and persistent PostgreSQL storage."
+version = "1.0.0"
+id = "artifacts/zetas-id"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24854
+
+[services.development]
+run = "pnpm --filter @workspace/zetas-id run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/zetas-id", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/zetas-id/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24854"
+BASE_PATH = "/"

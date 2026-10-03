@@ -75,6 +75,9 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # AJV 8.20 still permits vulnerable fast-uri 3.1.7. Keep its supported
+  # major-3 API while enforcing the patched floor for GHSA-hrr3-gc8f-f4qj.
+  "ajv>fast-uri": "3.1.8"
   # Keep Linux amd64 AND arm64 native packages for the Docker deployment target.
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"

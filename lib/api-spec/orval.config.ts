@@ -30,6 +30,11 @@ export default defineConfig({
       clean: true,
       prettier: true,
       override: {
+        // React Query is v5; api-spec itself does not declare that peer.
+        // Avoid Orval falling back to v4 types when inferring from this package.
+        query: {
+          version: 5,
+        },
         fetch: {
           includeHttpResponseReturnType: false,
         },

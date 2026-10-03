@@ -19,9 +19,10 @@ production, credential registry, SSH, atau akses STB.
    Audit **seluruh** dependency termasuk dev/codegen/authoring dilaporkan sebagai
    peringatan nonblocking; JSON dapat diunduh sebagai artifact `dependency-audit`.
    Audit production bukan audit lengkap bundle frontend karena dependency frontend
-   disimpan sebagai devDependencies. Baseline 2026-10-03: production bersih;
-   audit penuh menemukan 3 high dan 2 moderate pada tooling (braces,
-   brace-expansion, fast-uri). Temuan tersebut tidak di-ignore/dihapus dari laporan;
+   disimpan sebagai devDependencies. Setelah perbaikan 2026-10-03: production
+   bersih; audit penuh tersisa 1 high dan 0 moderate pada `braces`, tanpa patch
+   upstream. Empat advisory lain sudah teratasi melalui upgrade yang kompatibel.
+   Rincian dan alasan temuan tersisa ada di `docs/dependency-security.md`;
    status CI hijau tidak berarti seluruh devDependencies bebas advisory.
 7. Setelah checks sukses, Docker Buildx + QEMU membangun target `api`, `web`,
    `migrate`, masing-masing untuk **linux/amd64 dan linux/arm64**.

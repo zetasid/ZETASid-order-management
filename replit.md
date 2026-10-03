@@ -1,45 +1,33 @@
-# [Project name]
+# ZETAS.id
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
+
+## Scope yang disepakati
+
+- Fase ini hanya fondasi project dan UI dasar: Login, Dashboard, Pesanan, Detail Pesanan, Pengaturan.
+- Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, maupun auto-processing order.
+- Data awal kosong. Login belum mengautentikasi dan UI tidak boleh berpura-pura memiliki sesi pengguna.
+- Jangan menambah fitur di luar permintaan. Setelah implementasi dan tes, berhenti menunggu instruksi berikutnya.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Workflow `artifacts/api-server: API Server` dan `artifacts/zetas-id: web`.
+- `pnpm run typecheck` — semua package.
+- `pnpm test` — API/PWA smoke test dan tes retensi migration; memerlukan server serta `DATABASE_URL`.
+- `pnpm --filter @workspace/api-spec run codegen` — regenerasi client dan validator.
+- `pnpm --filter @workspace/db run generate` / `migrate` — versioned migration.
+- Secret hanya melalui environment. Jangan mencetak nilai secret.
 
-## Stack
+## Struktur dan target deployment
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- React/Vite di `artifacts/zetas-id`; Express modular di `artifacts/api-server`.
+- OpenAPI di `lib/api-spec`, model dan migration PostgreSQL di `lib/db`.
+- Docker Compose self-hosted dengan `database`, `migrate`, `api`, `web`.
+- Target Linux amd64 dan arm64. Jangan menghapus native Linux arm64 packages dari pnpm overrides/lockfile.
+- PostgreSQL menggunakan persistent named volume. Update aplikasi tidak boleh menghapus data.
+- Compose migration service dipakai untuk PostgreSQL self-hosted; tidak dijalankan otomatis dari startup API pada Replit.
+- Detail operasi, backup, build multi-platform, PWA, dan GitHub ada di `README.md`.
 
-## Where things live
+## Keamanan fase fondasi
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+API masih baca-saja tanpa auth. Jangan masukkan data pelanggan atau gunakan sebagai sistem produksi publik sebelum autentikasi dan otorisasi ditambahkan dalam fase yang diminta pengguna.

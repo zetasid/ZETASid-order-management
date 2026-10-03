@@ -1,5 +1,4 @@
-import express, { type Express } from "express";
-import cors from "cors";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -25,10 +24,19 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(express.json({ limit: "32kb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Endpoint tidak ditemukan." });
+});
+
+const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+  req.log.error({ err }, "API request failed");
+  res.status(500).json({ error: "Terjadi kesalahan pada server." });
+};
+app.use(errorHandler);
 
 export default app;

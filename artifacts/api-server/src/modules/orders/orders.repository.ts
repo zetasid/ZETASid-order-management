@@ -1,12 +1,24 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db, ordersTable } from "@workspace/db";
 
+// Preserve the existing read-only API contract while canonical storage uses Lazada IDs.
+const orderView = {
+  id: ordersTable.id,
+  marketplaceOrderId: ordersTable.lazadaOrderId,
+  productName: ordersTable.productName,
+  buyerName: ordersTable.buyerName,
+  amount: ordersTable.amount,
+  status: ordersTable.status,
+  createdAt: ordersTable.createdAt,
+  updatedAt: ordersTable.updatedAt,
+};
+
 export function listOrders(limit = 100) {
-  return db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(limit);
+  return db.select(orderView).from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(limit);
 }
 
 export async function findOrder(id: string) {
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
+  const [order] = await db.select(orderView).from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
   return order;
 }
 

@@ -4,7 +4,8 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 
 ## Scope yang disepakati
 
-- Fase ini hanya fondasi project dan UI dasar: Login, Dashboard, Pesanan, Detail Pesanan, Pengaturan.
+- Fase 1 menyiapkan fondasi project dan UI dasar: Login, Dashboard, Pesanan, Detail Pesanan, Pengaturan.
+- Fase 2 hanya menyiapkan database: users, orders, order_items, sync_logs, system_logs, relasi, unique constraint, dan migration aman. Tidak menambahkan UI atau integrasi.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, maupun auto-processing order.
 - Data awal kosong. Login belum mengautentikasi dan UI tidak boleh berpura-pura memiliki sesi pengguna.
 - Jangan menambah fitur di luar permintaan. Setelah implementasi dan tes, berhenti menunggu instruksi berikutnya.
@@ -14,6 +15,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Workflow `artifacts/api-server: API Server` dan `artifacts/zetas-id: web`.
 - `pnpm run typecheck` — semua package.
 - `pnpm test` — API/PWA smoke test dan tes retensi migration; memerlukan server serta `DATABASE_URL`.
+- `pnpm run test:db` — tes schema dan migration terisolasi; hanya memerlukan `DATABASE_URL`.
 - `pnpm --filter @workspace/api-spec run codegen` — regenerasi client dan validator.
 - `pnpm --filter @workspace/db run generate` / `migrate` — versioned migration.
 - Secret hanya melalui environment. Jangan mencetak nilai secret.
@@ -27,6 +29,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - PostgreSQL menggunakan persistent named volume. Update aplikasi tidak boleh menghapus data.
 - Compose migration service dipakai untuk PostgreSQL self-hosted; tidak dijalankan otomatis dari startup API pada Replit.
 - Detail operasi, backup, build multi-platform, PWA, dan GitHub ada di `README.md`.
+- Aturan kompatibilitas legacy, relasi, dan preservasi data ada di `docs/database.md`; jangan membuat ID item fiktif untuk produk header lama.
 
 ## Keamanan fase fondasi
 

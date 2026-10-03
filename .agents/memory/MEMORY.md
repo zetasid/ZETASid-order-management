@@ -1,0 +1,1 @@
+- [Drizzle migration output](drizzle-migration-output.md) — use a relative output directory; absolute paths can fail when generating later migrations.

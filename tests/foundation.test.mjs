@@ -55,7 +55,7 @@ test("Detail pesanan nyata dan migration ulang mempertahankan data", async () =>
   const id = randomUUID();
   try {
     await pool.query(
-      "INSERT INTO orders (id, marketplace_order_id, product_name, amount) VALUES ($1, $2, $3, $4)",
+      "INSERT INTO orders (id, lazada_order_id, product_name, amount) VALUES ($1, $2, $3, $4)",
       [id, `test-${id}`, "Fixture tes fondasi", 25000],
     );
     const before = await json(`/orders/${id}`);

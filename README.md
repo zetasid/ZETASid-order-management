@@ -5,7 +5,8 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 ## Batas fase ini
 
 - Halaman Login, Dashboard, Pesanan, Detail Pesanan, dan Pengaturan.
-- API modular baca-saja, PostgreSQL, migration versi pertama, dan data awal kosong.
+- API modular baca-saja, PostgreSQL, versioned migration, dan data awal kosong.
+- Fase 2 menyiapkan `users`, `orders`, `order_items`, `sync_logs`, `system_logs`; rincian relasi, preservasi data, dan constraint ada di `docs/database.md`.
 - Login hanya UI; **autentikasi belum diimplementasikan**. Aplikasi ini belum boleh diisi data pelanggan atau dibuka sebagai sistem produksi publik sebelum autentikasi dan otorisasi dibuat.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
 - Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
@@ -34,10 +35,11 @@ Frontend dan API dijalankan melalui workflow yang tersedia. `DATABASE_URL` harus
 pnpm install --frozen-lockfile
 pnpm --filter @workspace/db run migrate
 pnpm run typecheck
+pnpm run test:db
 pnpm test
 ```
 
-Tes menggunakan proxy lokal `http://localhost:80`. Untuk lingkungan lain, set `TEST_BASE_URL` untuk frontend dan `TEST_API_URL` untuk API. Tes database membuat satu fixture ber-ID acak dan menghapus **hanya fixture tersebut** setelah selesai.
+Tes API menggunakan proxy lokal `http://localhost:80`. Untuk lingkungan lain, set `TEST_BASE_URL` untuk frontend dan `TEST_API_URL` untuk API. Tes migration/schema memakai schema terisolasi yang di-rollback; tes API membuat satu fixture ber-ID acak dan menghapus **hanya fixture tersebut** setelah selesai.
 
 ## Docker Compose: Linux amd64 dan arm64
 

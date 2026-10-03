@@ -12,3 +12,11 @@ node_modules
 !.env.example
 coverage
 *.log
+backups
+**/*.sql.gz
+**/*.dump
+**/*.pem
+**/*.key
+artifacts/mockup-sandbox
+tests
+docs

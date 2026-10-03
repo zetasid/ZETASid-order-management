@@ -27,10 +27,11 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - React/Vite di `artifacts/zetas-id`; Express modular di `artifacts/api-server`.
 - OpenAPI di `lib/api-spec`, model dan migration PostgreSQL di `lib/db`.
 - Docker Compose self-hosted dengan `database`, `migrate`, `api`, `web`.
+- Fase 5: `docker-compose.yml` menggantikan `compose.yaml`; frontend dan reverse proxy bersama di `web`. Panduan install/update ada di `docs/deployment.md`, script `sh deploy/stack.sh install|update`.
 - Target Linux amd64 dan arm64. Jangan menghapus native Linux arm64 packages dari pnpm overrides/lockfile.
 - PostgreSQL menggunakan persistent named volume. Update aplikasi tidak boleh menghapus data.
 - Compose migration service dipakai untuk PostgreSQL self-hosted; tidak dijalankan otomatis dari startup API pada Replit.
-- Detail operasi, backup, build multi-platform, PWA, dan GitHub ada di `README.md`.
+- Detail Docker, HTTPS, backup/restore dan build multi-platform ada di `docs/deployment.md`; PWA dan GitHub ada di `README.md`.
 - Aturan kompatibilitas legacy, relasi, dan preservasi data ada di `docs/database.md`; jangan membuat ID item fiktif untuk produk header lama.
 
 ## Keamanan

@@ -9,6 +9,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Fase 2 menyiapkan `users`, `orders`, `order_items`, `sync_logs`, `system_logs`; rincian relasi, preservasi data, dan constraint ada di `docs/database.md`.
 - Fase 3 menambahkan pencarian ID/produk, filter Menunggu/Diproses/Selesai, semua item pada detail, dan salin Digital Detail dengan konfirmasi atau fallback pemilihan teks manual. Pencarian/filter tersimpan di URL saat membuka detail dan kembali.
 - Fase 4 mengaktifkan login lokal email/password, session PostgreSQL, logout, authorization API, serta pembatasan brute force. Akun hanya dibuat pengelola; lihat `docs/security.md` untuk provisioning, kebijakan, dan kebutuhan HTTPS.
+- Fase 5 menyiapkan Docker Compose production, migration otomatis, volume PostgreSQL persisten, health check, serta prosedur install/update aman.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
 - Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
 
@@ -44,43 +45,34 @@ Tes API menggunakan proxy lokal `http://localhost:80`. Untuk lingkungan lain, se
 
 ## Docker Compose: Linux amd64 dan arm64
 
-Dockerfile memakai image multi-arsitektur dan tidak memaksa satu arsitektur. Native dependencies Linux arm64 dipertahankan di lockfile. `docker compose build` membangun untuk arsitektur host. Node 24 dan Docker Compose v2 diperlukan.
+Panduan lengkap: **[docs/deployment.md](docs/deployment.md)**. Dockerfile memakai
+image multi-arsitektur tanpa memaksa AMD64. Frontend dan reverse proxy berada
+dalam service Nginx `web`, bersama backend `api`, PostgreSQL `database`, dan tugas
+`migrate`. Docker Compose v2.20+ diperlukan.
 
 ```sh
 cp .env.example .env
-# Isi .env dengan nilai deployment sendiri.
-docker compose --env-file .env config --quiet
-docker compose up -d --build
+chmod 600 .env
+# Isi environment privat dan siapkan HTTPS proxy host.
+docker compose config --quiet
+sh deploy/stack.sh install
 ```
 
-Aplikasi tersedia pada `http://localhost:8080` secara default. Database tidak mengekspos port publik.
-
-Urutan startup: PostgreSQL sehat → service `migrate` selesai sukses → API sehat → frontend. PostgreSQL membuat database pertama kali; migration membuat enum dan tabel aplikasi. Migration gagal akan menghentikan startup API, bukan menghapus data.
-
-`POSTGRES_PASSWORD` dan password dalam `DATABASE_URL` harus sama. URL-encode karakter khusus dalam password URL. Environment dapat diberikan oleh pengelola secret host; `.env` lokal hanyalah pilihan untuk Compose dan tidak masuk Git.
+Port internal default `127.0.0.1:8080` hanya untuk proxy HTTPS tepercaya.
+Database/API tidak mengekspos port publik. Startup: PostgreSQL sehat → migration
+sukses → API sehat → web sehat. Login production wajib HTTPS.
 
 ### Update tanpa menghapus data
 
-1. Buat backup terlebih dahulu.
-2. Pertahankan nama project Compose `zetas-id` dan volume yang sama.
-3. Ambil source versi baru, lalu:
-
 ```sh
-docker compose build
-docker compose run --rm migrate
-docker compose up -d --remove-orphans
+sh deploy/stack.sh update
 ```
 
-`postgres_data` adalah named persistent volume. Container aplikasi dapat dibangun ulang tanpa menghapus database. **Jangan gunakan `docker compose down -v`, `docker volume prune`, atau menghapus volume saat update.** Jangan mengganti versi mayor PostgreSQL tanpa rencana upgrade database.
-
-Contoh backup:
-
-```sh
-mkdir -p backups
-docker compose exec -T database sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backups/zetas.sql
-```
-
-Simpan backup di lokasi aman di luar repository dan host aplikasi.
+Script build dahulu, hentikan aplikasi, backup database, jalankan migration baru,
+lalu hidupkan API/web. Nama volume tetap **`zetas-id_postgres_data`** agar data
+instalasi sebelumnya dipertahankan. **Jangan gunakan `docker compose down -v`,
+`docker volume prune`, atau menghapus volume saat update.** Salin backup keluar
+host. Jangan mengganti major PostgreSQL tanpa rencana upgrade.
 
 ### Migration berikutnya
 
@@ -95,14 +87,14 @@ Jangan mengubah atau menghapus migration yang sudah diterapkan. Gunakan perubaha
 
 ### Build image multi-platform
 
-Untuk registry sendiri, gunakan builder multi-platform dan ganti nama image:
+Periksa manifest image resmi dan dependency:
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 --target api -t REGISTRY/zetas-api:VERSION --push .
-docker buildx build --platform linux/amd64,linux/arm64 --target web -t REGISTRY/zetas-web:VERSION --push .
-docker buildx build --platform linux/amd64,linux/arm64 --target migrate -t REGISTRY/zetas-migrate:VERSION --push .
+node scripts/check-container-platforms.mjs
 ```
 
+Perintah buildx AMD64/ARM64, backup/restore, contoh HTTPS, troubleshooting dan
+batas pengujian Replit tersedia pada panduan deployment.
 ## PWA
 
 Manifest, ikon PNG 192/512, dan service worker tersedia. Service worker aktif pada build production, menyimpan shell/aset statis saja, dan **tidak menyimpan respons API atau data pesanan**. Tanpa koneksi, shell bisa dibuka tetapi data server tidak tersedia.

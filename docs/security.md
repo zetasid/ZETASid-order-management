@@ -58,7 +58,7 @@ CLI tidak mencetak email/password/hash. Secret setup tidak dipakai saat startup 
 ## Deployment
 
 - `SESSION_SECRET` dan `APP_ORIGIN` disediakan melalui environment Compose. `APP_ORIGIN` adalah origin HTTPS publik yang benar; domain pengembangan bukan domain production.
-- TLS termination harus dikonfigurasi di reverse proxy host. Jangan mengekspos API/PostgreSQL langsung ke internet. Backend mempercayai tepat satu hop proxy; sesuaikan arsitektur proxy secara terkontrol bila memakai beberapa lapis.
+- TLS termination harus dikonfigurasi di reverse proxy host. Jangan mengekspos API/PostgreSQL langsung ke internet. Web Compose default bind localhost; host proxy menimpa forwarding headers, lalu Nginx container meneruskan IP/protokol yang dinormalisasi. Backend mempercayai satu hop terakhir. Jangan membuka port web privat ke klien publik atau meneruskan IP yang tidak dipercaya. Lihat `docs/deployment.md`.
 - Header Host dipertahankan oleh Nginx. Jangan mengganti validasi Origin dengan wildcard/CORS credentials terbuka.
 - Nginx production memberi CSP, nosniff dan Referrer-Policy, termasuk HTML hasil routing SPA; kebijakan cache diletakkan di server agar tidak menghilangkan pewarisan header keamanan.
 - Backup PostgreSQL sekarang mencakup hash password dan data autentikasi; simpan dengan akses terbatas.

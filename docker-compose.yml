@@ -14,7 +14,18 @@ services:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
+      start_period: 15s
       retries: 20
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - data
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   migrate:
     build:
@@ -26,6 +37,17 @@ services:
       database:
         condition: service_healthy
     restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - data
+    logging: *logging
 
   api:
     build:
@@ -45,28 +67,61 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/healthz',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
+      start_period: 20s
       retries: 10
+    init: true
+    stop_grace_period: 20s
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=32m,mode=1777
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    networks:
+      - data
+      - edge
+    logging: *logging
 
+  # Nginx serves the built frontend and proxies /api; no Vite server in production.
   web:
     build:
       context: .
       target: web
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8080}:80"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz && wget -q -O /dev/null http://127.0.0.1:8080/api/healthz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 15s
+    networks:
+      - edge
+    logging: *logging
+
+networks:
+  data:
+    internal: true
+  edge:
 
 volumes:
+  # Keep this project and volume name unchanged across application updates.
+  # Matches the volume name from the previous compose.yaml.
   postgres_data:
+    name: zetas-id_postgres_data

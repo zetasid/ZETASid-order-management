@@ -19,6 +19,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/index.ts"),
       path.resolve(artifactDir, "src/scripts/manage-users.ts"),
       path.resolve(artifactDir, "src/modules/auth/password.ts"),
+      path.resolve(artifactDir, "src/scripts/migrate.ts"),
     ],
     platform: "node",
     bundle: true,

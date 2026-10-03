@@ -1,0 +1,167 @@
+name: ZETAS.id CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# No registry, deployment, SSH, or production secret access.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Code, tests, Compose and dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: zetas_ci
+          POSTGRES_USER: zetas_ci
+          # Disposable CI fixture only, not a production secret.
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-ci-only
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U zetas_ci -d zetas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: "true"
+      BASE_PATH: /
+      APP_ORIGIN: http://127.0.0.1:5000
+      TEST_API_URL: http://127.0.0.1:5000/api
+      TEST_BASE_URL: http://127.0.0.1:5173
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm from packageManager
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+
+      - name: Setup Node 24 and pnpm cache
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Initialize isolated test environment
+        env:
+          CI_DATABASE_PORT: ${{ job.services.postgres.ports['5432'] }}
+          CI_DATABASE_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-ci-only
+        run: |
+          node --input-type=module <<'JS'
+          import { randomBytes } from "node:crypto";
+          import { appendFileSync } from "node:fs";
+          const session = randomBytes(32).toString("hex");
+          const database = `postgresql://zetas_ci:${process.env.CI_DATABASE_PASSWORD}@127.0.0.1:${process.env.CI_DATABASE_PORT}/zetas_ci`;
+          console.log(`::add-mask::${session}`);
+          console.log(`::add-mask::${database}`);
+          appendFileSync(process.env.GITHUB_ENV, `SESSION_SECRET=${session}\nDATABASE_URL=${database}\n`);
+          JS
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck all workspace packages
+        run: pnpm run typecheck
+
+      - name: Build production frontend
+        env:
+          PORT: "5173"
+          NODE_ENV: production
+        run: pnpm --filter @workspace/zetas-id run build
+
+      - name: Build backend and migration bundle
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Apply migrations to disposable PostgreSQL
+        run: pnpm --filter @workspace/db run migrate
+
+      - name: Validate Docker Compose without exposing environment
+        env:
+          POSTGRES_PASSWORD: ci-compose-validation-only
+          DATABASE_URL: postgresql://zetas:ci-compose-validation-only@database:5432/zetas
+          APP_ORIGIN: https://ci.example.invalid
+        run: docker compose --env-file /dev/null -f docker-compose.yml config --quiet
+
+      - name: Test API, auth, migrations, PWA and deployment configuration
+        run: sh scripts/ci-tests.sh
+
+      - name: Audit all dependencies (development tooling report)
+        id: full-audit
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          pnpm audit --json > reports/dependency-audit.json
+
+      - name: Require production dependency security baseline
+        run: pnpm audit --prod --audit-level high
+
+      - name: Dependency audit scope
+        if: always()
+        run: |
+          {
+            echo '### Dependency checks'
+            echo 'Production dependencies: high/critical findings block CI.'
+            echo 'All dependencies (including authoring/codegen tooling): see dependency-audit report and the audit step status.'
+            echo 'A production audit is not a complete audit of frontend bundles or development tooling.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve dependency audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-audit
+          path: reports/dependency-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docker:
+    name: Docker ${{ matrix.target }} (AMD64 + ARM64)
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, web, migrate]
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Enable ARM64 emulation
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm64
+
+      - name: Setup multi-platform builder
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build both Linux platforms without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          load: false
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=zetas-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=zetas-${{ matrix.target }}

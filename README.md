@@ -10,6 +10,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Fase 3 menambahkan pencarian ID/produk, filter Menunggu/Diproses/Selesai, semua item pada detail, dan salin Digital Detail dengan konfirmasi atau fallback pemilihan teks manual. Pencarian/filter tersimpan di URL saat membuka detail dan kembali.
 - Fase 4 mengaktifkan login lokal email/password, session PostgreSQL, logout, authorization API, serta pembatasan brute force. Akun hanya dibuat pengelola; lihat `docs/security.md` untuk provisioning, kebijakan, dan kebutuhan HTTPS.
 - Fase 5 menyiapkan Docker Compose production, migration otomatis, volume PostgreSQL persisten, health check, serta prosedur install/update aman.
+- Fase 6 menyiapkan GitHub Actions untuk install, typecheck, test, build, validasi Compose, audit dependency dan build Docker AMD64/ARM64. Tidak melakukan deployment.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
 - Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
 
@@ -116,6 +117,11 @@ pnpm --filter @workspace/api-spec run codegen
 ```
 
 ## Siap GitHub
+
+Workflow `.github/workflows/ci.yml` aktif untuk push `main`/`master`, pull request
+dan pemicu manual. Panduan singkat, cakupan audit dependency, dan batas verifikasi
+ada di **[docs/ci.md](docs/ci.md)**. Workflow hanya melakukan checks/build,
+tanpa publish image atau deployment ke STB.
 
 `pnpm-lock.yaml`, source, Dockerfile, Compose, dan migration disimpan di Git. `.env*` asli, private key, dependency, dan hasil build diabaikan. Hanya `.env.example` berisi placeholder.
 

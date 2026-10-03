@@ -3,3 +3,4 @@
 - [Authentication choice](authentication-choice.md) — the user explicitly chose local PostgreSQL authentication, not managed Clerk.
 - [Orval mutation schemas](orval-mutation-schemas.md) — use named request schemas to avoid validator/type barrel collisions; generated mutation clients need DOM.Iterable.
 - [Preview cookie rewriting](preview-cookie-rewriting.md) — HTTPS development preview changes SameSite to None; compare backend and proxy attributes before changing policy.
+- [CI test isolation](ci-test-isolation.md) — shared bulk-order fixtures and persistent login buckets require serial tests with disposable auth state.

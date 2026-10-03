@@ -28,6 +28,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - OpenAPI di `lib/api-spec`, model dan migration PostgreSQL di `lib/db`.
 - Docker Compose self-hosted dengan `database`, `migrate`, `api`, `web`.
 - Fase 5: `docker-compose.yml` menggantikan `compose.yaml`; frontend dan reverse proxy bersama di `web`. Panduan install/update ada di `docs/deployment.md`, script `sh deploy/stack.sh install|update`.
+- Fase 6: GitHub CI checks/build saja, tidak deploy ke STB atau publish image. Audit production high/critical memblokir; audit lengkap dev tooling sebagai laporan peringatan. Lihat `docs/ci.md`.
 - Target Linux amd64 dan arm64. Jangan menghapus native Linux arm64 packages dari pnpm overrides/lockfile.
 - PostgreSQL menggunakan persistent named volume. Update aplikasi tidak boleh menghapus data.
 - Compose migration service dipakai untuk PostgreSQL self-hosted; tidak dijalankan otomatis dari startup API pada Replit.

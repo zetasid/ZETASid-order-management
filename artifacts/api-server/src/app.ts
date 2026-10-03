@@ -2,8 +2,12 @@ import express, { type Express, type ErrorRequestHandler } from "express";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
 
 const app: Express = express();
+app.set("trust proxy", 1);
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, strictTransportSecurity: process.env.NODE_ENV === "production" ? { maxAge: 31536000 } : false }));
 
 app.use(
   pinoHttp({
@@ -25,8 +29,9 @@ app.use(
   }),
 );
 app.disable("x-powered-by");
-app.use(express.json({ limit: "32kb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use("/api", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+app.use(express.json({ limit: "16kb" }));
 
 app.use("/api", router);
 app.use("/api", (_req, res) => {
@@ -34,8 +39,10 @@ app.use("/api", (_req, res) => {
 });
 
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  req.log.error({ err }, "API request failed");
-  res.status(500).json({ error: "Terjadi kesalahan pada server." });
+  const status = err?.type === "entity.too.large" ? 413 : err?.type === "entity.parse.failed" ? 400 : 500;
+  // Raw exceptions can contain passwords, SQL parameters, tokens, and database URLs.
+  req.log.error({ status }, "API request failed");
+  res.status(status).json({ error: status === 500 ? "Terjadi kesalahan pada server." : "Permintaan tidak valid." });
 };
 app.use(errorHandler);
 

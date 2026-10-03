@@ -5,6 +5,31 @@
  * ZETAS.id order management API
  * OpenAPI spec version: 0.1.0
  */
+export interface LoginCredentials {
+  /**
+     * @minLength 3
+     * @maxLength 254
+     */
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export type AuthSessionUser = {
+  id: string;
+  email: string;
+  /** @nullable */
+  displayName: string | null;
+};
+
+export interface AuthSession {
+  user: AuthSessionUser;
+  csrfToken: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -72,6 +97,11 @@ export interface DashboardSummary {
 export interface ErrorResponse {
   error: string;
 }
+
+/**
+ * Generic authentication or access error; 429 includes Retry-After
+ */
+export type AuthErrorResponse = ErrorResponse;
 
 export type ListOrdersParams = {
 /**

@@ -6,11 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './authErrorResponse';
+export * from './authSession';
+export * from './authSessionUser';
 export * from './dashboardSummary';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './listOrdersParams';
 export * from './listOrdersStatus';
+export * from './loginCredentials';
 export * from './order';
 export * from './orderItem';
 export * from './orderItemStatus';

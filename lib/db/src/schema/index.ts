@@ -4,3 +4,4 @@ export * from "./users";
 export * from "./sync-logs";
 export * from "./system-logs";
 export * from "./relations";
+export * from "./auth";

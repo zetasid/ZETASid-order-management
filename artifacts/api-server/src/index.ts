@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
+import { removeExpiredAuthData } from "./modules/auth/session";
 
 const rawPort = process.env["PORT"];
 
@@ -11,6 +12,7 @@ if (!rawPort) {
 }
 
 const port = Number(rawPort);
+pool.on("error", () => logger.error("Database connection unavailable"));
 
 if (!Number.isInteger(port) || port <= 0 || port > 65535) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
@@ -26,9 +28,14 @@ server.on("error", (err) => {
     process.exit(1);
   }
 });
+const maintenance = setInterval(() => {
+  void removeExpiredAuthData().catch(() => logger.warn("Auth maintenance unavailable"));
+}, 10 * 60 * 1000);
+maintenance.unref();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
+    clearInterval(maintenance);
     logger.info({ signal }, "Shutting down");
     const timeout = setTimeout(() => process.exit(1), 10_000);
     timeout.unref();

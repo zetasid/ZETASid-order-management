@@ -1,16 +1,19 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createAuthorizedFixture } from "./auth-helper.mjs";
+const auth = await createAuthorizedFixture();
+after(() => auth.cleanup());
 
 const base = process.env.TEST_BASE_URL || "http://localhost:80";
 const api = process.env.TEST_API_URL || `${base}/api`;
 const run = promisify(execFile);
 
 async function json(path, status = 200) {
-  const response = await fetch(`${api}${path}`);
+  const response = await fetch(`${api}${path}`, { headers: { Cookie: auth.cookie } });
   assert.equal(response.status, status, path);
   return response.json();
 }

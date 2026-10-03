@@ -8,7 +8,8 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Fase 2 hanya menyiapkan database: users, orders, order_items, sync_logs, system_logs, relasi, unique constraint, dan migration aman. Tidak menambahkan UI atau integrasi.
 - Fase 3 UI pesanan mobile-first: dashboard, daftar/detail semua item, pencarian PostgreSQL, filter status, dan salin Digital Detail. Perubahan schema hanya menambahkan enum processing untuk Diproses; cancelled tetap dipertahankan untuk data lama.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, maupun auto-processing order.
-- Data awal kosong. Login belum mengautentikasi dan UI tidak boleh berpura-pura memiliki sesi pengguna.
+- Fase 4 mengaktifkan login email/password lokal, session PostgreSQL, authorization untuk seluruh data sistem, logout, serta rate limit/anti brute force. Akun dibuat dari console pengelola, tanpa pendaftaran publik.
+- Tidak ada credential/password default. Data awal tetap kosong; akun pertama diprovisikan melalui environment/Secrets privat.
 - Jangan menambah fitur di luar permintaan. Setelah implementasi dan tes, berhenti menunggu instruksi berikutnya.
 
 ## Run & Operate
@@ -32,6 +33,6 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Detail operasi, backup, build multi-platform, PWA, dan GitHub ada di `README.md`.
 - Aturan kompatibilitas legacy, relasi, dan preservasi data ada di `docs/database.md`; jangan membuat ID item fiktif untuk produk header lama.
 
-## Keamanan fase fondasi
+## Keamanan
 
-API masih baca-saja tanpa auth. Jangan masukkan data pelanggan atau gunakan sebagai sistem produksi publik sebelum autentikasi dan otorisasi ditambahkan dalam fase yang diminta pengguna.
+API pesanan tetap baca-saja dan wajib authorized. Seluruh operator aktif yang diprovisikan pengelola berizin membaca pesanan sistem; ini bukan multi-tenant. Production wajib HTTPS, secret session acak, dan reverse proxy terpercaya. Lihat `docs/security.md` untuk provisioning/reset/nonaktifkan akun, timeout, dan pemeriksaan dasar.

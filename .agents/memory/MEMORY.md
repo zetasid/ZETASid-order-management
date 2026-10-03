@@ -1,2 +1,5 @@
 - [Drizzle migration output](drizzle-migration-output.md) — use a relative output directory; absolute paths can fail when generating later migrations.
 - [Drizzle relational search](drizzle-relational-search.md) — embedded correlated subqueries may retain the original parent table name instead of its relational alias.
+- [Authentication choice](authentication-choice.md) — the user explicitly chose local PostgreSQL authentication, not managed Clerk.
+- [Orval mutation schemas](orval-mutation-schemas.md) — use named request schemas to avoid validator/type barrel collisions; generated mutation clients need DOM.Iterable.
+- [Preview cookie rewriting](preview-cookie-rewriting.md) — HTTPS development preview changes SameSite to None; compare backend and proxy attributes before changing policy.

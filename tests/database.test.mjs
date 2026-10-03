@@ -12,6 +12,7 @@ after(() => pool.end());
 
 const oldSql = await readFile(new URL("../lib/db/migrations/0000_volatile_mandarin.sql", import.meta.url), "utf8");
 const upgradeSql = await readFile(new URL("../lib/db/migrations/0001_phase2_database.sql", import.meta.url), "utf8");
+const authSql = await readFile(new URL("../lib/db/migrations/0003_phase4_local_auth.sql", import.meta.url), "utf8");
 
 // Replay real migration SQL in a random, transaction-local schema. Rollback removes
 // only test objects; no existing public table or application row is modified.
@@ -169,5 +170,19 @@ test("Data ID lama invalid menggagalkan migration secara atomik tanpa menghapus 
       [schema],
     );
     assert.deepEqual(tables.rows.map((row) => row.table_name), ["orders"]);
+  });
+});
+
+test("Migration autentikasi mempertahankan profil pengguna lama tanpa password default", async () => {
+  await isolated(async (client, migration, schema) => {
+    await client.query(migration);
+    const id = randomUUID();
+    await client.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,$3)", [id, "legacy-profile@example.invalid", "Legacy fixture"]);
+    const before = (await client.query("SELECT * FROM users WHERE id=$1", [id])).rows[0];
+    await client.query(authSql.replaceAll('"public".', `"${schema}".`));
+    const { password_hash, is_active, ...after } = (await client.query("SELECT * FROM users WHERE id=$1", [id])).rows[0];
+    assert.deepEqual(after, before);
+    assert.equal(password_hash, null);
+    assert.equal(is_active, true);
   });
 });

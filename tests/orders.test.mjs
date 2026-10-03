@@ -1,14 +1,17 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
+import { createAuthorizedFixture } from "./auth-helper.mjs";
+const auth = await createAuthorizedFixture();
+after(() => auth.cleanup());
 
 const require = createRequire(new URL("../lib/db/package.json", import.meta.url));
 const { Pool } = require("pg");
 const api = process.env.TEST_API_URL || `${process.env.TEST_BASE_URL || "http://localhost:80"}/api`;
 
 async function get(path, status = 200) {
-  const response = await fetch(`${api}${path}`);
+  const response = await fetch(`${api}${path}`, { headers: { Cookie: auth.cookie } });
   assert.equal(response.status, status, path);
   return response.json();
 }

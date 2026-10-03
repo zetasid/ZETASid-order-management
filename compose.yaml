@@ -37,6 +37,8 @@ services:
       NODE_ENV: production
       PORT: "5000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET (at least 32 random characters)}
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
     depends_on:
       database:
         condition: service_healthy

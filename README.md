@@ -8,7 +8,7 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - API modular baca-saja, PostgreSQL, versioned migration, dan data awal kosong.
 - Fase 2 menyiapkan `users`, `orders`, `order_items`, `sync_logs`, `system_logs`; rincian relasi, preservasi data, dan constraint ada di `docs/database.md`.
 - Fase 3 menambahkan pencarian ID/produk, filter Menunggu/Diproses/Selesai, semua item pada detail, dan salin Digital Detail dengan konfirmasi atau fallback pemilihan teks manual. Pencarian/filter tersimpan di URL saat membuka detail dan kembali.
-- Login hanya UI; **autentikasi belum diimplementasikan**. Aplikasi ini belum boleh diisi data pelanggan atau dibuka sebagai sistem produksi publik sebelum autentikasi dan otorisasi dibuat.
+- Fase 4 mengaktifkan login lokal email/password, session PostgreSQL, logout, authorization API, serta pembatasan brute force. Akun hanya dibuat pengelola; lihat `docs/security.md` untuk provisioning, kebijakan, dan kebutuhan HTTPS.
 - Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
 - Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
 
@@ -113,7 +113,8 @@ Instalasi PWA memerlukan HTTPS (kecuali localhost). Untuk host Linux, pasang HTT
 
 - `GET /api/healthz` — konektivitas server dan PostgreSQL
 - `GET /api/dashboard/summary` — jumlah tiap status, total nilai pesanan selesai, 5 pesanan terbaru
-- `GET /api/orders?search=...&status=...` — maksimal 100 pesanan terbaru yang cocok; pencarian ID Lazada/nama produk dan filter dijalankan di PostgreSQL sebelum limit. Parameter invalid menghasilkan 400.
+- `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` — login/session/logout; logout memerlukan CSRF token.
+- `GET /api/orders?search=...&status=...` — memerlukan authorization, maksimal 100 pesanan terbaru yang cocok; pencarian ID Lazada/nama produk dan filter dijalankan di PostgreSQL sebelum limit. Parameter invalid menghasilkan 400.
 - `GET /api/orders/:orderId` — header dan semua item beserta Digital Detail berdasarkan UUID, 400/404 untuk ID salah/tidak ada
 
 Kontrak berada di OpenAPI. Setelah kontrak diubah:

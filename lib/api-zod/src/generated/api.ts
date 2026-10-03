@@ -8,6 +8,41 @@
 import * as zod from 'zod';
 
 
+export const loginBodyEmailMin = 3;
+export const loginBodyEmailMax = 254;
+
+export const loginBodyPasswordMax = 128;
+
+
+
+export const LoginBody = zod.object({
+  "email": zod.string().email().min(loginBodyEmailMin).max(loginBodyEmailMax),
+  "password": zod.string().min(1).max(loginBodyPasswordMax)
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "displayName": zod.string().nullable()
+}),
+  "csrfToken": zod.string()
+})
+
+
+export const GetSessionResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "displayName": zod.string().nullable()
+}),
+  "csrfToken": zod.string()
+})
+
+
+export const LogoutResponse = zod.void()
+
+
 /**
  * Returns server health status
  * @summary Health check

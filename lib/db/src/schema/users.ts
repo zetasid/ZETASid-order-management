@@ -1,13 +1,15 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-// User records only; authentication is intentionally not implemented in this phase.
+// Existing records without a password hash cannot authenticate.
 export const usersTable = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
   externalAuthId: text("external_auth_id").unique(),
+  passwordHash: text("password_hash"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

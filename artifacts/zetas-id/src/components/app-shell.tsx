@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { LayoutDashboard, PackageSearch, Settings, LogIn } from 'lucide-react';
+import { LayoutDashboard, PackageSearch, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 const NAV = [
   { href: '/dashboard', label: 'Ringkasan', icon: LayoutDashboard, match: (l: string) => l === '/' || l.startsWith('/dashboard') },
@@ -19,6 +20,14 @@ export function Brand() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [loc] = useLocation();
+  const { signOut } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const leave = async () => {
+    setBusy(true); setError('');
+    try { await signOut(); } catch { setError('Keluar belum berhasil. Coba lagi.'); }
+    finally { setBusy(false); }
+  };
   return (
     <div className="min-h-[100dvh] pb-20 md:pb-0">
       <header className="sticky top-0 z-30 bg-primary text-primary-foreground">
@@ -33,11 +42,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <Link href="/login" data-testid="link-login" className="flex items-center gap-1.5 text-sm text-primary-foreground/80 hover:text-primary-foreground transition-colors">
-            <LogIn className="size-4" /> Masuk
-          </Link>
+          <button type="button" onClick={leave} disabled={busy} data-testid="button-logout" className="flex min-h-11 items-center gap-1.5 text-sm text-primary-foreground/80 hover:text-primary-foreground disabled:opacity-60">
+            <LogOut className="size-4" /> {busy ? 'Keluar…' : 'Keluar'}
+          </button>
         </div>
       </header>
+      {error && <p role="alert" className="mx-auto max-w-4xl px-4 pt-3 text-sm text-destructive">{error}</p>}
       <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
       <nav aria-label="Navigasi utama" className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-primary text-primary-foreground md:hidden pb-[env(safe-area-inset-bottom)]">
         <ul className="grid grid-cols-3">

@@ -17,6 +17,9 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _csrfToken: string | null = null;
+/** Memory only; never persist session tokens or credentials in browser storage. */
+export function setCsrfToken(value: string | null): void { _csrfToken = value; }
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -360,9 +363,13 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  if (_csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRF-Token", _csrfToken);
+  const response = await fetch(input, { ...init, credentials: init?.credentials ?? "same-origin", method, headers });
 
   if (!response.ok) {
+    if (response.status === 401 && !resolveUrl(input).split("?")[0].endsWith("/auth/login") && typeof window !== "undefined") {
+      window.dispatchEvent(new Event("zetas:session-expired"));
+    }
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);
   }

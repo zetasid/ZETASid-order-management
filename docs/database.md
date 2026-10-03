@@ -4,7 +4,7 @@
 
 | Tabel | Fungsi dan kolom utama |
 | --- | --- |
-| `users` | UUID `id`, `email` unik, `display_name`, `external_auth_id` unik opsional, `created_at`, `updated_at`. Tidak ada password, login, atau autentikasi yang diaktifkan. |
+| `users` | UUID `id`, `email` unik, `display_name`, `external_auth_id` unik opsional, `password_hash` nullable untuk profil lama, `is_active`, `created_at`, `updated_at`. Login lokal ditambahkan pada fase 4 tanpa password default. |
 | `orders` | UUID `id`, `lazada_order_id` unik dan wajib, `status`, `created_at`, `updated_at`. |
 | `order_items` | UUID `id`, `lazada_order_item_id` unik dan wajib, UUID `order_id`, `product_name`, JSONB `digital_detail`, `status`, `created_at`, `updated_at`. |
 | `sync_logs` | UUID `id`, `source`, `status`, `records_count`, `message`, JSONB `metadata`, `started_at`, `finished_at`, `created_at`. Penyimpanan saja, tanpa worker sinkronisasi. |
@@ -34,6 +34,8 @@ Kolom header lama `marketplace_order_id`, `product_name`, `buyer_name`, dan `amo
 Produk header lama tidak diubah menjadi item fiktif: ID Lazada item tidak tersedia pada data fase awal, sehingga tidak boleh dibuat secara sembarang. Tidak ada data order, item, user, atau log contoh yang ditambahkan oleh migration.
 
 Jangan menghapus kolom legacy atau migration yang telah diterapkan pada pengembangan berikutnya tanpa rencana migrasi data dan persetujuan terpisah.
+
+Fase 4 menambah `auth_sessions` (HMAC token, relasi user, waktu dibuat/kedaluwarsa) dan `auth_login_buckets` (key HMAC, jumlah percobaan, waktu reset), serta dua kolom pengguna. Migration additive tidak mengubah tabel/data pesanan maupun profil lama. Foreign key session memakai cascade hanya untuk data autentikasi sementara saat user dihapus; relasi order–item tetap RESTRICT. Rincian ada di `docs/security.md`.
 
 ## Menjalankan dan menguji
 

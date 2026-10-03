@@ -10,11 +10,14 @@ import Orders from '@/pages/orders';
 import OrderDetail from '@/pages/order-detail';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import {
   Route,
   Switch,
   useLocation,
   Router as WouterRouter,
+  Redirect,
+  useSearch,
 } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -27,6 +30,7 @@ function Router() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route>
+          <Protected>
           <AppShell>
             <Switch>
               <Route path="/" component={Dashboard} />
@@ -37,10 +41,20 @@ function Router() {
               <Route component={NotFound} />
             </Switch>
           </AppShell>
+          </Protected>
         </Route>
       </Switch>
     </RoutedErrorBoundary>
   );
+}
+
+function Protected({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const [location] = useLocation();
+  const search = useSearch();
+  if (loading) return <p role="status" className="p-6 text-center">Memeriksa sesi…</p>;
+  if (!user) return <Redirect to={`/login?next=${encodeURIComponent(location + (search ? `?${search}` : ''))}`} />;
+  return children;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
@@ -53,7 +67,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <AuthProvider>
           <Router />
+          </AuthProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

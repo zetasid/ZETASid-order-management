@@ -8,6 +8,49 @@
 import * as zod from 'zod';
 
 
+/**
+ * @summary Private cached connection status; never calls order APIs
+ */
+export const GetLazadaConnectionResponse = zod.object({
+  "mode": zod.enum(['testing']),
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "reason": zod.string(),
+  "country": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "lastCheckedAt": zod.string().nullable(),
+  "callbackUri": zod.string().nullable()
+})
+
+
+export const AuthorizeLazadaResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
+/**
+ * HTTPS only; single-use state, browser binding and initiating session required
+ */
+export const LazadaOAuthCallbackQueryParams = zod.object({
+  "state": zod.coerce.string().optional(),
+  "code": zod.coerce.string().optional()
+})
+
+export const LazadaOAuthCallbackResponse = zod.void()
+
+
+export const CheckLazadaConnectionResponse = zod.object({
+  "mode": zod.enum(['testing']),
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "reason": zod.string(),
+  "country": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "lastCheckedAt": zod.string().nullable(),
+  "callbackUri": zod.string().nullable()
+})
+
+
 export const loginBodyEmailMin = 3;
 export const loginBodyEmailMax = 254;
 

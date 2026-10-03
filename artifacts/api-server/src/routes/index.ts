@@ -3,17 +3,20 @@ import healthRouter from "./health";
 import ordersRouter from "./orders";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
+import { lazadaRouter, lazadaCallbackRouter } from "./lazada";
 import { requireSession, requireSameOrigin, requireCsrf } from "../modules/auth/session";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(lazadaCallbackRouter);
 router.use(requireSession);
 router.use((req, res, next) => {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) { next(); return; }
   requireSameOrigin(req, res, () => { requireCsrf(req, res, next); });
 });
+router.use(lazadaRouter);
 router.use(ordersRouter);
 router.use(dashboardRouter);
 router.all(["/orders", "/orders/:orderId"], (_req, res) => {

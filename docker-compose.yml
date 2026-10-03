@@ -61,6 +61,13 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET (at least 32 random characters)}
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
+      # Optional, backend-only. Do not pass these values to the web/build services.
+      LAZADA_MODE: ${LAZADA_MODE:-}
+      LAZADA_COUNTRY: ${LAZADA_COUNTRY:-id}
+      LAZADA_REDIRECT_URI: ${LAZADA_REDIRECT_URI:-}
+      LAZADA_APP_KEY: ${LAZADA_APP_KEY:-}
+      LAZADA_APP_SECRET: ${LAZADA_APP_SECRET:-}
+      LAZADA_TOKEN_ENCRYPTION_KEY: ${LAZADA_TOKEN_ENCRYPTION_KEY:-}
     depends_on:
       database:
         condition: service_healthy

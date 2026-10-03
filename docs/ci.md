@@ -64,4 +64,6 @@ GitHub Actions belum dapat dinyatakan sukses sebelum workflow benar-benar
 dijalankan di GitHub. Build image multi-platform memerlukan Docker daemon/QEMU
 runner GitHub, tidak tersedia pada workspace Replit ini.
 
-**Tidak ada deploy ke STB, publish image, maupun integrasi Lazada/Telegram/Digiflazz.**
+**Tidak ada deploy ke STB, publish image, atau pemanggilan Lazada nyata di CI.**
+Tes Lazada menggunakan simulasi provider terisolasi; bukan bukti OAuth/API Testing
+Lazada berhasil. Tidak ada integrasi Telegram/Digiflazz atau auto-processing.

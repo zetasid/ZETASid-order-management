@@ -5,3 +5,5 @@ export * from "./sync-logs";
 export * from "./system-logs";
 export * from "./relations";
 export * from "./auth";
+export * from "./lazada-connections";
+export * from "./lazada-oauth-states";

@@ -5,6 +5,32 @@
  * ZETAS.id order management API
  * OpenAPI spec version: 0.1.0
  */
+export type LazadaConnectionMode = typeof LazadaConnectionMode[keyof typeof LazadaConnectionMode];
+
+
+export const LazadaConnectionMode = {
+  testing: 'testing',
+} as const;
+
+export interface LazadaConnection {
+  mode: LazadaConnectionMode;
+  configured: boolean;
+  connected: boolean;
+  reason: string;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  lastCheckedAt: string | null;
+  /** @nullable */
+  callbackUri: string | null;
+}
+
+export interface LazadaAuthorization {
+  authorizationUrl: string;
+}
+
 export interface LoginCredentials {
   /**
      * @minLength 3
@@ -102,6 +128,11 @@ export interface ErrorResponse {
  * Generic authentication or access error; 429 includes Retry-After
  */
 export type AuthErrorResponse = ErrorResponse;
+
+export type LazadaOAuthCallbackParams = {
+state?: string;
+code?: string;
+};
 
 export type ListOrdersParams = {
 /**

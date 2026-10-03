@@ -2,13 +2,15 @@ import { useHealthCheck, getHealthCheckQueryKey } from '@workspace/api-client-re
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { ErrorState, PageHeading } from '@/components/states';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LazadaConnection } from '@/components/lazada-connection';
 
 export default function Settings() {
   usePageMeta('Pengaturan', 'Informasi dasar aplikasi dan status server ZETAS.id.');
   const q = useHealthCheck({ query: { queryKey: getHealthCheckQueryKey() } });
   return (
     <>
-      <PageHeading title="Pengaturan" sub="Informasi dasar aplikasi." />
+      <PageHeading title="Pengaturan" sub="Informasi aplikasi dan koneksi Lazada Testing." />
+      <LazadaConnection />
       <section className="mb-4 rounded-xl border bg-card p-4">
         <h2 className="mb-2 font-semibold">Status server</h2>
         {q.isLoading && <Skeleton data-testid="state-loading" className="h-6 w-40" />}
@@ -25,9 +27,9 @@ export default function Settings() {
         <dl className="divide-y text-sm">
           {[
             ['Aplikasi', 'ZETAS.id'],
-            ['Fase', 'Fondasi, tampilan baca saja'],
-            ['Integrasi', 'Belum ada yang terhubung'],
-            ['Autentikasi', 'Belum terhubung'],
+            ['Fase', 'Lazada Testing & OAuth'],
+            ['Integrasi', 'Lazada Testing; tanpa pemrosesan order'],
+            ['Autentikasi', 'Login lokal PostgreSQL'],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 py-2.5">
               <dt className="text-muted-foreground">{k}</dt>

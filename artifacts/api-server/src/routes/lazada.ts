@@ -1,0 +1,56 @@
+import { Router, type CookieOptions } from "express";
+import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse } from "@workspace/api-zod";
+import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
+import { configuration, validNonce } from "../modules/lazada/security";
+import { LazadaError } from "../modules/lazada/client";
+
+const BROWSER_COOKIE = "zetas_lazada_oauth";
+const options: CookieOptions = { httpOnly: true, secure: true, sameSite: "lax", path: "/api/lazada/oauth/callback" };
+export const lazadaCallbackRouter = Router();
+export const lazadaRouter = Router();
+
+lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
+  res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  const config = configuration();
+  const browser: unknown = req.cookies?.[BROWSER_COOKIE];
+  let outcome = "authorization_failed";
+  try {
+    if (!req.secure || !config || !validNonce(req.query.state) || !validNonce(browser))
+      throw new LazadaError("authorization_failed");
+    const code = typeof req.query.code === "string" && req.query.code.length > 0 && req.query.code.length <= 2048
+      && !req.query.error ? req.query.code : null;
+    await finishAuthorization(config, req.query.state, browser, code);
+    outcome = "connected";
+  } catch (error) {
+    if (error instanceof LazadaError) outcome = error.reason;
+    // Do not log the exception, provider response, code, state, cookies or token.
+    req.log.warn({ outcome }, "Lazada authorization not completed");
+  }
+  res.clearCookie(BROWSER_COOKIE, options);
+  // Same-origin relative redirect; no provider data is reflected to the frontend.
+  res.redirect(303, `/settings?lazada=${outcome}`);
+});
+
+lazadaRouter.get("/lazada/connection", async (_req, res) => {
+  res.json(GetLazadaConnectionResponse.parse(await connectionStatus(res.locals.auth.user.id)));
+});
+lazadaRouter.post("/lazada/oauth/authorize", async (req, res) => {
+  const config = configuration();
+  if (!config) { res.status(503).json({ error: "Konfigurasi Lazada Testing belum lengkap atau tidak valid." }); return; }
+  if (!req.secure) { res.status(400).json({ error: "OAuth Lazada hanya dapat dimulai melalui HTTPS." }); return; }
+  const result = await startAuthorization(config, res.locals.auth.user.id, res.locals.auth.tokenHash);
+  res.cookie(BROWSER_COOKIE, result.browser, { ...options, maxAge: 10 * 60_000 });
+  res.set("Referrer-Policy", "no-referrer").json({ authorizationUrl: result.authorizationUrl });
+});
+lazadaRouter.post("/lazada/check", async (_req, res) => {
+  if (!configuration()) { res.status(503).json({ error: "Konfigurasi Lazada Testing belum lengkap atau tidak valid." }); return; }
+  try {
+    res.json(CheckLazadaConnectionResponse.parse(await checkConnection(res.locals.auth.user.id)));
+  } catch (error) {
+    const reason = error instanceof LazadaError ? error.reason : "api_unavailable";
+    res.status(reason === "authorization_failed" ? 409 : 502).json({ error: reason === "permission_denied"
+      ? "Akses GetSeller belum diizinkan. Periksa permission minimum di App Console."
+      : reason === "authorization_failed" ? "Koneksi tidak valid atau token kedaluwarsa. Hubungkan ulang Lazada."
+      : "Lazada tidak dapat dihubungi. Coba cek koneksi kembali." });
+  }
+});

@@ -11,8 +11,8 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Fase 4 mengaktifkan login lokal email/password, session PostgreSQL, logout, authorization API, serta pembatasan brute force. Akun hanya dibuat pengelola; lihat `docs/security.md` untuk provisioning, kebijakan, dan kebutuhan HTTPS.
 - Fase 5 menyiapkan Docker Compose production, migration otomatis, volume PostgreSQL persisten, health check, serta prosedur install/update aman.
 - Fase 6 menyiapkan GitHub Actions untuk install, typecheck, test, build, validasi Compose, audit dependency dan build Docker AMD64/ARM64. Tidak melakukan deployment.
-- Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, atau auto-processing.
-- Pengaturan menampilkan informasi fondasi dan status server; belum ada konfigurasi integrasi.
+- Fase 7 menambahkan OAuth Lazada Testing dan pemeriksaan koneksi GetSeller di Pengaturan; token terenkripsi dan privat per akun ZETAS. Lihat `docs/lazada-testing.md`.
+- Tidak mengambil/memproses order Lazada, tidak ada auto-processing, Telegram Bot, atau Digiflazz.
 
 ## Struktur
 

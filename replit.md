@@ -7,7 +7,8 @@ Fondasi PWA mobile-first untuk pengelolaan pesanan digital Lazada.
 - Fase 1 menyiapkan fondasi project dan UI dasar: Login, Dashboard, Pesanan, Detail Pesanan, Pengaturan.
 - Fase 2 hanya menyiapkan database: users, orders, order_items, sync_logs, system_logs, relasi, unique constraint, dan migration aman. Tidak menambahkan UI atau integrasi.
 - Fase 3 UI pesanan mobile-first: dashboard, daftar/detail semua item, pencarian PostgreSQL, filter status, dan salin Digital Detail. Perubahan schema hanya menambahkan enum processing untuk Diproses; cancelled tetap dipertahankan untuk data lama.
-- Tidak ada integrasi Lazada, Telegram Bot, Digiflazz, maupun auto-processing order.
+- Fase 7 Lazada hanya mode Testing: OAuth dan cek koneksi GetSeller. Jangan mengambil/memproses order, menambah auto-processing, Telegram, Digiflazz, atau permission yang tidak diperlukan. Konfigurasi/pengujian: `docs/lazada-testing.md`.
+- Token Lazada privat per akun ZETAS, walaupun order lokal adalah data shared. Ini mencegah operator lain mengganti atau membaca credential koneksi tanpa role integrasi khusus.
 - Fase 4 mengaktifkan login email/password lokal, session PostgreSQL, authorization untuk seluruh data sistem, logout, serta rate limit/anti brute force. Akun dibuat dari console pengelola, tanpa pendaftaran publik.
 - Tidak ada credential/password default. Data awal tetap kosong; akun pertama diprovisikan melalui environment/Secrets privat.
 - Jangan menambah fitur di luar permintaan. Setelah implementasi dan tes, berhenti menunggu instruksi berikutnya.

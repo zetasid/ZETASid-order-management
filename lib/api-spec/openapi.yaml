@@ -17,6 +17,82 @@ tags:
   - name: orders
     description: Order read operations
 paths:
+  /lazada/connection:
+    get:
+      operationId: getLazadaConnection
+      tags: [lazada]
+      summary: Private cached connection status; never calls order APIs
+      responses:
+        "200":
+          description: Safe metadata only; never includes credentials or tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaConnection"
+        "401":
+          $ref: "#/components/responses/AuthError"
+  /lazada/oauth/authorize:
+    post:
+      operationId: authorizeLazada
+      tags: [lazada]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      responses:
+        "200":
+          description: Lazada authorization URL and HTTP-only browser binding cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaAuthorization"
+        "400":
+          $ref: "#/components/responses/AuthError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "403":
+          $ref: "#/components/responses/AuthError"
+        "503":
+          $ref: "#/components/responses/AuthError"
+  /lazada/oauth/callback:
+    get:
+      operationId: lazadaOAuthCallback
+      tags: [lazada]
+      security: []
+      description: HTTPS only; single-use state, browser binding and initiating session required
+      parameters:
+        - name: state
+          in: query
+          schema: { type: string }
+        - name: code
+          in: query
+          schema: { type: string }
+      responses:
+        "303":
+          description: Redirect to Settings with a safe outcome, never tokens or provider payload
+  /lazada/check:
+    post:
+      operationId: checkLazadaConnection
+      tags: [lazada]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      responses:
+        "200":
+          description: Explicit manual GetSeller check succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaConnection"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "403":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          $ref: "#/components/responses/AuthError"
+        "502":
+          $ref: "#/components/responses/AuthError"
+        "503":
+          $ref: "#/components/responses/AuthError"
   /auth/login:
     post:
       operationId: login
@@ -177,6 +253,23 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    LazadaConnection:
+      type: object
+      required: [mode, configured, connected, reason, country, expiresAt, lastCheckedAt, callbackUri]
+      properties:
+        mode: { type: string, enum: [testing] }
+        configured: { type: boolean }
+        connected: { type: boolean }
+        reason: { type: string }
+        country: { type: [string, "null"] }
+        expiresAt: { type: [string, "null"] }
+        lastCheckedAt: { type: [string, "null"] }
+        callbackUri: { type: [string, "null"] }
+    LazadaAuthorization:
+      type: object
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl: { type: string }
     LoginCredentials:
       type: object
       additionalProperties: false

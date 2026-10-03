@@ -5,3 +5,4 @@
 - [Preview cookie rewriting](preview-cookie-rewriting.md) — HTTPS development preview changes SameSite to None; compare backend and proxy attributes before changing policy.
 - [CI test isolation](ci-test-isolation.md) — shared bulk-order fixtures and persistent login buckets require serial tests with disposable auth state.
 - [Workspace dependency resolution](workspace-dependency-resolution.md) — audit the lockfile and check installed workspace versions; a scoped update can leave older symlinks.
+- [Negative security tests](negative-security-tests.md) — denial alone does not prove the intended guard ran; verify prerequisites and observable checkpoints.

@@ -1,6 +1,6 @@
 import express, { Router } from "express";
 import { configuration } from "../modules/lazada/security";
-import { validPushSignature, isDocumentedPushSample, parsePush } from "../modules/lazada/push-security";
+import { validPushSignature, parsePush } from "../modules/lazada/push-security";
 import { pushQuota, receivePush } from "../modules/lazada/push-receiver";
 
 export const lazadaPushRouter = Router();
@@ -14,11 +14,6 @@ lazadaPushRouter.post("/", express.raw({ type: "application/json", limit: "16kb"
     }
     if (!Buffer.isBuffer(req.body) || !validPushSignature(req.body, req.headers.authorization, config)) {
       res.status(401).json({ error: "Signature webhook tidak valid." }); return;
-    }
-    if (isDocumentedPushSample(req.body)) {
-      // LPM requires HTTP 200, not a challenge response body. A signed published
-      // sample is not a business event: never enqueue it or call the provider API.
-      res.status(200).end(); return;
     }
     let push;
     try { push = parsePush(req.body, config); }

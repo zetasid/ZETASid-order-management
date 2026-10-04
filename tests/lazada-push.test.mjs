@@ -87,24 +87,21 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       try { if ((await fetch(`${api}/healthz`)).ok) break; } catch {}
       await delay(50);
     }
-    // Exact public trade example from official LPM documentation, not customer data.
+    // Public trade example, NOT a documented contract for App Console Verify.
     const sample = { seller_id: "1234567", message_type: 0, site: "lazada_vn", timestamp: 1603766859530,
       data: { order_status: "unpaid", status_update_time: 1603698638,
         trade_order_id: "260422900198363", trade_order_line_id: "260422900298363" } };
-    await t.test("Signed documented self-test sample gets HTTP 200; duplicates never queue or create an order", async () => {
-      assert.equal(pure.isDocumentedPushSample(Buffer.from(JSON.stringify(sample))), true);
-      const start = performance.now();
-      const response = await send(sample);
-      assert.equal(response.status, 200);
-      assert.equal(await response.text(), "", "LPM requires HTTP status 200, not an invented challenge body");
-      assert.ok(performance.now() - start < 500, "LPM self-test acknowledgment deadline");
-      assert.equal((await send(sample)).status, 200);
-      assert.equal((await send(sample, {}, JSON.stringify(sample, null, 2))).status, 200);
+    await t.test("Signed public examples do not bypass normal site or timestamp validation", async () => {
+      assert.equal((await send(sample)).status, 400);
+      assert.equal((await send(sample)).status, 400);
+      assert.equal((await send(sample, {}, JSON.stringify(sample, null, 2))).status, 400);
+      assert.equal((await send({ ...sample, site: "lazada_id" })).status, 400, "Matching site does not exempt stale timestamps");
+      assert.equal((await send({ ...sample, timestamp: Date.now() })).status, 400, "Fresh timestamp does not exempt foreign sites");
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 0);
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM orders WHERE lazada_order_id=$1", [sample.data.trade_order_id])).rows[0].n, 0);
       assert.equal(await readFile(callsFile, "utf8"), "");
     });
-    await t.test("Self-test still requires HTTPS, raw-byte HMAC and every exact sample field", async () => {
+    await t.test("HTTPS and raw-byte HMAC remain mandatory; malformed payloads and guessed Verify flags are rejected", async () => {
       assert.equal((await send(sample, { Authorization: "" })).status, 401);
       assert.equal((await send(sample, { Authorization: "f".repeat(64) })).status, 401);
       assert.equal((await send(sample, { "X-Forwarded-Proto": "http" })).status, 400);
@@ -112,19 +109,15 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       const sign = createHmac("sha256", env.LAZADA_APP_SECRET).update(env.LAZADA_APP_KEY + raw).digest("hex");
       assert.equal((await send(sample, { Authorization: sign }, raw + " ")).status, 401);
       for (const invalid of [
-        { ...sample, seller_id: "1234568" }, { ...sample, message_type: -1 },
-        { ...sample, site: "lazada_id" }, { ...sample, timestamp: Date.now() },
-        { ...sample, test: true }, { ...sample, verify: true },
-        ...["order_status", "status_update_time", "trade_order_id", "trade_order_line_id"].map(key =>
-          ({ ...sample, data: { ...sample.data, [key]: key === "status_update_time" ? 1603698639
-            : key === "order_status" ? "confirmed" : String(BigInt(sample.data[key]) + 1n) } })),
-        { ...sample, seller_id: 1234567 },
-        { ...sample, data: { ...sample.data, test: true } },
-        { ...sample, data: null }, { ...sample, data: {} },
-        { message_type: 0, test: true }, null, [],
+        body({ message_type: -1 }), body({ seller_id: "" }),
+        body({ test: true, data: null }), body({ verify: true, data: {} }),
+        body({ data: { ...body().data, trade_order_id: "" } }),
+        body({ data: { ...body().data, trade_order_line_id: "" } }),
+        body({ data: { ...body().data, order_status: "" } }),
+        body({ data: { ...body().data, status_update_time: 0 } }),
+        { message_type: 0, test: true }, { message_type: 0, verify: true }, null, [],
       ]) {
-        assert.equal(pure.isDocumentedPushSample(Buffer.from(JSON.stringify(invalid))), false);
-        assert.equal((await send(invalid)).status, 400, "Unknown or malformed messages are not Verify");
+        assert.equal((await send(invalid)).status, 400, "Valid HMAC is not sufficient to accept an invalid order payload");
       }
       assert.equal((await send(sample, {}, "{")).status, 400);
       assert.equal((await send(sample, {}, JSON.stringify({ ...sample, extra: "x".repeat(17000) }))).status, 413);
@@ -231,7 +224,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       await f.pool.query(`INSERT INTO auth_login_buckets(key,attempts,reset_at) VALUES($1,120,now()+interval '1 minute')
         ON CONFLICT(key) DO UPDATE SET attempts=120,reset_at=now()+interval '1 minute'`, [digest("lpm-ip", ip)]);
       assert.equal((await send(notification)).status, 429);
-      assert.equal((await send(sample)).status, 429, "Self-test does not bypass the persistent quota");
+      assert.equal((await send(sample)).status, 429, "Signed public examples do not bypass the persistent quota");
       const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
       assert.ok(calls.every(c => c.method === "GET" && ["/order/get", "/order/items/get", "/orders/get"].includes(c.path)));
       assert.ok(calls.some(c => c.path === "/orders/get" && c.parameterNames.includes("update_after")));

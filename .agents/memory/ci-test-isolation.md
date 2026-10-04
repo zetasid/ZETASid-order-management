@@ -26,3 +26,9 @@ Keep a temporary PostgreSQL server's startup, tests and shutdown in one shell in
 **Why:** During isolated verification, a daemon started with `pg_ctl` was no longer alive in the next shell invocation, despite its earlier successful startup. This caused readiness failures and connection refusals unrelated to application code.
 
 **How to apply:** Do not assume daemonizing a child makes it persist between shell calls. Keep the full lifecycle together and use an exit trap for shutdown, or use the background-shell facility and stop it explicitly after testing.
+
+Select the client role explicitly when working with a newly initialized temporary PostgreSQL cluster.
+
+**Why:** Ambient PostgreSQL client defaults can select a role that does not exist in the temporary cluster, even though server startup succeeded. This is a test-harness setup failure, not an application regression.
+
+**How to apply:** Use the role created for the temporary cluster consistently in database creation and test connection configuration, rather than inheriting unrelated workspace client defaults.

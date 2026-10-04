@@ -16,3 +16,19 @@ probe, including redirects/login pages, and inspect the public certificate
 through an external TLS checker. Distinguish app signature rejection from
 platform authentication. A valid HTTPS certificate does not establish OV/EV
 eligibility or suitability for Lazada LPM.
+
+For Lazada Push Verify, never infer a verification payload contract from a static
+trade example, its IDs or timestamps, an invented flag, or a valid HMAC alone.
+
+**Why:** The user explicitly rejected static-sample recognition and instructed:
+"Jika dokumentasi tidak cukup untuk mengetahui format Verify aktual, jangan
+menebak dan jangan membuat bypass." The user states that actual Verify reaches
+their VPS but receives HTTP 400; callback reachability alone is not a payload
+contract.
+
+**How to apply:** Require documented or independently established Verify format
+before adding a separate ACK path. Preserve raw-body HMAC and normal order
+parser/queue; report missing evidence rather than claiming live Verify works.
+For this work, the user repeatedly instructs: do not commit or deploy; do not
+change OAuth, order sync, database schema, authentication, Docker, UI or other
+endpoints.

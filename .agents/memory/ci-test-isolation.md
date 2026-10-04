@@ -14,3 +14,9 @@ Node HTTP integration tests against the preview can retain handles after asserti
 **Why:** A completed test file can prevent later files from starting when its process cannot exit; that timeout is different from an assertion failure.
 
 **How to apply:** Ensure the test runner has an explicit exit policy after all tests and cleanup hooks complete. Do not bypass unfinished tests or cleanup to hide failures.
+
+Use synthetic fixtures when a read-only regression assumes an existing business-data distribution.
+
+**Why:** A read-only status regression failed on an empty disposable database because it assumed an existing order set. Copying customer rows into the test environment would unnecessarily expose customer data.
+
+**How to apply:** Reproduce the required distribution with synthetic rows in the disposable database. Keep real application data untouched, clean up the temporary database, and describe the result as fixture-backed verification, not verification of real customer orders.

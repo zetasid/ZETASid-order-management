@@ -20,3 +20,9 @@ Regression tests must own their synthetic fixture seeding and cleanup, not depen
 **Why:** A read-only status regression passed locally with externally seeded synthetic rows but still failed in GitHub Actions on a fresh empty database. Copying customer rows into the test environment would unnecessarily expose customer data and would not fix the hidden setup dependency.
 
 **How to apply:** Seed the required synthetic distribution inside the test and isolate it from unrelated rows. Keep exact mapping and integrity assertions, verify cleanup, and check both an empty database and one with unrelated synthetic background rows. Never copy real customer data or change production behavior to accommodate fixtures.
+
+Keep a temporary PostgreSQL server's startup, tests and shutdown in one shell invocation, or run it as an explicitly managed background task.
+
+**Why:** During isolated verification, a daemon started with `pg_ctl` was no longer alive in the next shell invocation, despite its earlier successful startup. This caused readiness failures and connection refusals unrelated to application code.
+
+**How to apply:** Do not assume daemonizing a child makes it persist between shell calls. Keep the full lifecycle together and use an exit trap for shutdown, or use the background-shell facility and stop it explicitly after testing.

@@ -10,6 +10,28 @@ export function validPushSignature(raw: Buffer, authorization: unknown, config: 
   const expected = createHmac("sha256", config.appSecret).update(config.appKey, "utf8").update(raw).digest();
   return timingSafeEqual(expected, Buffer.from(authorization, "hex"));
 }
+const sampleSchema = ReceiveLazadaOrderPushBody.strict().extend({
+  data: ReceiveLazadaOrderPushBody.shape.data.strict(),
+});
+export function isDocumentedPushSample(raw: Buffer) {
+  // LPM publishes a static trade sample (Vietnam, 2020), and requires a genuinely
+  // signed self-test ACK. It does not document a generic "verify" discriminator.
+  // Recognize ONLY the complete published sample, never merely an old timestamp,
+  // foreign site, test flag, message type or status. Caller must validate HMAC first.
+  // https://open.lazada.com/apps/doc/doc?nodeId=29524&docId=120168&lang=en_US
+  try {
+    const parsed = sampleSchema.safeParse(JSON.parse(raw.toString("utf8")));
+    if (!parsed.success) return false;
+    const p = parsed.data;
+    return p.seller_id === "1234567" && p.message_type === 0 && p.site === "lazada_vn"
+      && p.timestamp === 1603766859530 && p.data.order_status === "unpaid"
+      && p.data.status_update_time === 1603698638
+      && p.data.trade_order_id === "260422900198363"
+      && p.data.trade_order_line_id === "260422900298363";
+  } catch {
+    return false;
+  }
+}
 export function parsePush(raw: Buffer, config: LazadaConfig) {
   const parsed = ReceiveLazadaOrderPushBody.safeParse(JSON.parse(raw.toString("utf8")));
   if (!parsed.success || parsed.data.site !== `lazada_${config.country}`) throw new Error("invalid_push");

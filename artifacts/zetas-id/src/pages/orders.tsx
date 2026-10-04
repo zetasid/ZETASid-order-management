@@ -39,7 +39,7 @@ export default function Orders() {
   if (urlSearch.trim()) params.search = urlSearch.trim();
   if (status) params.status = status as ListOrdersParams['status'];
   const q = useListOrders(params, {
-    query: { queryKey: getListOrdersQueryKey(params), staleTime: 15000, refetchOnWindowFocus: true, refetchOnMount: true },
+    query: { queryKey: getListOrdersQueryKey(params), staleTime: 5000, refetchInterval: 5000, refetchOnWindowFocus: true, refetchOnMount: true },
   });
   const filtered = !!(params.search || params.status);
   const from = new URLSearchParams(Object.entries(params) as [string, string][]).toString();

@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 import { removeExpiredAuthData } from "./modules/auth/session";
+import { startOrderPushWorker } from "./modules/lazada/order-push-worker";
 
 const rawPort = process.env["PORT"];
 
@@ -32,10 +33,12 @@ const maintenance = setInterval(() => {
   void removeExpiredAuthData().catch(() => logger.warn("Auth maintenance unavailable"));
 }, 10 * 60 * 1000);
 maintenance.unref();
+const stopOrderPushWorker = startOrderPushWorker();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
     clearInterval(maintenance);
+    stopOrderPushWorker();
     logger.info({ signal }, "Shutting down");
     const timeout = setTimeout(() => process.exit(1), 10_000);
     timeout.unref();

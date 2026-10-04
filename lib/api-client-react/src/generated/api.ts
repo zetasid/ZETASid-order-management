@@ -33,6 +33,8 @@ import type {
   LazadaAuthorization,
   LazadaConnection,
   LazadaOAuthCallbackParams,
+  LazadaOrderNotification,
+  LazadaOrderPushStatus,
   LazadaOrderSyncInput,
   LazadaOrderSyncResult,
   ListOrdersParams,
@@ -66,6 +68,189 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getReceiveLazadaOrderPushUrl = () => {
+
+
+
+
+  return `/api/lazada/orders/push`
+}
+
+/**
+ * @summary HTTPS LPM order trigger; durable ACK, no order data trusted from the push
+ */
+export const receiveLazadaOrderPush = async (lazadaOrderNotification: LazadaOrderNotification, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getReceiveLazadaOrderPushUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(lazadaOrderNotification)
+  }
+);}
+
+
+
+
+
+export const getReceiveLazadaOrderPushMutationKey = () => ['receiveLazadaOrderPush'] as const;
+
+export const getReceiveLazadaOrderPushMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveLazadaOrderPush>>, TError,ReceiveLazadaOrderPushMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveLazadaOrderPush>>, TError,ReceiveLazadaOrderPushMutationVariables, TContext> => {
+
+const mutationKey = getReceiveLazadaOrderPushMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveLazadaOrderPush>>, ReceiveLazadaOrderPushMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveLazadaOrderPush(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveLazadaOrderPushMutationResult = NonNullable<Awaited<ReturnType<typeof receiveLazadaOrderPush>>>
+    export type ReceiveLazadaOrderPushMutationBody = BodyType<LazadaOrderNotification>
+    export type ReceiveLazadaOrderPushMutationError = ErrorType<void>
+    export type ReceiveLazadaOrderPushMutationVariables = {data: BodyType<LazadaOrderNotification>}
+
+    /**
+ * @summary HTTPS LPM order trigger; durable ACK, no order data trusted from the push
+ */
+export const useReceiveLazadaOrderPush = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveLazadaOrderPush>>, TError,ReceiveLazadaOrderPushMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof receiveLazadaOrderPush>>,
+        TError,
+        ReceiveLazadaOrderPushMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReceiveLazadaOrderPushMutationOptions(options), queryClient);
+    }
+
+export const getGetLazadaOrderPushStatusUrl = () => {
+
+
+
+
+  return `/api/lazada/orders/push-status`
+}
+
+export const getLazadaOrderPushStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<LazadaOrderPushStatus> => {
+
+  return customFetch<LazadaOrderPushStatus>(getGetLazadaOrderPushStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLazadaOrderPushStatusQueryKey = () => {
+    return [
+    `/api/lazada/orders/push-status`
+    ] as const;
+    }
+
+
+export const getGetLazadaOrderPushStatusQueryOptions = <TData = Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError = ErrorType<AuthErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLazadaOrderPushStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>> = ({ signal }) => getLazadaOrderPushStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLazadaOrderPushStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>>
+export type GetLazadaOrderPushStatusQueryError = ErrorType<AuthErrorResponse>
+
+
+export function useGetLazadaOrderPushStatus<TData = Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError = ErrorType<AuthErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLazadaOrderPushStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getLazadaOrderPushStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLazadaOrderPushStatus<TData = Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLazadaOrderPushStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getLazadaOrderPushStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLazadaOrderPushStatus<TData = Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetLazadaOrderPushStatus<TData = Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaOrderPushStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLazadaOrderPushStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSyncLazadaOrdersUrl = () => {
 

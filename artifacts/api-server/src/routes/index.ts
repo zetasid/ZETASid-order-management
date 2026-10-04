@@ -4,6 +4,7 @@ import ordersRouter from "./orders";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
 import { lazadaRouter, lazadaCallbackRouter } from "./lazada";
+import lazadaOrderStatusRouter from "./lazada-order-status";
 import { requireSession, requireSameOrigin, requireCsrf } from "../modules/auth/session";
 
 const router: IRouter = Router();
@@ -17,6 +18,7 @@ router.use((req, res, next) => {
   requireSameOrigin(req, res, () => { requireCsrf(req, res, next); });
 });
 router.use(lazadaRouter);
+router.use(lazadaOrderStatusRouter);
 router.use(ordersRouter);
 router.use(dashboardRouter);
 router.all(["/orders", "/orders/:orderId"], (_req, res) => {

@@ -17,6 +17,42 @@ tags:
   - name: orders
     description: Order read operations
 paths:
+  /lazada/orders/push:
+    post:
+      operationId: receiveLazadaOrderPush
+      tags: [lazada]
+      summary: HTTPS LPM order trigger; durable ACK, no order data trusted from the push
+      security: []
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema: { type: string, pattern: "^[a-fA-F0-9]{64}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LazadaOrderNotification"
+      responses:
+        "200": { description: Authenticated notification durably queued or duplicate acknowledged }
+        "400": { description: "Invalid payload, timestamp, site, or non-HTTPS request" }
+        "401": { description: Invalid LPM signature }
+        "429": { description: Webhook rate limit exceeded }
+        "503": { description: Notification not persisted; sender must retry }
+  /lazada/orders/push-status:
+    get:
+      operationId: getLazadaOrderPushStatus
+      tags: [lazada]
+      responses:
+        "200":
+          description: Safe ingestion metadata; no credentials or raw payloads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaOrderPushStatus"
+        "401":
+          $ref: "#/components/responses/AuthError"
   /lazada/orders/sync:
     post:
       operationId: syncLazadaOrders
@@ -286,6 +322,44 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    LazadaOrderNotification:
+      type: object
+      required: [seller_id, message_type, site, timestamp, data]
+      properties:
+        seller_id:
+          oneOf:
+            - { type: string, pattern: "^[1-9][0-9]{0,39}$" }
+            - { type: integer, minimum: 1, maximum: 9007199254740991 }
+        message_type: { type: integer, enum: [0] }
+        site: { type: string }
+        timestamp: { type: integer, minimum: 1 }
+        data:
+          type: object
+          required: [trade_order_id, trade_order_line_id, order_status, status_update_time]
+          properties:
+            trade_order_id:
+              oneOf:
+                - { type: string, pattern: "^[1-9][0-9]{0,39}$" }
+                - { type: integer, minimum: 1, maximum: 9007199254740991 }
+            trade_order_line_id:
+              oneOf:
+                - { type: string, pattern: "^[1-9][0-9]{0,39}$" }
+                - { type: integer, minimum: 1, maximum: 9007199254740991 }
+            order_status: { type: string, minLength: 1, maxLength: 64 }
+            status_update_time: { type: integer, minimum: 1 }
+    LazadaOrderPushStatus:
+      type: object
+      required: [active, lastPush, lastSync, lastError, pending, reconciliationHours, nextReconciliation, lastProcessedPush, webhookPath]
+      properties:
+        active: { type: boolean, description: At least one authenticated push has been successfully fetched from the order APIs; external subscription not introspected. }
+        lastPush: { type: ["string", "null"], format: date-time }
+        lastSync: { type: ["string", "null"], format: date-time }
+        lastError: { type: ["string", "null"] }
+        pending: { type: integer }
+        reconciliationHours: { type: integer }
+        nextReconciliation: { type: ["string", "null"], format: date-time }
+        lastProcessedPush: { type: ["string", "null"], format: date-time }
+        webhookPath: { type: string }
     LazadaOrderSyncInput:
       type: object
       additionalProperties: false

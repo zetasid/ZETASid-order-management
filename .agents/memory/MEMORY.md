@@ -10,3 +10,4 @@
 - [Logo pilihan pengguna](brand-logo.md) — gunakan logo ZETAS.id biru/cyan yang diberikan pengguna, bukan simbol Z pengganti.
 - [Aplikasi Lazada pengguna](lazada-app-context.md) — pengguna telah membuat Seller In-house APP dengan status Testing.
 - [Lazada status interpretation](lazada-status-interpretation.md) — inspect official flow diagrams; fix grouping through read projections when stored orders must remain unchanged.
+- [Webhook ACK lock isolation](webhook-ack-lock-isolation.md) — durable receipts must not wait on monitoring rows locked by slow provider-API workers.

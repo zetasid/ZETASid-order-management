@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link2, RefreshCw } from 'lucide-react';
-import { ApiError, useGetLazadaConnection, useAuthorizeLazada, useCheckLazadaConnection, getGetLazadaConnectionQueryKey } from '@workspace/api-client-react';
+import { ApiError, useGetLazadaConnection, useGetLazadaOrderPushStatus, useAuthorizeLazada, useCheckLazadaConnection, getGetLazadaConnectionQueryKey } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/states';
@@ -17,6 +17,7 @@ const date = (value: string | null) => value ? new Date(value).toLocaleString('i
 export function LazadaConnection() {
   const client = useQueryClient();
   const q = useGetLazadaConnection({ query: { staleTime: 0, refetchOnWindowFocus: true } });
+  const push = useGetLazadaOrderPushStatus({ query: { staleTime: 0, refetchInterval: 5000, refetchOnWindowFocus: true } });
   const authorize = useAuthorizeLazada();
   const check = useCheckLazadaConnection();
   const [message, setMessage] = useState<string | null>(null);
@@ -88,8 +89,21 @@ export function LazadaConnection() {
           <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">Negara toko</dt><dd>{q.data.country?.toUpperCase() ?? '—'}</dd></div>
           <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">Pemeriksaan terakhir</dt><dd>{date(q.data.lastCheckedAt)}</dd></div>
           <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">Token berlaku hingga</dt><dd>{date(q.data.expiresAt)}</dd></div>
+          {push.data && <>
+            <div className="flex flex-wrap justify-between gap-2" data-testid="lazada-push-status"><dt className="text-muted-foreground">Push Order</dt><dd>{q.data.connected && push.data.active ? 'Aktif (push berhasil diterima)' : 'Tidak Aktif / belum terverifikasi'}</dd></div>
+            <div className="flex flex-wrap justify-between gap-2" data-testid="lazada-last-push"><dt className="text-muted-foreground">Last Push</dt><dd>{date(push.data.lastPush)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-2" data-testid="lazada-last-sync"><dt className="text-muted-foreground">Last Sync</dt><dd>{date(push.data.lastSync)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-2" data-testid="lazada-last-error"><dt className="text-muted-foreground">Last Error</dt><dd className="max-w-full break-words">{push.data.lastError ?? '—'}</dd></div>
+            <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">Antrean push</dt><dd>{push.data.pending}</dd></div>
+            <div className="flex flex-wrap justify-between gap-2"><dt className="text-muted-foreground">Backup sinkronisasi</dt><dd>Tiap {push.data.reconciliationHours} jam</dd></div>
+          </>}
           {q.data.callbackUri && <div><dt className="text-muted-foreground">Callback HTTPS</dt><dd className="mt-1 break-all font-mono text-xs">{q.data.callbackUri}</dd></div>}
         </dl>
+        {push.isError && <p className="mb-3 text-sm" role="alert">Status Push Order belum dapat dimuat.</p>}
+        {push.data && <p className="mb-3 text-xs text-muted-foreground">
+          Webhook: <code className="break-all">{push.data.webhookPath}</code>. Verifikasi URL HTTPS tetap dan subscribe Order Status Change (type 0) di Message Service Lazada.
+          Status Aktif berarti push bertanda tangan telah berhasil dibaca dari API, bukan konfirmasi subscription dari App Console.
+        </p>}
         <div className="flex flex-wrap gap-2">
           <Button onClick={connect} disabled={!q.data.configured || pending} data-testid="lazada-connect">
             {authorize.isPending ? 'Menyiapkan OAuth…' : q.data.lastCheckedAt ? 'Hubungkan ulang Lazada' : 'Hubungkan Lazada'}
@@ -103,7 +117,7 @@ export function LazadaConnection() {
       {message && <p className="mt-3 text-sm" role="status">{message}</p>}
       <p className="mt-4 text-xs text-muted-foreground">
         Koneksi khusus akun ZETAS Anda. Pemeriksaan hanya membaca informasi dasar seller.
-        Tidak mengambil order, tidak memproses order, dan tidak menjalankan proses otomatis.
+        Pemasukan order otomatis hanya membaca API dan menyimpan data. Tidak memproses fulfillment atau menjalankan DeliverDigital.
         Status Terhubung mencerminkan verifikasi terakhir; gunakan Cek koneksi untuk memeriksa ulang.
       </p>
     </section>

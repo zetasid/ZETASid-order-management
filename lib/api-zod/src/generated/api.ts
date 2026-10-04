@@ -9,6 +9,60 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary HTTPS LPM order trigger; durable ACK, no order data trusted from the push
+ */
+export const receiveLazadaOrderPushHeaderAuthorizationRegExp = new RegExp('^[a-fA-F0-9]{64}$');
+
+
+export const ReceiveLazadaOrderPushHeader = zod.object({
+  "Authorization": zod.string().regex(receiveLazadaOrderPushHeaderAuthorizationRegExp)
+})
+
+export const receiveLazadaOrderPushBodySellerIdOneRegExp = new RegExp('^[1-9][0-9]{0,39}$');
+export const receiveLazadaOrderPushBodySellerIdTwoMax = 9007199254740991;
+
+
+export const receiveLazadaOrderPushBodyDataTradeOrderIdOneRegExp = new RegExp('^[1-9][0-9]{0,39}$');
+export const receiveLazadaOrderPushBodyDataTradeOrderIdTwoMax = 9007199254740991;
+
+export const receiveLazadaOrderPushBodyDataTradeOrderLineIdOneRegExp = new RegExp('^[1-9][0-9]{0,39}$');
+export const receiveLazadaOrderPushBodyDataTradeOrderLineIdTwoMax = 9007199254740991;
+
+export const receiveLazadaOrderPushBodyDataOrderStatusMax = 64;
+
+
+
+
+export const ReceiveLazadaOrderPushBody = zod.object({
+  "seller_id": zod.union([zod.string().regex(receiveLazadaOrderPushBodySellerIdOneRegExp),zod.number().int().min(1).max(receiveLazadaOrderPushBodySellerIdTwoMax)]),
+  "message_type": zod.literal(0),
+  "site": zod.string(),
+  "timestamp": zod.number().int().min(1),
+  "data": zod.object({
+  "trade_order_id": zod.union([zod.string().regex(receiveLazadaOrderPushBodyDataTradeOrderIdOneRegExp),zod.number().int().min(1).max(receiveLazadaOrderPushBodyDataTradeOrderIdTwoMax)]),
+  "trade_order_line_id": zod.union([zod.string().regex(receiveLazadaOrderPushBodyDataTradeOrderLineIdOneRegExp),zod.number().int().min(1).max(receiveLazadaOrderPushBodyDataTradeOrderLineIdTwoMax)]),
+  "order_status": zod.string().min(1).max(receiveLazadaOrderPushBodyDataOrderStatusMax),
+  "status_update_time": zod.number().int().min(1)
+})
+})
+
+export const ReceiveLazadaOrderPushResponse = zod.unknown()
+
+
+export const GetLazadaOrderPushStatusResponse = zod.object({
+  "active": zod.boolean().describe('At least one authenticated push has been successfully fetched from the order APIs; external subscription not introspected.'),
+  "lastPush": zod.coerce.date().nullable(),
+  "lastSync": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "pending": zod.number().int(),
+  "reconciliationHours": zod.number().int(),
+  "nextReconciliation": zod.coerce.date().nullable(),
+  "lastProcessedPush": zod.coerce.date().nullable(),
+  "webhookPath": zod.string()
+})
+
+
+/**
  * @summary Manually read one page of GetOrders and all its GetOrderItems; never writes to Lazada
  */
 export const syncLazadaOrdersBodyOffsetMin = 0;

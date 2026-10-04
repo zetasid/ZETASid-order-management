@@ -5,6 +5,52 @@
  * ZETAS.id order management API
  * OpenAPI spec version: 0.1.0
  */
+export type LazadaOrderNotificationMessageType = typeof LazadaOrderNotificationMessageType[keyof typeof LazadaOrderNotificationMessageType];
+
+
+export const LazadaOrderNotificationMessageType = {
+  NUMBER_0: 0,
+} as const;
+
+export type LazadaOrderNotificationData = {
+  trade_order_id: string | number;
+  trade_order_line_id: string | number;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  order_status: string;
+  /** @minimum 1 */
+  status_update_time: number;
+};
+
+export interface LazadaOrderNotification {
+  seller_id: string | number;
+  message_type: LazadaOrderNotificationMessageType;
+  site: string;
+  /** @minimum 1 */
+  timestamp: number;
+  data: LazadaOrderNotificationData;
+}
+
+export interface LazadaOrderPushStatus {
+  /** At least one authenticated push has been successfully fetched from the order APIs; external subscription not introspected. */
+  active: boolean;
+  /** @nullable */
+  lastPush: string | null;
+  /** @nullable */
+  lastSync: string | null;
+  /** @nullable */
+  lastError: string | null;
+  pending: number;
+  reconciliationHours: number;
+  /** @nullable */
+  nextReconciliation: string | null;
+  /** @nullable */
+  lastProcessedPush: string | null;
+  webhookPath: string;
+}
+
 export interface LazadaOrderSyncInput {
   createdAfter: string;
   createdBefore: string;

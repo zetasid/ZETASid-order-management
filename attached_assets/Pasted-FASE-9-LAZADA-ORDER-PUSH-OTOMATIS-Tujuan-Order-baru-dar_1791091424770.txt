@@ -1,0 +1,109 @@
+FASE 9 — LAZADA ORDER PUSH OTOMATIS
+
+Tujuan:
+Order baru dari akun Lazada ZETAS masuk otomatis ke database ZETAS tanpa klik "Baca order Lazada".
+
+Koneksi OAuth Lazada akun ZETAS SUDAH BERHASIL.
+GetOrders + GetOrderItems SUDAH BERHASIL membaca order nyata.
+JANGAN membuat koneksi Lazada baru.
+
+Implementasikan hanya ORDER PUSH, belum auto-processing.
+
+1. Lazada Push Mechanism
+- Buat endpoint webhook HTTPS untuk menerima push order Lazada.
+- Verifikasi keamanan/signature sesuai dokumentasi resmi Lazada.
+- Jangan menerima push tanpa validasi.
+- Jangan log access token, App Secret, digital_detail, atau data sensitif.
+
+2. Saat menerima push:
+- Ambil trade_order_id/order identifier dari payload sesuai field resmi Lazada.
+- Jangan langsung membuat data order hanya dari payload push.
+- Gunakan push sebagai trigger.
+- Setelah push valid, ambil data resmi dengan:
+  /order/get
+  /order/items/get
+- Gunakan data API Lazada sebagai source of truth.
+
+3. Simpan ke PostgreSQL
+- Gunakan unique lazada_order_id.
+- Gunakan unique lazada_order_item_id.
+- Jika order sudah ada, UPDATE data yang berubah.
+- Jangan membuat duplicate.
+- Transaksi database harus atomic.
+
+4. Digital Detail
+- Ambil dari field API yang sudah terbukti:
+  digital_delivery_info
+- Jangan menebak field lain.
+- Jangan log nilai Digital Detail.
+
+5. Status
+Pertahankan mapping yang sudah dibuat:
+unpaid,pending -> Menunggu
+repacked,packed,ready_to_ship_pending,ready_to_ship,shipped,topack,toship,shipping -> Diproses
+delivered,confirmed -> Selesai
+canceled -> Dibatalkan
+
+6. Idempotency
+Lazada push menggunakan at-least-once delivery.
+Push yang sama dapat diterima lebih dari sekali.
+Pastikan tidak terjadi duplicate order/item.
+
+7. Recovery
+Tetap pertahankan tombol "Baca order Lazada".
+Tambahkan reconciliation/sync berkala dengan frekuensi rendah sebagai backup jika webhook/push gagal.
+Jangan menghapus data order yang sudah ada.
+
+8. TIDAK BOLEH
+- Tidak DeliverDigital
+- Tidak mengubah status Lazada
+- Tidak auto-processing
+- Tidak Digiflazz
+- Tidak Telegram
+- Tidak payment
+- Tidak upload foto
+- Tidak meminta App Secret/token dari user
+- Tidak mengubah OAuth yang sudah berjalan
+
+9. Keamanan
+- Webhook harus HTTPS.
+- Validasi signature/authentication sesuai dokumentasi Lazada.
+- Rate limit webhook.
+- Validasi payload.
+- Lindungi endpoint dari replay/duplicate.
+- Jangan expose secret ke frontend.
+- Jangan menulis credential/data sensitif ke log.
+
+10. UI
+Di Pengaturan -> Koneksi Lazada tampilkan:
+- Terhubung
+- Push Order: Aktif/Tidak Aktif
+- Last Push
+- Last Sync
+- Last Error
+
+Di Pesanan:
+- Order baru otomatis muncul.
+- Tidak perlu refresh manual jika memungkinkan.
+- Tetap ada tombol sync manual sebagai fallback.
+
+11. TEST
+Buat test untuk:
+- push valid
+- push invalid
+- duplicate push
+- order baru
+- order existing/update
+- multiple order items
+- digital_delivery_info
+- status mapping
+- webhook authentication
+- failed API fetch lalu retry/reconciliation
+
+Setelah selesai laporkan:
+A. endpoint webhook yang dibuat
+B. cara subscribe/aktifkan LPM di Lazada
+C. apakah push sudah benar-benar aktif
+D. hasil test
+E. apakah order baru benar-benar masuk otomatis
+F. jangan lanjut ke fitur lain.

@@ -4,6 +4,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import { lazadaPushRouter } from "./routes/lazada-push";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -31,6 +32,8 @@ app.use(
 app.disable("x-powered-by");
 app.use(cookieParser());
 app.use("/api", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+// Outside cookie/CSRF auth, but protected by LPM signature over exact raw bytes.
+app.use("/api/lazada/orders/push", lazadaPushRouter);
 app.use(express.json({ limit: "16kb" }));
 
 app.use("/api", router);
@@ -39,7 +42,7 @@ app.use("/api", (_req, res) => {
 });
 
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  const status = err?.type === "entity.too.large" ? 413 : err?.type === "entity.parse.failed" ? 400 : 500;
+  const status = err?.type === "entity.too.large" ? 413 : err?.type === "entity.parse.failed" ? 400 : err?.type === "encoding.unsupported" ? 415 : 500;
   // Raw exceptions can contain passwords, SQL parameters, tokens, and database URLs.
   req.log.error({ status }, "API request failed");
   res.status(status).json({ error: status === 500 ? "Terjadi kesalahan pada server." : "Permintaan tidak valid." });

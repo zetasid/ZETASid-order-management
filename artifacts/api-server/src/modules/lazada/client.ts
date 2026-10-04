@@ -12,7 +12,7 @@ export function signature(path: string, params: Record<string, string>, secret: 
 }
 // Explicit allowlist: OAuth, seller verification and READ-ONLY order APIs only.
 export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal) {
-  async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/items/get", business: Record<string, string>) {
+  async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get", business: Record<string, string>) {
     const params = { ...business, app_key: config.appKey, sign_method: "sha256", timestamp: String(Date.now()) };
     const signed = new URLSearchParams({ ...params, sign: signature(path, params, config.appSecret) });
     const url = new URL((path === "/auth/token/create" ? "https://auth.lazada.com/rest" : endpoints[config.country]) + path);
@@ -74,6 +74,22 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
         || body.data.some((item: unknown) => !item || typeof item !== "object" || Array.isArray(item)))
         throw new LazadaError("invalid_response");
       return { items: body.data as Record<string, unknown>[], responseFields: Object.keys(body) };
+    },
+    async getOrder(accessToken: string, orderId: string) {
+      const body = await call("/order/get", { access_token: accessToken, order_id: orderId });
+      if (!body.data || typeof body.data !== "object" || Array.isArray(body.data))
+        throw new LazadaError("invalid_response");
+      return body.data as Record<string, unknown>;
+    },
+    async getUpdatedOrders(accessToken: string, filters: { after: string; before: string; offset: number; limit: number }) {
+      const body = await call("/orders/get", { access_token: accessToken, update_after: filters.after,
+        update_before: filters.before, offset: String(filters.offset), limit: String(filters.limit),
+        sort_by: "updated_at", sort_direction: "ASC" });
+      if (!body.data || !Array.isArray(body.data.orders)
+        || body.data.orders.some((order: unknown) => !order || typeof order !== "object" || Array.isArray(order)))
+        throw new LazadaError("invalid_response");
+      return { orders: body.data.orders as Record<string, unknown>[],
+        countTotal: Number.isSafeInteger(body.data.countTotal) && body.data.countTotal >= 0 ? body.data.countTotal as number : null };
     },
   };
 }

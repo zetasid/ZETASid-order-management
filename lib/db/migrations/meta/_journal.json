@@ -43,6 +43,13 @@
       "when": 1791083840222,
       "tag": "0005_short_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791091920336,
+      "tag": "0006_workable_shard",
+      "breakpoints": true
     }
   ]
 }

@@ -27,3 +27,5 @@ packages = ["docker-compose", "nginx", "actionlint", "postgresql_17"]
 
 [userenv.shared]
 AUTH_SETUP_EMAIL = "admin@zetas.id"
+LAZADA_MODE = "testing"
+LAZADA_REDIRECT_URI = "https://46f324f1-fb9e-4d25-8139-6c1debf0bce3-00-n3izhimkt3ox.archer.replit.dev/api/lazada/oauth/callback"

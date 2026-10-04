@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { LayoutDashboard, PackageSearch, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import logo from '@/assets/zetas-logo.png';
 
 const NAV = [
   { href: '/dashboard', label: 'Ringkasan', icon: LayoutDashboard, match: (l: string) => l === '/' || l.startsWith('/dashboard') },
@@ -9,12 +10,10 @@ const NAV = [
   { href: '/settings', label: 'Pengaturan', icon: Settings, match: (l: string) => l.startsWith('/settings') },
 ];
 
-export function Brand() {
+export function Brand({ className = 'size-12' }: { className?: string }) {
   return (
-    <span className="inline-flex items-center gap-2 font-bold tracking-tight text-lg">
-      <span className="grid size-7 place-items-center rounded-md bg-accent text-accent-foreground font-mono text-sm">Z</span>
-      ZETAS<span className="text-primary-foreground/70 font-medium">.id</span>
-    </span>
+    <img src={logo} alt="ZETAS.id" width={200} height={200}
+      className={`block shrink-0 rounded-md object-contain ${className}`} />
   );
 }
 

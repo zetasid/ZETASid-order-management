@@ -28,7 +28,7 @@ export default function Login() {
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-primary px-4 text-primary-foreground">
       <div className="w-full max-w-sm">
-        <Brand />
+        <Brand className="size-36" />
         <h1 className="mt-8 text-3xl font-bold tracking-tight">Masuk</h1>
         <p className="mt-3 text-sm text-primary-foreground/75">Akses khusus pengguna yang diberi izin oleh pengelola.</p>
         <form onSubmit={submit} className="mt-6 space-y-4">

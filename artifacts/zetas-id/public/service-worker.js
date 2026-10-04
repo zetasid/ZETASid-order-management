@@ -1,5 +1,5 @@
 // Shell assets only: never cache API responses, credentials, or order data.
-const CACHE = "zetas-shell-v1";
+const CACHE = "zetas-shell-v2";
 const ROOT = self.registration.scope;
 
 self.addEventListener("install", (event) => {

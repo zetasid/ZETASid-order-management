@@ -32,6 +32,7 @@ export interface Order {
   currency?: string | null;
   /** @nullable */
   syncedAt?: Date | null;
+  /** @nullable */
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;

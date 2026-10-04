@@ -387,8 +387,8 @@ components:
         currency: { type: ["string", "null"] }
         syncedAt: { type: ["string", "null"], format: date-time }
         status:
-          type: string
-          enum: [pending, processing, completed, cancelled]
+          type: ["string", "null"]
+          enum: [pending, processing, completed, cancelled, null]
         createdAt:
           type: string
           format: date-time
@@ -438,8 +438,8 @@ components:
         shopSku: { type: ["string", "null"] }
         extraAttributes: { type: ["string", "null"] }
         status:
-          type: string
-          enum: [pending, processing, completed, cancelled]
+          type: ["string", "null"]
+          enum: [pending, processing, completed, cancelled, null]
         createdAt:
           type: string
           format: date-time
@@ -460,6 +460,9 @@ components:
           type: integer
         cancelledOrders:
           type: integer
+        unmappedOrders:
+          type: integer
+          description: Unknown provider statuses remain unclassified; never guessed as pending.
         totalRevenue:
           type: number
         recentOrders:

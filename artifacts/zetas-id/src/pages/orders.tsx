@@ -8,7 +8,7 @@ import { OrderRow } from '@/components/order-row';
 import { LazadaOrderSync } from '@/components/lazada-order-sync';
 
 const FILTERS = [
-  ['', 'Semua'], ['pending', 'Menunggu'], ['processing', 'Diproses'], ['completed', 'Selesai'],
+  ['', 'Semua'], ['pending', 'Menunggu'], ['processing', 'Diproses'], ['completed', 'Selesai'], ['cancelled', 'Dibatalkan'],
 ] as const;
 const VALID = ['pending', 'processing', 'completed', 'cancelled'];
 
@@ -65,10 +65,6 @@ export default function Orders() {
             onClick={() => setUrl(text, v)}
             className={`min-h-11 rounded-full border px-4 text-sm font-medium ${status === v ? 'border-primary bg-primary text-primary-foreground' : 'bg-card'}`}>{l}</button>
         ))}
-        {status === 'cancelled' && (
-          <button type="button" aria-pressed data-testid="filter-cancelled" onClick={() => setUrl(text, '')}
-            className="min-h-11 rounded-full border border-primary bg-primary px-4 text-sm font-medium text-primary-foreground">Dibatalkan (data lama)</button>
-        )}
       </div>
       {q.isLoading && <ListSkeleton rows={4} />}
       {q.isError && <ErrorState text="Daftar pesanan belum bisa diambil." onRetry={() => q.refetch()} />}

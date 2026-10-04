@@ -8,7 +8,7 @@
 - Seluruh halaman disimpan atomik setelah semua detail valid. Error tidak memasang data parsial.
 - Key/token selalu digunakan di backend. Token tetap terenkripsi; raw payload, query provider, dan nilai customer tidak dicetak ke log.
 - Nominal disimpan sebagai numeric(18,2), bukan pembulatan integer; harga mentah API juga dipertahankan. Migrasi mempertahankan nilai lama.
-- Status Lazada asli ditampilkan; enum lokal lama hanya kelompok kompatibilitas untuk filter/dashboard.
+- Status Lazada asli ditampilkan; kelompok filter/detail/dashboard dihitung dari status item API saat dibaca, bukan dari enum tersimpan yang mungkin stale. Aturan: `docs/lazada-status-mapping.md`.
 - `digital_delivery_info` adalah field terdokumentasi GetOrderItems dan diamati di response nyata. Nilai string dipertahankan persis, tidak diparsing menjadi tujuan yang ditebak.
 - `extra_attributes` ditampilkan terpisah sesuai nilai asli. Tidak diasumsikan sebagai Digital Detail.
 - Field kosong/absen/null tidak diganti data buatan. Alamat/penerima tidak disimpan karena tidak dibutuhkan untuk tampilan fase ini.

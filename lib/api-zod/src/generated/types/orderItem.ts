@@ -39,6 +39,7 @@ export interface OrderItem {
   shopSku?: string | null;
   /** @nullable */
   extraAttributes?: string | null;
+  /** @nullable */
   status: OrderItemStatus;
   createdAt: Date;
   updatedAt: Date;

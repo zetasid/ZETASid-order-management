@@ -84,7 +84,10 @@ export interface HealthStatus {
   status: string;
 }
 
-export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
+/**
+ * @nullable
+ */
+export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus] | null;
 
 
 export const OrderStatus = {
@@ -94,7 +97,10 @@ export const OrderStatus = {
   cancelled: 'cancelled',
 } as const;
 
-export type OrderItemStatus = typeof OrderItemStatus[keyof typeof OrderItemStatus];
+/**
+ * @nullable
+ */
+export type OrderItemStatus = typeof OrderItemStatus[keyof typeof OrderItemStatus] | null;
 
 
 export const OrderItemStatus = {
@@ -136,6 +142,7 @@ export interface OrderItem {
   shopSku?: string | null;
   /** @nullable */
   extraAttributes?: string | null;
+  /** @nullable */
   status: OrderItemStatus;
   createdAt: string;
   updatedAt: string;
@@ -165,6 +172,7 @@ export interface Order {
   currency?: string | null;
   /** @nullable */
   syncedAt?: string | null;
+  /** @nullable */
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;
@@ -177,6 +185,8 @@ export interface DashboardSummary {
   processingOrders: number;
   completedOrders: number;
   cancelledOrders: number;
+  /** Unknown provider statuses remain unclassified; never guessed as pending. */
+  unmappedOrders?: number;
   totalRevenue: number;
   recentOrders: Order[];
 }

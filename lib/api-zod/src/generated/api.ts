@@ -135,6 +135,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "processingOrders": zod.number().int(),
   "completedOrders": zod.number().int(),
   "cancelledOrders": zod.number().int(),
+  "unmappedOrders": zod.number().int().optional().describe('Unknown provider statuses remain unclassified; never guessed as pending.'),
   "totalRevenue": zod.number(),
   "recentOrders": zod.array(zod.object({
   "id": zod.string().uuid(),
@@ -149,7 +150,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "sourcePrice": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "syncedAt": zod.coerce.date().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "items": zod.array(zod.object({
@@ -169,7 +170,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "sku": zod.string().nullish(),
   "shopSku": zod.string().nullish(),
   "extraAttributes": zod.string().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -207,7 +208,7 @@ export const ListOrdersResponseItem = zod.object({
   "sourcePrice": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "syncedAt": zod.coerce.date().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "items": zod.array(zod.object({
@@ -227,7 +228,7 @@ export const ListOrdersResponseItem = zod.object({
   "sku": zod.string().nullish(),
   "shopSku": zod.string().nullish(),
   "extraAttributes": zod.string().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -259,7 +260,7 @@ export const GetOrderResponse = zod.object({
   "sourcePrice": zod.string().nullish(),
   "currency": zod.string().nullish(),
   "syncedAt": zod.coerce.date().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "items": zod.array(zod.object({
@@ -279,7 +280,7 @@ export const GetOrderResponse = zod.object({
   "sku": zod.string().nullish(),
   "shopSku": zod.string().nullish(),
   "extraAttributes": zod.string().nullish(),
-  "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))

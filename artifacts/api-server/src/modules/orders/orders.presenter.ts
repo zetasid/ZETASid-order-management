@@ -1,5 +1,6 @@
 import type { Order, OrderItem } from "@workspace/db";
 import { sourceText } from "../lazada/order-mapping";
+import { itemStatusGroup, readOrderStatus } from "./order-status";
 
 function digitalText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -25,7 +26,7 @@ export function presentOrder(order: Order & { items: OrderItem[] }) {
     sourcePrice: sourceText(data?.price),
     currency: currencies.length === 1 ? currencies[0] : null,
     syncedAt: order.syncedAt?.toISOString() ?? null,
-    status: order.status,
+    status: readOrderStatus(order),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     items: order.items.map((item) => ({
@@ -45,7 +46,7 @@ export function presentOrder(order: Order & { items: OrderItem[] }) {
       sku: sourceText(item.lazadaData?.sku),
       shopSku: sourceText(item.lazadaData?.shop_sku),
       extraAttributes: digitalText(item.lazadaData?.extra_attributes),
-      status: item.status,
+      status: item.lazadaData === null ? item.status : itemStatusGroup(item.lazadaData?.status),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     })),

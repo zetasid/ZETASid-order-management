@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type OrderItemStatus = typeof OrderItemStatus[keyof typeof OrderItemStatus];
+/**
+ * @nullable
+ */
+export type OrderItemStatus = typeof OrderItemStatus[keyof typeof OrderItemStatus] | null;
 
 
 export const OrderItemStatus = {

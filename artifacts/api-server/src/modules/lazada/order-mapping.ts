@@ -1,5 +1,6 @@
 import type { Order } from "@workspace/db";
 import { LazadaError } from "./client";
+import { groupStatuses } from "../orders/order-status";
 
 export type ProviderRecord = Record<string, unknown>;
 export const orderKeys = ["order_id", "order_number", "price", "statuses", "created_at", "updated_at"];
@@ -32,10 +33,9 @@ export function providerMoney(value: unknown): number | null {
 }
 // Compatibility grouping only; the original Lazada statuses are always displayed separately.
 export function localStatus(values: string[]): Order["status"] {
-  if (values.length && values.every(value => value === "delivered")) return "completed";
-  if (values.length && values.every(value => value === "canceled" || value === "cancelled")) return "cancelled";
-  if (values.some(value => ["ready_to_ship", "shipped", "shipping", "topack", "toship", "packed"].includes(value))) return "processing";
-  return "pending";
+  const group = groupStatuses(values);
+  if (!group) throw new LazadaError("invalid_response");
+  return group;
 }
 export function mapOrder(raw: ProviderRecord, items: ProviderRecord[]) {
   const id = providerId(raw.order_id);
@@ -58,6 +58,7 @@ export function mapOrder(raw: ProviderRecord, items: ProviderRecord[]) {
   });
   return { header: { lazadaOrderId: id, marketplaceOrderId: sourceText(raw.order_number) ?? id,
     productName: mappedItems.map(item => item.productName).join(", "), amount: providerMoney(raw.price),
-    status: localStatus(statuses), createdAt: providerDate(raw.created_at), updatedAt: providerDate(raw.updated_at),
+    status: localStatus(items.length ? items.map(item => item.status as string) : statuses),
+    createdAt: providerDate(raw.created_at), updatedAt: providerDate(raw.updated_at),
     lazadaData: pick(raw, orderKeys) }, items: mappedItems };
 }

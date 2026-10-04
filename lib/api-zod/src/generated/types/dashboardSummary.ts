@@ -13,6 +13,8 @@ export interface DashboardSummary {
   processingOrders: number;
   completedOrders: number;
   cancelledOrders: number;
+  /** Unknown provider statuses remain unclassified; never guessed as pending. */
+  unmappedOrders?: number;
   totalRevenue: number;
   recentOrders: Order[];
 }

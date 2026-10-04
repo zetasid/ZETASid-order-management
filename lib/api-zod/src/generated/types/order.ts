@@ -15,8 +15,23 @@ export interface Order {
   productName: string;
   /** @nullable */
   buyerName: string | null;
-  /** @minimum 0 */
-  amount: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount: number | null;
+  /** @nullable */
+  lazadaStatuses?: string[] | null;
+  /** @nullable */
+  sourceCreatedAt?: string | null;
+  /** @nullable */
+  sourceUpdatedAt?: string | null;
+  /** @nullable */
+  sourcePrice?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  syncedAt?: Date | null;
   status: OrderStatus;
   createdAt: Date;
   updatedAt: Date;

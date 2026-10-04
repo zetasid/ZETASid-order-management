@@ -1,13 +1,39 @@
 import { Router, type CookieOptions } from "express";
-import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse } from "@workspace/api-zod";
+import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaOrdersBody, SyncLazadaOrdersResponse } from "@workspace/api-zod";
 import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
 import { configuration, validNonce } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
+import { syncOrders } from "../modules/lazada/order-sync";
 
 const BROWSER_COOKIE = "zetas_lazada_oauth";
 const options: CookieOptions = { httpOnly: true, secure: true, sameSite: "lax", path: "/api/lazada/oauth/callback" };
 export const lazadaCallbackRouter = Router();
 export const lazadaRouter = Router();
+
+lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
+  const input = SyncLazadaOrdersBody.safeParse(req.body);
+  if (!input.success || !req.secure || new Date(input.data.createdAfter) > new Date(input.data.createdBefore)
+    || new Date(input.data.createdBefore).getTime() - new Date(input.data.createdAfter).getTime() > 366 * 86400000) {
+    res.status(400).json({ error: "Rentang tanggal tidak valid (maksimum 366 hari), atau koneksi bukan HTTPS." }); return;
+  }
+  if (!configuration()) { res.status(503).json({ error: "Konfigurasi Lazada Testing belum lengkap." }); return; }
+  try {
+    res.json(SyncLazadaOrdersResponse.parse(await syncOrders(res.locals.auth.user.id, res.locals.auth.tokenHash, {
+      createdAfter: input.data.createdAfter.toISOString(), createdBefore: input.data.createdBefore.toISOString(), offset: input.data.offset,
+    })));
+  } catch (error) {
+    const reason = error instanceof LazadaError ? error.reason : "api_unavailable";
+    const messages = {
+      authorization_failed: "Koneksi Lazada tidak valid atau kedaluwarsa. Hubungkan ulang di Pengaturan.",
+      permission_denied: "Lazada menolak izin baca. Aktifkan hanya GetOrders dan GetOrderItems di App Console.",
+      invalid_response: "Response Lazada tidak lengkap atau formatnya tidak valid. Halaman ini tidak disimpan.",
+      sync_busy: "Sinkronisasi manual lain sedang berjalan. Tunggu hingga selesai.",
+      api_unavailable: "Pembacaan Lazada gagal. Data halaman ini tidak disimpan; silakan coba lagi.",
+      wrong_country: "Negara toko tidak sesuai dengan konfigurasi.",
+    };
+    res.status(reason === "authorization_failed" || reason === "sync_busy" ? 409 : 502).json({ error: messages[reason] });
+  }
+});
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });

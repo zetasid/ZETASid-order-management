@@ -9,6 +9,33 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Manually read one page of GetOrders and all its GetOrderItems; never writes to Lazada
+ */
+export const syncLazadaOrdersBodyOffsetMin = 0;
+export const syncLazadaOrdersBodyOffsetMax = 10000;
+
+
+
+export const SyncLazadaOrdersBody = zod.object({
+  "createdAfter": zod.coerce.date(),
+  "createdBefore": zod.coerce.date(),
+  "offset": zod.number().int().min(syncLazadaOrdersBodyOffsetMin).max(syncLazadaOrdersBodyOffsetMax)
+})
+
+export const SyncLazadaOrdersResponse = zod.object({
+  "ordersRead": zod.number().int(),
+  "itemsRead": zod.number().int(),
+  "countTotal": zod.number().int().nullable(),
+  "nextOffset": zod.number().int().nullable(),
+  "syncedAt": zod.coerce.date(),
+  "orderFields": zod.array(zod.string()),
+  "itemFields": zod.array(zod.string()),
+  "digitalDetailPresent": zod.number().int(),
+  "digitalDetailNonempty": zod.number().int()
+})
+
+
+/**
  * @summary Private cached connection status; never calls order APIs
  */
 export const GetLazadaConnectionResponse = zod.object({
@@ -108,14 +135,20 @@ export const GetDashboardSummaryResponse = zod.object({
   "processingOrders": zod.number().int(),
   "completedOrders": zod.number().int(),
   "cancelledOrders": zod.number().int(),
-  "totalRevenue": zod.number().int(),
+  "totalRevenue": zod.number(),
   "recentOrders": zod.array(zod.object({
   "id": zod.string().uuid(),
   "marketplaceOrderId": zod.string(),
   "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
-  "amount": zod.number().int().min(getDashboardSummaryResponseRecentOrdersItemAmountMin),
+  "amount": zod.number().min(getDashboardSummaryResponseRecentOrdersItemAmountMin).nullable(),
+  "lazadaStatuses": zod.array(zod.string()).nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "sourcePrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "syncedAt": zod.coerce.date().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -125,6 +158,17 @@ export const GetDashboardSummaryResponse = zod.object({
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "digitalDetailSource": zod.string().nullish(),
+  "sourceStatus": zod.string().nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "itemPrice": zod.string().nullish(),
+  "paidPrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "variation": zod.string().nullish(),
+  "sku": zod.string().nullish(),
+  "shopSku": zod.string().nullish(),
+  "extraAttributes": zod.string().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -156,7 +200,13 @@ export const ListOrdersResponseItem = zod.object({
   "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
-  "amount": zod.number().int().min(listOrdersResponseAmountMin),
+  "amount": zod.number().min(listOrdersResponseAmountMin).nullable(),
+  "lazadaStatuses": zod.array(zod.string()).nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "sourcePrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "syncedAt": zod.coerce.date().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -166,6 +216,17 @@ export const ListOrdersResponseItem = zod.object({
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "digitalDetailSource": zod.string().nullish(),
+  "sourceStatus": zod.string().nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "itemPrice": zod.string().nullish(),
+  "paidPrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "variation": zod.string().nullish(),
+  "sku": zod.string().nullish(),
+  "shopSku": zod.string().nullish(),
+  "extraAttributes": zod.string().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -191,7 +252,13 @@ export const GetOrderResponse = zod.object({
   "lazadaOrderId": zod.string(),
   "productName": zod.string(),
   "buyerName": zod.string().nullable(),
-  "amount": zod.number().int().min(getOrderResponseAmountMin),
+  "amount": zod.number().min(getOrderResponseAmountMin).nullable(),
+  "lazadaStatuses": zod.array(zod.string()).nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "sourcePrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "syncedAt": zod.coerce.date().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -201,6 +268,17 @@ export const GetOrderResponse = zod.object({
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "digitalDetailSource": zod.string().nullish(),
+  "sourceStatus": zod.string().nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "itemPrice": zod.string().nullish(),
+  "paidPrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "variation": zod.string().nullish(),
+  "sku": zod.string().nullish(),
+  "shopSku": zod.string().nullish(),
+  "extraAttributes": zod.string().nullish(),
   "status": zod.enum(['pending', 'processing', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

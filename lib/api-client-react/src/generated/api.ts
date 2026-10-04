@@ -33,6 +33,8 @@ import type {
   LazadaAuthorization,
   LazadaConnection,
   LazadaOAuthCallbackParams,
+  LazadaOrderSyncInput,
+  LazadaOrderSyncResult,
   ListOrdersParams,
   LoginCredentials,
   Order
@@ -64,6 +66,94 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getSyncLazadaOrdersUrl = () => {
+
+
+
+
+  return `/api/lazada/orders/sync`
+}
+
+/**
+ * @summary Manually read one page of GetOrders and all its GetOrderItems; never writes to Lazada
+ */
+export const syncLazadaOrders = async (lazadaOrderSyncInput: LazadaOrderSyncInput, options?: Parameters<typeof customFetch>[1]): Promise<LazadaOrderSyncResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LazadaOrderSyncResult>(getSyncLazadaOrdersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(lazadaOrderSyncInput)
+  }
+);}
+
+
+
+
+
+export const getSyncLazadaOrdersMutationKey = () => ['syncLazadaOrders'] as const;
+
+export const getSyncLazadaOrdersMutationOptions = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncLazadaOrders>>, TError,SyncLazadaOrdersMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncLazadaOrders>>, TError,SyncLazadaOrdersMutationVariables, TContext> => {
+
+const mutationKey = getSyncLazadaOrdersMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncLazadaOrders>>, SyncLazadaOrdersMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncLazadaOrders(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncLazadaOrdersMutationResult = NonNullable<Awaited<ReturnType<typeof syncLazadaOrders>>>
+    export type SyncLazadaOrdersMutationBody = BodyType<LazadaOrderSyncInput>
+    export type SyncLazadaOrdersMutationError = ErrorType<AuthErrorResponse>
+    export type SyncLazadaOrdersMutationVariables = {data: BodyType<LazadaOrderSyncInput>}
+
+    /**
+ * @summary Manually read one page of GetOrders and all its GetOrderItems; never writes to Lazada
+ */
+export const useSyncLazadaOrders = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncLazadaOrders>>, TError,SyncLazadaOrdersMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof syncLazadaOrders>>,
+        TError,
+        SyncLazadaOrdersMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSyncLazadaOrdersMutationOptions(options), queryClient);
+    }
 
 export const getGetLazadaConnectionUrl = () => {
 

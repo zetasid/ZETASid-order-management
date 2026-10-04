@@ -4,7 +4,7 @@ import { ABSOLUTE_MS } from "../auth/config";
 import { createClient, LazadaError } from "./client";
 import { configuration, hash, nonce, seal, unseal, type LazadaConfig } from "./security";
 
-async function activeSession(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], userId: string, sessionHash: string) {
+export async function activeSession(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], userId: string, sessionHash: string) {
   // Match the user -> session lock order used by account reset/deactivation.
   const [user] = await tx.select({ id: usersTable.id }).from(usersTable)
     .where(and(eq(usersTable.id, userId), eq(usersTable.isActive, true))).for("update");

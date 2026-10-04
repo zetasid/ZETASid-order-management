@@ -5,6 +5,30 @@
  * ZETAS.id order management API
  * OpenAPI spec version: 0.1.0
  */
+export interface LazadaOrderSyncInput {
+  createdAfter: string;
+  createdBefore: string;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  offset: number;
+}
+
+export interface LazadaOrderSyncResult {
+  ordersRead: number;
+  itemsRead: number;
+  /** @nullable */
+  countTotal: number | null;
+  /** @nullable */
+  nextOffset: number | null;
+  syncedAt: string;
+  orderFields: string[];
+  itemFields: string[];
+  digitalDetailPresent: number;
+  digitalDetailNonempty: number;
+}
+
 export type LazadaConnectionMode = typeof LazadaConnectionMode[keyof typeof LazadaConnectionMode];
 
 
@@ -90,6 +114,28 @@ export interface OrderItem {
      * @nullable
      */
   digitalDetail: string | null;
+  /** @nullable */
+  digitalDetailSource?: string | null;
+  /** @nullable */
+  sourceStatus?: string | null;
+  /** @nullable */
+  sourceCreatedAt?: string | null;
+  /** @nullable */
+  sourceUpdatedAt?: string | null;
+  /** @nullable */
+  itemPrice?: string | null;
+  /** @nullable */
+  paidPrice?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  variation?: string | null;
+  /** @nullable */
+  sku?: string | null;
+  /** @nullable */
+  shopSku?: string | null;
+  /** @nullable */
+  extraAttributes?: string | null;
   status: OrderItemStatus;
   createdAt: string;
   updatedAt: string;
@@ -102,8 +148,23 @@ export interface Order {
   productName: string;
   /** @nullable */
   buyerName: string | null;
-  /** @minimum 0 */
-  amount: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount: number | null;
+  /** @nullable */
+  lazadaStatuses?: string[] | null;
+  /** @nullable */
+  sourceCreatedAt?: string | null;
+  /** @nullable */
+  sourceUpdatedAt?: string | null;
+  /** @nullable */
+  sourcePrice?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  syncedAt?: string | null;
   status: OrderStatus;
   createdAt: string;
   updatedAt: string;

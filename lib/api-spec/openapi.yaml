@@ -17,6 +17,39 @@ tags:
   - name: orders
     description: Order read operations
 paths:
+  /lazada/orders/sync:
+    post:
+      operationId: syncLazadaOrders
+      tags: [lazada]
+      summary: Manually read one page of GetOrders and all its GetOrderItems; never writes to Lazada
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LazadaOrderSyncInput"
+      responses:
+        "200":
+          description: Transactionally stored page and observed provider field names, without customer values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaOrderSyncResult"
+        "400":
+          $ref: "#/components/responses/AuthError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "403":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          $ref: "#/components/responses/AuthError"
+        "502":
+          $ref: "#/components/responses/AuthError"
+        "503":
+          $ref: "#/components/responses/AuthError"
   /lazada/connection:
     get:
       operationId: getLazadaConnection
@@ -253,6 +286,27 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    LazadaOrderSyncInput:
+      type: object
+      additionalProperties: false
+      required: [createdAfter, createdBefore, offset]
+      properties:
+        createdAfter: { type: string, format: date-time }
+        createdBefore: { type: string, format: date-time }
+        offset: { type: integer, minimum: 0, maximum: 10000 }
+    LazadaOrderSyncResult:
+      type: object
+      required: [ordersRead, itemsRead, countTotal, nextOffset, syncedAt, orderFields, itemFields, digitalDetailPresent, digitalDetailNonempty]
+      properties:
+        ordersRead: { type: integer }
+        itemsRead: { type: integer }
+        countTotal: { type: ["integer", "null"] }
+        nextOffset: { type: ["integer", "null"] }
+        syncedAt: { type: string, format: date-time }
+        orderFields: { type: array, items: { type: string } }
+        itemFields: { type: array, items: { type: string } }
+        digitalDetailPresent: { type: integer }
+        digitalDetailNonempty: { type: integer }
     LazadaConnection:
       type: object
       required: [mode, configured, connected, reason, country, expiresAt, lastCheckedAt, callbackUri]
@@ -324,8 +378,14 @@ components:
         buyerName:
           type: ["string", "null"]
         amount:
-          type: integer
+          type: ["number", "null"]
           minimum: 0
+        lazadaStatuses: { type: ["array", "null"], items: { type: string } }
+        sourceCreatedAt: { type: ["string", "null"] }
+        sourceUpdatedAt: { type: ["string", "null"] }
+        sourcePrice: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        syncedAt: { type: ["string", "null"], format: date-time }
         status:
           type: string
           enum: [pending, processing, completed, cancelled]
@@ -366,6 +426,17 @@ components:
         digitalDetail:
           type: ["string", "null"]
           description: Original string or pretty-printed JSON for structured PostgreSQL digital_detail.
+        digitalDetailSource: { type: ["string", "null"] }
+        sourceStatus: { type: ["string", "null"] }
+        sourceCreatedAt: { type: ["string", "null"] }
+        sourceUpdatedAt: { type: ["string", "null"] }
+        itemPrice: { type: ["string", "null"] }
+        paidPrice: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        variation: { type: ["string", "null"] }
+        sku: { type: ["string", "null"] }
+        shopSku: { type: ["string", "null"] }
+        extraAttributes: { type: ["string", "null"] }
         status:
           type: string
           enum: [pending, processing, completed, cancelled]
@@ -390,7 +461,7 @@ components:
         cancelledOrders:
           type: integer
         totalRevenue:
-          type: integer
+          type: number
         recentOrders:
           type: array
           items:

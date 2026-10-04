@@ -74,8 +74,11 @@ test("Production migration runner: install, data-preserving update, repeat/concu
         await prepare(journal.entries);
         const result = await run(folder, schema, process.env.DATABASE_URL, standaloneRunner);
         assert.equal(result.code, 0);
-        const { lazada_order_id, ...after } = (await pool.query(`SELECT * FROM "${schema}".orders WHERE id=$1`, [id])).rows[0];
-        assert.deepEqual(after, before);
+        const { lazada_order_id, lazada_data, synced_at, ...after } = (await pool.query(`SELECT * FROM "${schema}".orders WHERE id=$1`, [id])).rows[0];
+        assert.equal(lazada_data, null);
+        assert.equal(synced_at, null);
+        assert.equal(Number(after.amount), before.amount, "Numeric upgrade preserves the legacy monetary value");
+        assert.deepEqual({ ...after, amount: Number(after.amount) }, before);
         assert.equal(lazada_order_id, before.marketplace_order_id);
       });
 
@@ -106,7 +109,7 @@ test("Production migration runner: install, data-preserving update, repeat/concu
         assert.doesNotMatch(result.stderr, /postgresql:|deployment_intentional_failure_fixture|password|SELECT /);
         assert.equal((await pool.query("SELECT to_regclass($1) AS table_name", [`${schema}.must_rollback`])).rows[0].table_name, null);
         assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}_journal".__drizzle_migrations`)).rows[0].n, journal.entries.length);
-        assert.equal((await pool.query(`SELECT amount FROM "${schema}".orders WHERE id=$1`, [id])).rows[0].amount, before.amount);
+        assert.equal(Number((await pool.query(`SELECT amount FROM "${schema}".orders WHERE id=$1`, [id])).rows[0].amount), before.amount);
       });
     } finally {
       await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);

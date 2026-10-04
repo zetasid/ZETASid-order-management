@@ -22,7 +22,7 @@ test("API PostgreSQL, ringkasan dan daftar pesanan", async () => {
   assert.equal((await json("/healthz")).status, "ok");
   const summary = await json("/dashboard/summary");
   assert.equal(summary.totalOrders, summary.pendingOrders + summary.processingOrders + summary.completedOrders + summary.cancelledOrders);
-  assert.ok(Number.isInteger(summary.totalRevenue) && summary.totalRevenue >= 0);
+  assert.ok(Number.isFinite(summary.totalRevenue) && summary.totalRevenue >= 0);
   assert.ok(Array.isArray(summary.recentOrders));
   assert.ok(Array.isArray(await json("/orders")));
 });

@@ -16,6 +16,8 @@ export * from './lazadaAuthorization';
 export * from './lazadaConnection';
 export * from './lazadaConnectionMode';
 export * from './lazadaOAuthCallbackParams';
+export * from './lazadaOrderSyncInput';
+export * from './lazadaOrderSyncResult';
 export * from './listOrdersParams';
 export * from './listOrdersStatus';
 export * from './loginCredentials';

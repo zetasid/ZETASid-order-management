@@ -17,6 +17,28 @@ export interface OrderItem {
      * @nullable
      */
   digitalDetail: string | null;
+  /** @nullable */
+  digitalDetailSource?: string | null;
+  /** @nullable */
+  sourceStatus?: string | null;
+  /** @nullable */
+  sourceCreatedAt?: string | null;
+  /** @nullable */
+  sourceUpdatedAt?: string | null;
+  /** @nullable */
+  itemPrice?: string | null;
+  /** @nullable */
+  paidPrice?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  variation?: string | null;
+  /** @nullable */
+  sku?: string | null;
+  /** @nullable */
+  shopSku?: string | null;
+  /** @nullable */
+  extraAttributes?: string | null;
   status: OrderItemStatus;
   createdAt: Date;
   updatedAt: Date;

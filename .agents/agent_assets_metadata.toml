@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4lsyIxtmMos8rpGfx2d1B"
+uri = "file://reports/lazada-readonly-fields.json"
+type = "unspecified"
+title = "Laporan field response Lazada — Fase 8"
+description = "Hasil API nyata: 28 order dan 28 item. Memuat seluruh nama field yang diterima dan jumlah per halaman, tanpa token atau nilai pelanggan."
+logical_id = "e431a267-ad9b-4caa-8210-e17ea94a1a71"
+content_hash = "sha256:ae8632398c1d0914df34a3e876db6f830f5d2ac8c302fd588d8f621dc4903324"
+size = 2915
+mtime_ms = 1791084529833
+storage_uri = "gcs://replit-rams-assets-archer/rams/assets/repl:46f324f1-fb9e-4d25-8139-6c1debf0bce3/e431a267-ad9b-4caa-8210-e17ea94a1a71/90942bc7-a47c-4734-aed1-5ce265f47c9b"
+storage_version_token = "1791085104729851"
+content_type = "application/octet-stream"

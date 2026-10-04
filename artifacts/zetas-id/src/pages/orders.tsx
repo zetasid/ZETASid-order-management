@@ -5,6 +5,7 @@ import { useListOrders, getListOrdersQueryKey, type ListOrdersParams } from '@wo
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { EmptyState, ErrorState, ListSkeleton, PageHeading } from '@/components/states';
 import { OrderRow } from '@/components/order-row';
+import { LazadaOrderSync } from '@/components/lazada-order-sync';
 
 const FILTERS = [
   ['', 'Semua'], ['pending', 'Menunggu'], ['processing', 'Diproses'], ['completed', 'Selesai'],
@@ -46,6 +47,7 @@ export default function Orders() {
   return (
     <>
       <PageHeading title="Pesanan" sub="Baca pesanan digital dan salin detail tujuannya." />
+      <LazadaOrderSync />
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input type="search" value={text} maxLength={200} onChange={(e) => setText(e.target.value)}

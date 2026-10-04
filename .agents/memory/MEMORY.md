@@ -8,3 +8,4 @@
 - [Negative security tests](negative-security-tests.md) — denial alone does not prove the intended guard ran; verify prerequisites and observable checkpoints.
 - [GitHub and Git authentication](github-git-authentication.md) — working API authorization does not prove native Git credentials work; check both separately.
 - [Logo pilihan pengguna](brand-logo.md) — gunakan logo ZETAS.id biru/cyan yang diberikan pengguna, bukan simbol Z pengganti.
+- [Aplikasi Lazada pengguna](lazada-app-context.md) — pengguna telah membuat Seller In-house APP dengan status Testing.

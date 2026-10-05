@@ -34,6 +34,41 @@ test("Lazada configuration fails closed without secrets, HTTPS, Testing mode or 
     { LAZADA_COUNTRY: "untrusted" },
   ]) assert.equal(security.configuration({ ...env, ...patch }), null);
 });
+test("Webhook site defaults to the API country when unset/empty", () => {
+  for (const country of Object.keys(security.endpoints)) {
+    for (const site of [undefined, ""]) {
+      const config = security.configuration({ ...env, LAZADA_COUNTRY: country, LAZADA_SITE: site });
+      assert.equal(config.site, `lazada_${country}`);
+      assert.equal(config.country, country);
+    }
+  }
+});
+test("Explicit webhook site leaves Indonesia API routing, fingerprint and encrypted tokens unchanged", async () => {
+  const original = security.configuration(env);
+  const config = security.configuration({ ...env, LAZADA_SITE: "lazada_sg" });
+  assert.equal(config.site, "lazada_sg");
+  assert.equal(config.country, "id");
+  assert.equal(config.fingerprint, original.fingerprint);
+  const encrypted = security.seal("dummy-token-not-real", original, "owner");
+  assert.equal(security.unseal(encrypted, config, "owner"), "dummy-token-not-real");
+  let requested;
+  const client = createClient(config, async input => {
+    requested = new URL(String(input));
+    return new Response(JSON.stringify({ code: "InsufficientPermissions" }));
+  });
+  await assert.rejects(client.getOrder("dummy-token-not-real", "123"), error => error.reason === "permission_denied");
+  assert.equal(requested.hostname, "api.lazada.co.id");
+  assert.equal(requested.pathname, "/rest/order/get");
+});
+test("Webhook site configuration accepts only one exact supported site, never arbitrary names/wildcards", () => {
+  for (const country of Object.keys(security.endpoints)) {
+    assert.equal(security.configuration({ ...env, LAZADA_SITE: `lazada_${country}` }).site, `lazada_${country}`);
+  }
+  for (const site of ["*", "lazada_*", "lazada_us", "shopee_id", "LAZADA_SG", " lazada_sg",
+    "lazada_sg ", "lazada_id,lazada_sg", "https://api.lazada.sg/rest"]) {
+    assert.equal(security.configuration({ ...env, LAZADA_SITE: site }), null);
+  }
+});
 test("Lazada AES-256-GCM uses random IVs and rejects ciphertext tampering, wrong owner and wrong key", () => {
   const config = security.configuration(env);
   const first = security.seal("test-only-token", config, "owner");

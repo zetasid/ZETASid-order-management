@@ -21,6 +21,7 @@ Gunakan Replit Secrets/private environment, bukan form frontend atau repository:
 | --- | --- |
 | `LAZADA_MODE` | `testing` |
 | `LAZADA_COUNTRY` | `id` (default), atau `sg`, `my`, `th`, `vn`, `ph` |
+| `LAZADA_SITE` | Opsional; kosong/tidak disetel memakai `lazada_<LAZADA_COUNTRY>`. Override harus satu site resmi: `lazada_id`, `lazada_sg`, `lazada_my`, `lazada_th`, `lazada_vn`, atau `lazada_ph`. |
 | `LAZADA_APP_KEY` | App Key aplikasi berstatus Testing |
 | `LAZADA_APP_SECRET` | App Secret aplikasi itu |
 | `LAZADA_TOKEN_ENCRYPTION_KEY` | Key acak independen, 32 byte / 64 karakter hexadecimal |
@@ -31,6 +32,18 @@ dengan Callback URL di App Console. Jika `APP_ORIGIN` dikonfigurasi, origin
 callback harus sama. Gunakan domain preview HTTPS untuk pengujian development;
 jangan memakai localhost sebagai callback di Lazada. Perubahan konfigurasi
 memerlukan restart API.
+
+`LAZADA_COUNTRY` memilih endpoint API dan identitas koneksi/token. `LAZADA_SITE`
+hanya menentukan site webhook yang diterima dengan **exact match**, termasuk
+casing; tidak ada wildcard, daftar beberapa site, atau bypass Verify.
+Jangan mengganti API country hanya untuk menyesuaikan site webhook.
+
+Diagnostic Production Verify akun/app ini telah menunjukkan `site=lazada_sg`,
+`message_type=0`, sementara endpoint API order tetap Indonesia. Konfigurasi
+yang sesuai untuk app ini adalah `LAZADA_COUNTRY=id` dan `LAZADA_SITE=lazada_sg`.
+Ini konfigurasi eksplisit berdasarkan bukti app tersebut, bukan default semua
+app Indonesia. Log diagnostic sementara telah dihapus; log penolakan tetap
+hanya memuat reason dan nama field yang diizinkan.
 
 Compose meneruskan konfigurasi hanya ke service API, bukan frontend/build.
 File `.env.example` hanya berisi placeholder kosong. Jangan commit `.env`,

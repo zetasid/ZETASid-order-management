@@ -40,6 +40,19 @@ cannot establish whether a deployed environment overrides it.
 changes it. Establish the incoming Verify site independently; never infer its
 actual value from the application's configured country.
 
+Do not assume the App Console's signed push/Verify site matches the seller's
+API country.
+
+**Why:** The user supplied production evidence showing `site=lazada_sg` and
+`message_type=0` for their app while its VPS API country is `id`. Changing the
+API country to match that notification would route Indonesian order requests
+to the wrong marketplace.
+
+**How to apply:** Keep app webhook identity separate from seller API region.
+Accept only the explicitly authorized app site, not every supported site.
+When changing webhook configuration, verify that API routing and existing
+connection/token identity remain unchanged.
+
 The user reports that ZETAS runs behind Nginx/Cloudflare on their VPS. External
 HTTPS and the internal reverse-proxy connection are separate transport layers.
 

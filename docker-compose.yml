@@ -67,6 +67,7 @@ services:
       # Optional, backend-only. Do not pass these values to the web/build services.
       LAZADA_MODE: ${LAZADA_MODE:-}
       LAZADA_COUNTRY: ${LAZADA_COUNTRY:-id}
+      LAZADA_SITE: ${LAZADA_SITE:-}
       LAZADA_REDIRECT_URI: ${LAZADA_REDIRECT_URI:-}
       LAZADA_APP_KEY: ${LAZADA_APP_KEY:-}
       LAZADA_APP_SECRET: ${LAZADA_APP_SECRET:-}

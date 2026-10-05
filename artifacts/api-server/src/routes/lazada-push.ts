@@ -1,5 +1,4 @@
 import express, { Router } from "express";
-import { logger } from "../lib/logger";
 import { configuration } from "../modules/lazada/security";
 import { validPushSignature, parsePush, PushPayloadError } from "../modules/lazada/push-security";
 import { pushQuota, receivePush } from "../modules/lazada/push-receiver";
@@ -17,13 +16,7 @@ lazadaPushRouter.post("/", express.raw({ type: "application/json", limit: "16kb"
       res.status(401).json({ error: "Signature webhook tidak valid." }); return;
     }
     let push;
-    try {
-      push = parsePush(req.body, config, fields => {
-        // TEMPORARY: base logger deliberately excludes request bindings (URL,
-        // headers, etc.); only the request ID and allowlisted scalar fields.
-        logger.warn({ requestId: req.id, ...fields }, "Lazada push diagnostic");
-      });
-    }
+    try { push = parsePush(req.body, config); }
     catch (error) {
       // Fixed reason codes and allowlisted field names only: no values, raw body,
       // signature or exception message may be logged.

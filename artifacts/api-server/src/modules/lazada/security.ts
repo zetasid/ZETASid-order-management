@@ -6,7 +6,7 @@ export const validNonce = (value: unknown): value is string => typeof value === 
 
 export type LazadaConfig = {
   appKey: string; appSecret: string; key: Buffer; callback: URL;
-  country: keyof typeof endpoints; fingerprint: string;
+  country: keyof typeof endpoints; site: `lazada_${keyof typeof endpoints}`; fingerprint: string;
 };
 export const endpoints = {
   id: "https://api.lazada.co.id/rest",
@@ -21,15 +21,20 @@ export function configuration(env: NodeJS.ProcessEnv = process.env): LazadaConfi
   const { LAZADA_APP_KEY: appKey, LAZADA_APP_SECRET: appSecret, LAZADA_TOKEN_ENCRYPTION_KEY: key,
     LAZADA_REDIRECT_URI: callback, LAZADA_MODE: mode } = env;
   const country = env.LAZADA_COUNTRY ?? "id";
+  // The app's webhook site can differ from the seller's API endpoint country.
+  // Empty/unset keeps the existing country-based default; overrides are exact.
+  const site = env.LAZADA_SITE || `lazada_${country}`;
   if (mode !== "testing" || !appKey || !/^\d{1,30}$/.test(appKey) || !appSecret
-    || !key || !/^[a-fA-F0-9]{64}$/.test(key) || !callback || !Object.hasOwn(endpoints, country)) return null;
+    || !key || !/^[a-fA-F0-9]{64}$/.test(key) || !callback || !Object.hasOwn(endpoints, country)
+    || !Object.keys(endpoints).some(code => site === `lazada_${code}`)) return null;
   try {
     const url = new URL(callback);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash
       || url.pathname !== "/api/lazada/oauth/callback") return null;
     if (env.APP_ORIGIN && url.origin !== new URL(env.APP_ORIGIN).origin) return null;
     return { appKey, appSecret, key: Buffer.from(key, "hex"), callback: url,
-      country: country as LazadaConfig["country"], fingerprint: hash(`${appKey}:${country}`) };
+      country: country as LazadaConfig["country"], site: site as LazadaConfig["site"],
+      fingerprint: hash(`${appKey}:${country}`) };
   } catch { return null; }
 }
 

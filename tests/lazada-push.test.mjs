@@ -34,7 +34,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
   const id = `9876${Date.now()}${randomInt(100)}`, secondId = String(BigInt(id) + 1n);
   const callsFile = `${dir}/calls`, controlFile = `${dir}/control`;
   await writeFile(callsFile, ""); await writeFile(controlFile, "");
-  const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_APP_KEY: "999901",
+  const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_SITE: "lazada_sg", LAZADA_APP_KEY: "999901",
     LAZADA_APP_SECRET: "dummy-lpm-secret-not-real", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     LAZADA_REDIRECT_URI: "https://testing.example.invalid/api/lazada/oauth/callback", APP_ORIGIN: "https://testing.example.invalid" };
   const config = pure.configuration(env);
@@ -58,7 +58,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
   const exit = once(child, "exit");
   let logs = ""; child.stdout.on("data", d => { logs += d; }); child.stderr.on("data", d => { logs += d; });
   const api = `http://127.0.0.1:${port}/api`;
-  const body = (extra = {}) => ({ seller_id: "1234567", message_type: 0, site: "lazada_id", timestamp: Date.now(),
+  const body = (extra = {}) => ({ seller_id: "1234567", message_type: 0, site: env.LAZADA_SITE, timestamp: Date.now(),
     data: { trade_order_id: id, trade_order_line_id: String(BigInt(id) + 100n), order_status: "confirmed",
       status_update_time: Math.floor(Date.now() / 1000) }, ...extra });
   const send = (payload, extraHeaders = {}, rawBody) => {
@@ -114,34 +114,25 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(body({ site: "lazada_vn" }))), config),
         error => error.reason === "site_mismatch" && error.fields.join() === "site");
     });
-    await t.test("Temporary diagnostic preserves validation/results and forwards only site/message_type scalars", () => {
-      for (const site of ["lazada_id", "LAZADA_ID", "lazada_vn", ""]) {
-        const raw = Buffer.from(JSON.stringify(body({ site, buyer: "PRIVATE-BUYER-DIAGNOSTIC",
-          token: "PRIVATE-TOKEN-DIAGNOSTIC", data: { ...body().data, digital_delivery_info: "PRIVATE-ORDER-DIAGNOSTIC" } })));
-        const diagnostic = [];
-        const outcome = callback => {
-          try { return pure.parsePush(raw, config, callback); }
-          catch (error) { return { reason: error.reason, fields: error.fields }; }
-        };
-        assert.deepEqual(outcome(fields => diagnostic.push(fields)), outcome());
-        assert.deepEqual(diagnostic, [{ site, message_type: 0 }]);
-        if (site !== "lazada_id") assert.equal(outcome().reason, "site_mismatch");
-      }
-      const diagnostic = [];
-      assert.throws(() => pure.parsePush(Buffer.from("{"), config, fields => diagnostic.push(fields)),
-        error => error.reason === "invalid_json");
-      assert.deepEqual(diagnostic, [], "Malformed JSON must not emit diagnostic values");
+    await t.test("Parser uses exactly one configured site; the default still accepts only the API-country site", () => {
+      const defaultConfig = pure.configuration({ ...env, LAZADA_SITE: undefined });
+      assert.equal(defaultConfig.site, "lazada_id");
+      assert.equal(config.country, "id");
+      assert.equal(config.site, "lazada_sg");
+      assert.equal(config.fingerprint, defaultConfig.fingerprint);
+      assert.ok(pure.parsePush(Buffer.from(JSON.stringify(body({ site: "lazada_id" }))), defaultConfig));
+      assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(body())), defaultConfig),
+        error => error.reason === "site_mismatch");
       for (const invalid of [
         body({ site: { token: "PRIVATE-NESTED-SITE" }, message_type: { buyer: "PRIVATE-NESTED-MESSAGE" } }),
         null, [],
       ]) {
-        assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(invalid)), config, fields => diagnostic.push(fields)),
+        assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(invalid)), config),
           error => error.reason === "invalid_schema");
       }
-      assert.deepEqual(diagnostic, [{}, {}, {}], "Never forward nested values or whole payloads");
     });
     const timestampNotification = body();
-    await t.test("Valid signed milliseconds notification returns 200 without provider calls or order writes", async () => {
+    await t.test("Configured lazada_sg with API country id returns 200; milliseconds remain valid, with no API/order writes", async () => {
       const response = await send(timestampNotification);
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), { accepted: true });
@@ -158,38 +149,23 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
         data: { ...timestampNotification.data, reverse_order_id: "987654321", extension: ["additional"] } })).status, 200);
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
     });
-    await t.test("Diagnostic logs actual site for signed JSON, not invalid signatures/HTTPS/JSON, with no private data", async () => {
-      const rejected = body({ site: "lazada_ph", buyer: "PRIVATE-BUYER-DIAGNOSTIC",
-        token: "PRIVATE-TOKEN-DIAGNOSTIC", data: { ...timestampNotification.data,
-          digital_delivery_info: "PRIVATE-ORDER-DIAGNOSTIC" } });
-      const response = await send(rejected);
-      assert.equal(response.status, 400);
-      assert.deepEqual(await response.json(), { error: "Payload order push tidak valid." });
-      const plainLogs = () => stripVTControlCharacters(logs);
-      for (let n = 0; n < 100 && !/site"?:\s*"lazada_ph"/.test(plainLogs()); n++) await delay(10);
-      assert.match(plainLogs(), /Lazada push diagnostic/);
-      assert.match(plainLogs(), /site"?:\s*"lazada_ph"/);
-      assert.match(plainLogs(), /site"?:\s*"lazada_id"/, "Accepted notifications are also diagnosed");
-      assert.match(plainLogs(), /message_type"?:\s*0/);
-      assert.match(plainLogs(), /requestId"?:\s*\d+/);
-      const count = () => (plainLogs().match(/Lazada push diagnostic/g) ?? []).length;
-      const beforeDiagnostics = count();
-      const unauthenticated = body({ site: "lazada_sg" });
-      assert.equal((await send(unauthenticated, { Authorization: "f".repeat(64) })).status, 401);
-      assert.equal((await send(unauthenticated, { "X-Forwarded-Proto": "http" })).status, 400);
-      assert.equal((await send(null, {}, "{")).status, 400);
-      await delay(100);
-      assert.equal(count(), beforeDiagnostics, "Diagnostics only run after valid HMAC/HTTPS and parsed JSON");
-      const signature = createHmac("sha256", env.LAZADA_APP_SECRET)
-        .update(env.LAZADA_APP_KEY + JSON.stringify(rejected)).digest("hex");
-      for (const value of [JSON.stringify(rejected), signature, env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY,
-        "PRIVATE-BUYER-DIAGNOSTIC", "PRIVATE-TOKEN-DIAGNOSTIC", "PRIVATE-ORDER-DIAGNOSTIC", id, "1234567"]) {
-        assert.ok(!plainLogs().includes(value), "Diagnostic must not expose payload/signature/credentials/order/buyer data");
-      }
-      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
-      assert.equal((await orderRows()).rows.length, 0);
-      assert.equal(await readFile(callsFile, "utf8"), "");
-    });
+    for (const [title, sites] of [
+      ["API-country lazada_id is rejected when the configured webhook site is lazada_sg", ["lazada_id"]],
+      ["Other country/marketplace or arbitrary sites are rejected, with no fallback", ["lazada_vn", "lazada_ph", "lazada_my", "lazada_th", "shopee_sg", "arbitrary"]],
+      ["Empty site is rejected", [""]],
+      ["Site matching is exact: uppercase, mixed case, whitespace and lists are rejected", ["LAZADA_SG", "Lazada_sg", " lazada_sg", "lazada_sg ", "lazada_sg,lazada_id"]],
+    ]) {
+      await t.test(title, async () => {
+        for (const site of sites) {
+          const response = await send({ ...timestampNotification, site });
+          assert.equal(response.status, 400);
+          assert.deepEqual(await response.json(), { error: "Payload order push tidak valid." });
+        }
+        assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+        assert.equal((await orderRows()).rows.length, 0);
+        assert.equal(await readFile(callsFile, "utf8"), "");
+      });
+    }
     await t.test("Expired/future timestamps are rejected in both units, even for a known duplicate", async () => {
       for (const timestamp of [Date.now() - 8 * 3600000, Date.now() + 6 * 60000]) {
         for (const value of [timestamp, Math.floor(timestamp / 1000)]) {
@@ -207,7 +183,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.equal((await send(sample)).status, 400);
       assert.equal((await send(sample)).status, 400);
       assert.equal((await send(sample, {}, JSON.stringify(sample, null, 2))).status, 400);
-      assert.equal((await send({ ...sample, site: "lazada_id" })).status, 400, "Matching site does not exempt stale timestamps");
+      assert.equal((await send({ ...sample, site: config.site })).status, 400, "Matching site does not exempt stale timestamps");
       assert.equal((await send({ ...sample, timestamp: Date.now() })).status, 400, "Fresh timestamp does not exempt foreign sites");
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 0);
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM orders WHERE lazada_order_id=$1", [sample.data.trade_order_id])).rows[0].n, 0);
@@ -360,6 +336,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.ok(calls.every(c => c.method === "GET" && ["/order/get", "/order/items/get", "/orders/get"].includes(c.path)));
       assert.ok(calls.some(c => c.path === "/orders/get" && c.parameterNames.includes("update_after")));
       const plainLogs = stripVTControlCharacters(logs);
+      assert.ok(!plainLogs.includes("Lazada push diagnostic"), "Temporary diagnostic logging is removed");
       assert.match(plainLogs, /reason"?:\s*"site_mismatch"/);
       assert.match(plainLogs, /reason"?:\s*"invalid_schema"/);
       assert.match(plainLogs, /reason"?:\s*"invalid_json"/);
@@ -367,7 +344,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       const privateSignature = createHmac("sha256", env.LAZADA_APP_SECRET)
         .update(env.LAZADA_APP_KEY + JSON.stringify(timestampNotification)).digest("hex");
       for (const value of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, privateSignature,
-        JSON.stringify(timestampNotification), "dummy-push-token-not-real", "DUMMY-DEST", "DUMMY-JSON"])
+        JSON.stringify(timestampNotification), "dummy-push-token-not-real", "DUMMY-DEST", "DUMMY-JSON", config.site])
         assert.ok(!plainLogs.includes(value), "No credential/digital values in logs");
       assert.deepEqual((await f.pool.query(originalHashSql, [id, secondId])).rows[0], before, "Existing user order/item rows untouched by test fixtures");
     });

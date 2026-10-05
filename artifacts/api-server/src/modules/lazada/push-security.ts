@@ -31,10 +31,22 @@ export function validPushSignature(raw: Buffer, authorization: unknown, config: 
   const expected = createHmac("sha256", config.appSecret).update(config.appKey, "utf8").update(raw).digest();
   return timingSafeEqual(expected, Buffer.from(authorization, "hex"));
 }
-export function parsePush(raw: Buffer, config: LazadaConfig) {
+type PushDiagnostic = { site?: string; message_type?: number };
+export function parsePush(raw: Buffer, config: LazadaConfig, diagnostic?: (fields: PushDiagnostic) => void) {
   let body: unknown;
   try { body = JSON.parse(raw.toString("utf8")); }
   catch { throw new PushPayloadError("invalid_json"); }
+  // TEMPORARY: inspect authenticated JSON before validation, without forwarding
+  // the payload or object-valued fields to the logger. Remove after diagnosis.
+  if (diagnostic) {
+    const fields: PushDiagnostic = {};
+    if (body !== null && typeof body === "object" && !Array.isArray(body)) {
+      const record = body as Record<string, unknown>;
+      if (typeof record.site === "string") fields.site = record.site;
+      if (typeof record.message_type === "number") fields.message_type = record.message_type;
+    }
+    diagnostic(fields);
+  }
   // Zod's non-strict objects accept extra top-level/data fields from Lazada.
   // Keep the documented order fields required; do not invent a Verify contract.
   const parsed = ReceiveLazadaOrderPushBody.safeParse(body);

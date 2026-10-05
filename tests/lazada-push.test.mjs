@@ -114,6 +114,32 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(body({ site: "lazada_vn" }))), config),
         error => error.reason === "site_mismatch" && error.fields.join() === "site");
     });
+    await t.test("Temporary diagnostic preserves validation/results and forwards only site/message_type scalars", () => {
+      for (const site of ["lazada_id", "LAZADA_ID", "lazada_vn", ""]) {
+        const raw = Buffer.from(JSON.stringify(body({ site, buyer: "PRIVATE-BUYER-DIAGNOSTIC",
+          token: "PRIVATE-TOKEN-DIAGNOSTIC", data: { ...body().data, digital_delivery_info: "PRIVATE-ORDER-DIAGNOSTIC" } })));
+        const diagnostic = [];
+        const outcome = callback => {
+          try { return pure.parsePush(raw, config, callback); }
+          catch (error) { return { reason: error.reason, fields: error.fields }; }
+        };
+        assert.deepEqual(outcome(fields => diagnostic.push(fields)), outcome());
+        assert.deepEqual(diagnostic, [{ site, message_type: 0 }]);
+        if (site !== "lazada_id") assert.equal(outcome().reason, "site_mismatch");
+      }
+      const diagnostic = [];
+      assert.throws(() => pure.parsePush(Buffer.from("{"), config, fields => diagnostic.push(fields)),
+        error => error.reason === "invalid_json");
+      assert.deepEqual(diagnostic, [], "Malformed JSON must not emit diagnostic values");
+      for (const invalid of [
+        body({ site: { token: "PRIVATE-NESTED-SITE" }, message_type: { buyer: "PRIVATE-NESTED-MESSAGE" } }),
+        null, [],
+      ]) {
+        assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(invalid)), config, fields => diagnostic.push(fields)),
+          error => error.reason === "invalid_schema");
+      }
+      assert.deepEqual(diagnostic, [{}, {}, {}], "Never forward nested values or whole payloads");
+    });
     const timestampNotification = body();
     await t.test("Valid signed milliseconds notification returns 200 without provider calls or order writes", async () => {
       const response = await send(timestampNotification);
@@ -131,6 +157,38 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.equal((await send({ ...timestampNotification, extension: { additional: true },
         data: { ...timestampNotification.data, reverse_order_id: "987654321", extension: ["additional"] } })).status, 200);
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+    });
+    await t.test("Diagnostic logs actual site for signed JSON, not invalid signatures/HTTPS/JSON, with no private data", async () => {
+      const rejected = body({ site: "lazada_ph", buyer: "PRIVATE-BUYER-DIAGNOSTIC",
+        token: "PRIVATE-TOKEN-DIAGNOSTIC", data: { ...timestampNotification.data,
+          digital_delivery_info: "PRIVATE-ORDER-DIAGNOSTIC" } });
+      const response = await send(rejected);
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: "Payload order push tidak valid." });
+      const plainLogs = () => stripVTControlCharacters(logs);
+      for (let n = 0; n < 100 && !/site"?:\s*"lazada_ph"/.test(plainLogs()); n++) await delay(10);
+      assert.match(plainLogs(), /Lazada push diagnostic/);
+      assert.match(plainLogs(), /site"?:\s*"lazada_ph"/);
+      assert.match(plainLogs(), /site"?:\s*"lazada_id"/, "Accepted notifications are also diagnosed");
+      assert.match(plainLogs(), /message_type"?:\s*0/);
+      assert.match(plainLogs(), /requestId"?:\s*\d+/);
+      const count = () => (plainLogs().match(/Lazada push diagnostic/g) ?? []).length;
+      const beforeDiagnostics = count();
+      const unauthenticated = body({ site: "lazada_sg" });
+      assert.equal((await send(unauthenticated, { Authorization: "f".repeat(64) })).status, 401);
+      assert.equal((await send(unauthenticated, { "X-Forwarded-Proto": "http" })).status, 400);
+      assert.equal((await send(null, {}, "{")).status, 400);
+      await delay(100);
+      assert.equal(count(), beforeDiagnostics, "Diagnostics only run after valid HMAC/HTTPS and parsed JSON");
+      const signature = createHmac("sha256", env.LAZADA_APP_SECRET)
+        .update(env.LAZADA_APP_KEY + JSON.stringify(rejected)).digest("hex");
+      for (const value of [JSON.stringify(rejected), signature, env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY,
+        "PRIVATE-BUYER-DIAGNOSTIC", "PRIVATE-TOKEN-DIAGNOSTIC", "PRIVATE-ORDER-DIAGNOSTIC", id, "1234567"]) {
+        assert.ok(!plainLogs().includes(value), "Diagnostic must not expose payload/signature/credentials/order/buyer data");
+      }
+      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+      assert.equal((await orderRows()).rows.length, 0);
+      assert.equal(await readFile(callsFile, "utf8"), "");
     });
     await t.test("Expired/future timestamps are rejected in both units, even for a known duplicate", async () => {
       for (const timestamp of [Date.now() - 8 * 3600000, Date.now() + 6 * 60000]) {

@@ -30,6 +30,16 @@ contract.
 before adding a separate ACK path. Preserve raw-body HMAC and normal order
 parser/queue; report missing evidence rather than claiming live Verify works.
 
+The user confirmed that the VPS Lazada configuration targets Indonesia
+(`LAZADA_COUNTRY=id`).
+
+**Why:** The user supplied the VPS runtime value; a repository default alone
+cannot establish whether a deployed environment overrides it.
+
+**How to apply:** Treat Indonesia as the configured target unless the user
+changes it. Establish the incoming Verify site independently; never infer its
+actual value from the application's configured country.
+
 The user reports that ZETAS runs behind Nginx/Cloudflare on their VPS. External
 HTTPS and the internal reverse-proxy connection are separate transport layers.
 

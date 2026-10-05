@@ -3,6 +3,27 @@ import { ReceiveLazadaOrderPushBody } from "@workspace/api-zod";
 import { providerId } from "./order-mapping";
 import { hash, type LazadaConfig } from "./security";
 
+type PushPayloadReason = "invalid_json" | "invalid_schema" | "site_mismatch" | "invalid_timestamp";
+const safeFieldPaths = new Set(["seller_id", "message_type", "site", "timestamp", "data",
+  "data.trade_order_id", "data.trade_order_line_id", "data.order_status", "data.status_update_time"]);
+
+export class PushPayloadError extends Error {
+  constructor(readonly reason: PushPayloadReason, readonly fields: string[] = []) {
+    super("invalid_push");
+  }
+}
+
+export function normalizePushTimestamp(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new PushPayloadError("invalid_timestamp", ["timestamp"]);
+  }
+  // Current Unix seconds have 10 digits, milliseconds have 13. Do not coerce
+  // arbitrary strings, fractions or unsafe numbers into valid notification dates.
+  const milliseconds = value < 100_000_000_000 ? value * 1000 : value;
+  if (!Number.isSafeInteger(milliseconds)) throw new PushPayloadError("invalid_timestamp", ["timestamp"]);
+  return milliseconds;
+}
+
 // Official LPM: HEX(HMAC-SHA256(AppKey + exact message body, AppSecret)).
 // Never JSON.stringify a parsed body before verifying its signature.
 export function validPushSignature(raw: Buffer, authorization: unknown, config: LazadaConfig) {
@@ -11,11 +32,20 @@ export function validPushSignature(raw: Buffer, authorization: unknown, config: 
   return timingSafeEqual(expected, Buffer.from(authorization, "hex"));
 }
 export function parsePush(raw: Buffer, config: LazadaConfig) {
-  const parsed = ReceiveLazadaOrderPushBody.safeParse(JSON.parse(raw.toString("utf8")));
-  if (!parsed.success || parsed.data.site !== `lazada_${config.country}`) throw new Error("invalid_push");
+  let body: unknown;
+  try { body = JSON.parse(raw.toString("utf8")); }
+  catch { throw new PushPayloadError("invalid_json"); }
+  // Zod's non-strict objects accept extra top-level/data fields from Lazada.
+  // Keep the documented order fields required; do not invent a Verify contract.
+  const parsed = ReceiveLazadaOrderPushBody.safeParse(body);
+  if (!parsed.success) {
+    const fields = [...new Set(parsed.error.issues.map(issue => issue.path.join("."))
+      .filter(path => safeFieldPaths.has(path)))];
+    throw new PushPayloadError("invalid_schema", fields);
+  }
+  if (parsed.data.site !== `lazada_${config.country}`) throw new PushPayloadError("site_mismatch", ["site"]);
   const p = parsed.data;
-  // Official examples use both seconds and milliseconds for notification timestamps.
-  const timestamp = p.timestamp < 100_000_000_000 ? p.timestamp * 1000 : p.timestamp;
+  const timestamp = normalizePushTimestamp(p.timestamp);
   const orderId = providerId(p.data.trade_order_id);
   // Delivery retry may change notification timestamp, not the underlying item transition.
   const eventHash = hash(JSON.stringify([config.fingerprint, providerId(p.seller_id), p.site, orderId,
@@ -24,5 +54,7 @@ export function parsePush(raw: Buffer, config: LazadaConfig) {
 }
 export function freshPush(timestamp: number, now = Date.now()) {
   // LPM retries every 30 min up to 12 times; a five-minute window would drop genuine retries.
-  return timestamp >= now - 7 * 3600000 && timestamp <= now + 5 * 60000;
+  // Seven hours covers the six-hour retry schedule with transport/clock grace.
+  return Number.isSafeInteger(timestamp) && timestamp > 0
+    && timestamp >= now - 7 * 3600000 && timestamp <= now + 5 * 60000;
 }

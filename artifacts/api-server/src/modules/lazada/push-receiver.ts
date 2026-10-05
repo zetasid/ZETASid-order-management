@@ -15,10 +15,12 @@ export async function pushQuota(ip: string) {
   return row.attempts <= 120;
 }
 export async function receivePush(push: ReturnType<typeof parsePush>, config: LazadaConfig) {
+  // Freshness applies to every delivery, including duplicates. A matching event
+  // hash must not exempt an expired/future request from replay protection.
+  if (!freshPush(push.timestamp)) return false;
   return db.transaction(async tx => {
     const [duplicate] = await tx.select({ id: events.id }).from(events).where(eq(events.eventHash, push.eventHash));
-    if (duplicate) return true; // ACK known duplicates, including legitimate late retries.
-    if (!freshPush(push.timestamp)) return false;
+    if (duplicate) return true; // ACK retries within the accepted notification window.
     const connection = await automaticConnection(tx, config);
     // Never touch the automation row here: reconciliation can hold its lock while
     // waiting for provider APIs. The durable receipt must not wait for that worker.

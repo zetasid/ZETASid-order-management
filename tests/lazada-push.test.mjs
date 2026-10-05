@@ -9,6 +9,7 @@ import { once } from "node:events";
 import http from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import { createAuthorizedFixture, digest } from "./auth-helper.mjs";
 const require = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url));
 const { build } = require("esbuild");
@@ -49,7 +50,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
   const before = (await f.pool.query(originalHashSql, [id, secondId])).rows[0];
   const ip = `192.0.2.${randomInt(1, 250)}`;
   const child = spawn(process.execPath, ["--import", "./tests/fixtures/lazada-push-provider.mjs", "artifacts/api-server/dist/index.mjs"], {
-    env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test", LOG_LEVEL: "silent", TRUST_PROXY: "127.0.0.1",
+    env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test", LOG_LEVEL: "warn", TRUST_PROXY: "127.0.0.1",
       LAZADA_TEST_ORDER_ID: id, LAZADA_TEST_WORKER_BUNDLE: workerFile,
       LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile },
     stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -91,6 +92,59 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
     const sample = { seller_id: "1234567", message_type: 0, site: "lazada_vn", timestamp: 1603766859530,
       data: { order_status: "unpaid", status_update_time: 1603698638,
         trade_order_id: "260422900198363", trade_order_line_id: "260422900298363" } };
+    await t.test("Milliseconds and seconds normalize before freshness checks; invalid timestamps fail closed", () => {
+      const now = 1_800_000_000_000;
+      assert.equal(pure.normalizePushTimestamp(now), now);
+      assert.equal(pure.normalizePushTimestamp(now / 1000), now);
+      for (const invalid of [0, -1, 1.5, "1800000000", null, undefined, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.throws(() => pure.normalizePushTimestamp(invalid), error => error.reason === "invalid_timestamp");
+      }
+      for (const invalid of [NaN, Infinity, now + 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.equal(pure.freshPush(invalid, now), false);
+      }
+      assert.equal(pure.freshPush(now - 7 * 3600000, now), true);
+      assert.equal(pure.freshPush(now - 7 * 3600000 - 1, now), false);
+      assert.equal(pure.freshPush(now + 5 * 60000, now), true);
+      assert.equal(pure.freshPush(now + 5 * 60000 + 1, now), false);
+    });
+    await t.test("Invalid JSON, schema and site have safe reason codes, with no payload values", () => {
+      assert.throws(() => pure.parsePush(Buffer.from("{"), config), error => error.reason === "invalid_json");
+      assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(body({ data: {} }))), config),
+        error => error.reason === "invalid_schema" && error.fields.includes("data.trade_order_id"));
+      assert.throws(() => pure.parsePush(Buffer.from(JSON.stringify(body({ site: "lazada_vn" }))), config),
+        error => error.reason === "site_mismatch" && error.fields.join() === "site");
+    });
+    const timestampNotification = body();
+    await t.test("Valid signed milliseconds notification returns 200 without provider calls or order writes", async () => {
+      const response = await send(timestampNotification);
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { accepted: true });
+      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+      assert.equal((await orderRows()).rows.length, 0);
+      assert.equal(await readFile(callsFile, "utf8"), "");
+    });
+    await t.test("Valid signed seconds notification returns 200 and remains idempotent", async () => {
+      assert.equal((await send({ ...timestampNotification, timestamp: Math.floor(timestampNotification.timestamp / 1000) })).status, 200);
+      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+    });
+    await t.test("Extra Lazada envelope and order fields do not reject a valid signed notification", async () => {
+      assert.equal((await send({ ...timestampNotification, extension: { additional: true },
+        data: { ...timestampNotification.data, reverse_order_id: "987654321", extension: ["additional"] } })).status, 200);
+      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+    });
+    await t.test("Expired/future timestamps are rejected in both units, even for a known duplicate", async () => {
+      for (const timestamp of [Date.now() - 8 * 3600000, Date.now() + 6 * 60000]) {
+        for (const value of [timestamp, Math.floor(timestamp / 1000)]) {
+          const response = await send({ ...timestampNotification, timestamp: value });
+          assert.equal(response.status, 400);
+          assert.deepEqual(await response.json(), { error: "Timestamp push kedaluwarsa atau tidak valid." });
+        }
+      }
+      assert.equal((await f.pool.query("SELECT count(*)::int n FROM lazada_order_push WHERE user_id=$1", [f.id])).rows[0].n, 1);
+      assert.equal((await orderRows()).rows.length, 0);
+      assert.equal(await readFile(callsFile, "utf8"), "");
+    });
+    await f.pool.query("DELETE FROM lazada_order_push WHERE user_id=$1", [f.id]);
     await t.test("Signed public examples do not bypass normal site or timestamp validation", async () => {
       assert.equal((await send(sample)).status, 400);
       assert.equal((await send(sample)).status, 400);
@@ -247,8 +301,16 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
       assert.ok(calls.every(c => c.method === "GET" && ["/order/get", "/order/items/get", "/orders/get"].includes(c.path)));
       assert.ok(calls.some(c => c.path === "/orders/get" && c.parameterNames.includes("update_after")));
-      for (const value of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, "dummy-push-token-not-real", "DUMMY-DEST", "DUMMY-JSON"])
-        assert.ok(!logs.includes(value), "No credential/digital values in logs");
+      const plainLogs = stripVTControlCharacters(logs);
+      assert.match(plainLogs, /reason"?:\s*"site_mismatch"/);
+      assert.match(plainLogs, /reason"?:\s*"invalid_schema"/);
+      assert.match(plainLogs, /reason"?:\s*"invalid_json"/);
+      assert.match(plainLogs, /reason"?:\s*"timestamp_out_of_window"/);
+      const privateSignature = createHmac("sha256", env.LAZADA_APP_SECRET)
+        .update(env.LAZADA_APP_KEY + JSON.stringify(timestampNotification)).digest("hex");
+      for (const value of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, privateSignature,
+        JSON.stringify(timestampNotification), "dummy-push-token-not-real", "DUMMY-DEST", "DUMMY-JSON"])
+        assert.ok(!plainLogs.includes(value), "No credential/digital values in logs");
       assert.deepEqual((await f.pool.query(originalHashSql, [id, secondId])).rows[0], before, "Existing user order/item rows untouched by test fixtures");
     });
     await t.test("Durable ACK stays below 500ms while slow reconciliation holds the automation-state lock", async () => {

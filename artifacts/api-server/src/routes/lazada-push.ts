@@ -1,6 +1,6 @@
 import express, { Router } from "express";
 import { configuration } from "../modules/lazada/security";
-import { validPushSignature, parsePush } from "../modules/lazada/push-security";
+import { validPushSignature, parsePush, PushPayloadError } from "../modules/lazada/push-security";
 import { pushQuota, receivePush } from "../modules/lazada/push-receiver";
 
 export const lazadaPushRouter = Router();
@@ -17,8 +17,15 @@ lazadaPushRouter.post("/", express.raw({ type: "application/json", limit: "16kb"
     }
     let push;
     try { push = parsePush(req.body, config); }
-    catch { res.status(400).json({ error: "Payload order push tidak valid." }); return; }
+    catch (error) {
+      // Fixed reason codes and allowlisted field names only: no values, raw body,
+      // signature or exception message may be logged.
+      req.log.warn({ reason: error instanceof PushPayloadError ? error.reason : "invalid_schema",
+        fields: error instanceof PushPayloadError ? error.fields : [] }, "Lazada push rejected");
+      res.status(400).json({ error: "Payload order push tidak valid." }); return;
+    }
     if (!await receivePush(push, config)) {
+      req.log.warn({ reason: "timestamp_out_of_window" }, "Lazada push rejected");
       res.status(400).json({ error: "Timestamp push kedaluwarsa atau tidak valid." }); return;
     }
     // Durable ACK, no provider API calls on the request path (LPM's 500ms deadline).

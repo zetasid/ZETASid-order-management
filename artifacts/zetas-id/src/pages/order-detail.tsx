@@ -1,21 +1,67 @@
 import { Link, useParams, useSearch } from 'wouter';
-import { ArrowLeft } from 'lucide-react';
-import { useGetOrder, getGetOrderQueryKey } from '@workspace/api-client-react';
+import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Loader2, Send } from 'lucide-react';
+import { ApiError, useDeliverDigitalOrder, useGetOrder, getGetOrderQueryKey } from '@workspace/api-client-react';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { rupiah, tanggal, providerMoney } from '@/lib/format';
 import { ErrorState, ListSkeleton } from '@/components/states';
 import { DigitalDetail } from '@/components/copy-detail';
 import { ProviderStatus } from '@/components/provider-status';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+function deliveryErrorText(error: unknown) {
+  if (error instanceof ApiError && typeof error.data === 'object' && error.data
+    && 'error' in error.data && typeof error.data.error === 'string') return error.data.error;
+  return 'Lazada tidak mengonfirmasi semua item. Periksa status pesanan di Lazada sebelum mencoba lagi.';
+}
 
 export default function OrderDetail() {
   usePageMeta('Detail Pesanan', 'Item dan Digital Detail satu pesanan.');
   const { orderId = '' } = useParams<{ orderId: string }>();
   const from = new URLSearchParams(useSearch()).get('from') ?? '';
+  const queryClient = useQueryClient();
+  const delivery = useDeliverDigitalOrder();
+  const submitLock = useRef(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deliveryError, setDeliveryError] = useState('');
+  const [deliveryNotice, setDeliveryNotice] = useState('');
   const q = useGetOrder(orderId, {
     query: { enabled: !!orderId, queryKey: getGetOrderQueryKey(orderId), staleTime: 15000, refetchOnWindowFocus: true, refetchOnMount: true },
   });
   const o = q.data;
   const items = o?.items ?? [];
+  const submitDelivery = () => {
+    if (submitLock.current || delivery.isPending) return;
+    submitLock.current = true;
+    setDeliveryError('');
+    delivery.mutate({ orderId }, {
+      onSuccess: async updated => {
+        queryClient.setQueryData(getGetOrderQueryKey(orderId), updated);
+        await queryClient.invalidateQueries({ predicate: query =>
+          typeof query.queryKey[0] === 'string'
+          && (query.queryKey[0].startsWith('/api/orders') || query.queryKey[0].startsWith('/api/dashboard')),
+        });
+        setDeliveryNotice('Semua item diterima Lazada sebagai terkirim.');
+        setConfirmOpen(false);
+        submitLock.current = false;
+      },
+      onError: error => {
+        setDeliveryError(deliveryErrorText(error));
+        submitLock.current = false;
+      },
+    });
+  };
   const rows = o && [
     ['ID pesanan', o.marketplaceOrderId],
     ['ID Lazada', o.lazadaOrderId || 'Tidak tersedia'],
@@ -49,6 +95,40 @@ export default function OrderDetail() {
               ))}
             </dl>
           </div>
+          {o.syncedAt && o.status === 'pending' && items.length > 0 && (
+            <div className="mt-4">
+              <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
+                disabled={delivery.isPending} data-testid="button-deliver-digital">
+                <Send className="mr-2 size-4" /> Proses / Kirim Digital
+              </Button>
+            </div>
+          )}
+          {deliveryNotice && <p role="status" data-testid="status-delivery-success" className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">{deliveryNotice}</p>}
+          {deliveryError && !confirmOpen && <p role="alert" data-testid="error-deliver-digital" className="mt-3 text-sm text-destructive">{deliveryError}</p>}
+          <AlertDialog open={confirmOpen} onOpenChange={open => {
+            if (!delivery.isPending) {
+              setConfirmOpen(open);
+              if (open) setDeliveryError('');
+            }
+          }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Kirim item digital ke Lazada?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Lazada akan menandai seluruh item digital pada pesanan ini sebagai terkirim. Tindakan ini memanggil DeliverDigital dan tidak dapat dibatalkan.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deliveryError && <p role="alert" data-testid="error-deliver-digital-confirm" className="text-sm text-destructive">{deliveryError}</p>}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={delivery.isPending} data-testid="button-cancel-deliver-digital">Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={event => { event.preventDefault(); submitDelivery(); }}
+                  disabled={delivery.isPending} data-testid="button-confirm-deliver-digital">
+                  {delivery.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {delivery.isPending ? 'Mengirim…' : 'Konfirmasi kirim'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <h2 className="mb-3 mt-6 font-semibold">Item pesanan ({items.length})</h2>
           {items.length === 0 ? (
             <div data-testid="state-no-items" className="rounded-xl border border-dashed border-input bg-card p-4">

@@ -6,22 +6,32 @@ export class LazadaError extends Error {
     super(reason);
   }
 }
+
+export type DigitalDeliveryItemResult = {
+  orderId: string;
+  orderItemId: string;
+  itemErrorCode: string;
+  retry: boolean;
+};
+
 export function signature(path: string, params: Record<string, string>, secret: string): string {
   const message = path + Object.keys(params).filter(k => k !== "sign").sort().map(k => k + params[k]).join("");
   return createHmac("sha256", secret).update(message, "utf8").digest("hex").toUpperCase();
 }
-// Explicit allowlist: OAuth, seller verification and READ-ONLY order APIs only.
+// Explicit allowlist: OAuth, seller verification, order reads and manual digital delivery only.
 export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal) {
-  async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get", business: Record<string, string>) {
+  async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get" | "/order/digital/delivered",
+    business: Record<string, string>, method?: "GET" | "POST") {
     const params = { ...business, app_key: config.appKey, sign_method: "sha256", timestamp: String(Date.now()) };
     const signed = new URLSearchParams({ ...params, sign: signature(path, params, config.appSecret) });
     const url = new URL((path === "/auth/token/create" ? "https://auth.lazada.com/rest" : endpoints[config.country]) + path);
     const tokenRequest = path === "/auth/token/create";
-    if (!tokenRequest) url.search = signed.toString();
+    const requestMethod = method ?? (tokenRequest ? "POST" : "GET");
+    if (!tokenRequest && requestMethod === "GET") url.search = signed.toString();
     try {
-      const response = await transport(url, { method: tokenRequest ? "POST" : "GET", redirect: "error",
+      const response = await transport(url, { method: requestMethod, redirect: "error",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
-        ...(tokenRequest ? { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: signed.toString() } : {}) });
+        ...(requestMethod === "POST" ? { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: signed.toString() } : {}) });
       // Limit provider payloads. Raw bodies/URLs/errors never reach logs or API responses.
       const text = await response.text();
       if (text.length > 2_000_000) throw new LazadaError("api_unavailable");
@@ -80,6 +90,60 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
       if (!body.data || typeof body.data !== "object" || Array.isArray(body.data))
         throw new LazadaError("invalid_response");
       return body.data as Record<string, unknown>;
+    },
+    async deliverDigital(accessToken: string, orderId: string, orderItemIds: string[]) {
+      const providerNumber = (value: string) => {
+        const number = Number(value);
+        if (!/^\d+$/.test(value) || !Number.isSafeInteger(number) || number <= 0)
+          throw new LazadaError("invalid_response");
+        return number;
+      };
+      const body = await call("/order/digital/delivered", {
+        access_token: accessToken,
+        digitalDeliveryReq: JSON.stringify({ orders: [{
+          order_id: providerNumber(orderId),
+          order_item_list: orderItemIds.map(providerNumber),
+        }] }),
+      }, "POST");
+      const envelope = body.result;
+      if (!envelope || typeof envelope !== "object" || Array.isArray(envelope))
+        throw new LazadaError("invalid_response");
+      const successValue = (envelope as Record<string, unknown>).success;
+      const success = successValue === true || successValue === "true";
+      if (!success) {
+        if (successValue !== false && successValue !== "false") throw new LazadaError("invalid_response");
+        return { success: false, items: [] as DigitalDeliveryItemResult[] };
+      }
+      const data = (envelope as Record<string, unknown>).data;
+      const orders = data && typeof data === "object" && !Array.isArray(data)
+        ? (data as Record<string, unknown>).orders : null;
+      if (!Array.isArray(orders) || orders.length !== 1
+        || !orders[0] || typeof orders[0] !== "object" || Array.isArray(orders[0]))
+        throw new LazadaError("invalid_response");
+      const order = orders[0] as Record<string, unknown>;
+      const id = (value: unknown): string | null => {
+        if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
+        if (typeof value === "string" && /^\d+$/.test(value)
+          && Number.isSafeInteger(Number(value)) && Number(value) > 0) return String(Number(value));
+        return null;
+      };
+      const responseOrderId = id(order.order_id);
+      if (!responseOrderId || !Array.isArray(order.order_item_list))
+        throw new LazadaError("invalid_response");
+      const items = order.order_item_list.map((value: unknown): DigitalDeliveryItemResult => {
+        if (!value || typeof value !== "object" || Array.isArray(value))
+          throw new LazadaError("invalid_response");
+        const item = value as Record<string, unknown>;
+        const orderItemId = id(item.order_item_id);
+        const errorCode = typeof item.item_err_code === "string" || typeof item.item_err_code === "number"
+          ? String(item.item_err_code) : null;
+        const retry = typeof item.retry === "boolean" ? item.retry
+          : item.retry === "true" ? true : item.retry === "false" ? false : null;
+        if (!orderItemId || errorCode === null || retry === null)
+          throw new LazadaError("invalid_response");
+        return { orderId: responseOrderId, orderItemId, itemErrorCode: errorCode, retry };
+      });
+      return { success: true, items };
     },
     async getUpdatedOrders(accessToken: string, filters: { after: string; before: string; offset: number; limit: number }) {
       const body = await call("/orders/get", { access_token: accessToken, update_after: filters.after,

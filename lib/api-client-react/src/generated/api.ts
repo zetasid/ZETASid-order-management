@@ -1340,3 +1340,78 @@ export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError
 
 
 
+export const getDeliverDigitalOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/orders/${orderId}/deliver-digital`
+}
+
+/**
+ * Requires an authenticated session, CSRF token and HTTPS. The operator must confirm in the UI. No delivery payload is sent; duplicate attempts are serialized and audited.
+ * @summary Manually mark every digital item in one pending Lazada order as delivered
+ */
+export const deliverDigitalOrder = async (orderId: string, options?: Parameters<typeof customFetch>[1]): Promise<Order> => {
+
+  return customFetch<Order>(getDeliverDigitalOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeliverDigitalOrderMutationKey = () => ['deliverDigitalOrder'] as const;
+
+export const getDeliverDigitalOrderMutationOptions = <TError = ErrorType<ErrorResponse | AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deliverDigitalOrder>>, TError,DeliverDigitalOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deliverDigitalOrder>>, TError,DeliverDigitalOrderMutationVariables, TContext> => {
+
+const mutationKey = getDeliverDigitalOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deliverDigitalOrder>>, DeliverDigitalOrderMutationVariables> = (props) => {
+          const {orderId} = props ?? {};
+
+          return  deliverDigitalOrder(orderId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeliverDigitalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof deliverDigitalOrder>>>
+
+    export type DeliverDigitalOrderMutationError = ErrorType<ErrorResponse | AuthErrorResponse>
+    export type DeliverDigitalOrderMutationVariables = {orderId: string}
+
+    /**
+ * @summary Manually mark every digital item in one pending Lazada order as delivered
+ */
+export const useDeliverDigitalOrder = <TError = ErrorType<ErrorResponse | AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deliverDigitalOrder>>, TError,DeliverDigitalOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deliverDigitalOrder>>,
+        TError,
+        DeliverDigitalOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeliverDigitalOrderMutationOptions(options), queryClient);
+    }
+

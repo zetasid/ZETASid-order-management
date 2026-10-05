@@ -341,3 +341,55 @@ export const GetOrderResponse = zod.object({
 })
 
 
+/**
+ * Requires an authenticated session, CSRF token and HTTPS. The operator must confirm in the UI. No delivery payload is sent; duplicate attempts are serialized and audited.
+ * @summary Manually mark every digital item in one pending Lazada order as delivered
+ */
+export const DeliverDigitalOrderParams = zod.object({
+  "orderId": zod.coerce.string().uuid()
+})
+
+export const deliverDigitalOrderResponseAmountMin = 0;
+
+
+
+export const DeliverDigitalOrderResponse = zod.object({
+  "id": zod.string().uuid(),
+  "marketplaceOrderId": zod.string(),
+  "lazadaOrderId": zod.string(),
+  "productName": zod.string(),
+  "buyerName": zod.string().nullable(),
+  "amount": zod.number().min(deliverDigitalOrderResponseAmountMin).nullable(),
+  "lazadaStatuses": zod.array(zod.string()).nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "sourcePrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "syncedAt": zod.coerce.date().nullish(),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "lazadaOrderItemId": zod.string(),
+  "orderId": zod.string().uuid(),
+  "productName": zod.string(),
+  "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
+  "digitalDetailSource": zod.string().nullish(),
+  "sourceStatus": zod.string().nullish(),
+  "sourceCreatedAt": zod.string().nullish(),
+  "sourceUpdatedAt": zod.string().nullish(),
+  "itemPrice": zod.string().nullish(),
+  "paidPrice": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "variation": zod.string().nullish(),
+  "sku": zod.string().nullish(),
+  "shopSku": zod.string().nullish(),
+  "extraAttributes": zod.string().nullish(),
+  "status": zod.union([zod.literal('pending'),zod.literal('processing'),zod.literal('completed'),zod.literal('cancelled'),zod.literal(null)]).nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+

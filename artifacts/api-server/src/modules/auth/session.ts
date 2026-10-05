@@ -1,7 +1,7 @@
 import type { CookieOptions, Request, RequestHandler, Response } from "express";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { db, usersTable, authSessionsTable, authLoginBucketsTable } from "@workspace/db";
-import { ABSOLUTE_MS, digest, IDLE_MS, secureEqual } from "./config";
+import { digest, SESSION_TTL_MS, secureEqual } from "./config";
 
 export const COOKIE = "zetas_session";
 export function cookieOptions(req: Request): CookieOptions {
@@ -20,15 +20,13 @@ export const requireSession: RequestHandler = async (req, res, next) => {
   const tokenHash = digest("session", token);
   const [session] = await db.select({
     id: usersTable.id, email: usersTable.email, displayName: usersTable.displayName,
-    createdAt: authSessionsTable.createdAt,
   }).from(authSessionsTable).innerJoin(usersTable, eq(authSessionsTable.userId, usersTable.id)).where(and(
     eq(authSessionsTable.tokenHash, tokenHash),
     gt(authSessionsTable.expiresAt, new Date()),
-    gt(authSessionsTable.createdAt, new Date(Date.now() - ABSOLUTE_MS)),
     eq(usersTable.isActive, true),
   )).limit(1);
   if (!session) { clearSessionCookie(req, res); res.status(401).json({ error: "Silakan masuk terlebih dahulu." }); return; }
-  const expiresAt = new Date(Math.min(Date.now() + IDLE_MS, session.createdAt.getTime() + ABSOLUTE_MS));
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   const renewed = await db.update(authSessionsTable).set({ expiresAt }).where(and(
     eq(authSessionsTable.tokenHash, tokenHash),
     gt(authSessionsTable.expiresAt, new Date()),
@@ -63,7 +61,7 @@ export const requireCsrf: RequestHandler = (req, res, next) => {
 };
 
 export async function removeExpiredAuthData() {
-  await db.delete(authSessionsTable).where(sql`${authSessionsTable.expiresAt} <= now() or ${authSessionsTable.createdAt} <= now() - interval '8 hours'`);
+  await db.delete(authSessionsTable).where(sql`${authSessionsTable.expiresAt} <= now()`);
   // Keep rate-limit records for a day; never clear still-active lockouts.
   await db.delete(authLoginBucketsTable).where(sql`${authLoginBucketsTable.resetAt} < now() - interval '1 day'`);
 }

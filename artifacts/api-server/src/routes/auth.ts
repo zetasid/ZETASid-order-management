@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, usersTable, authSessionsTable, authLoginBucketsTable } from "@workspace/db";
 import { LoginBody, LoginResponse, GetSessionResponse } from "@workspace/api-zod";
 import { hashPassword, verifyPassword } from "../modules/auth/password";
-import { digest, IDLE_MS } from "../modules/auth/config";
+import { digest, SESSION_TTL_MS } from "../modules/auth/config";
 import { consumeLoginQuota, withPasswordSlot } from "../modules/auth/limits";
 import { COOKIE, cookieOptions, readToken, clearSessionCookie, requireSession, requireSameOrigin, requireCsrf } from "../modules/auth/session";
 
@@ -40,12 +40,12 @@ router.post("/auth/login", requireSameOrigin, async (req, res): Promise<void> =>
     const [current] = await tx.select().from(usersTable).where(eq(usersTable.id, result.id)).for("update");
     if (!current?.isActive || current.passwordHash !== result.passwordHash) return false;
     if (old) await tx.delete(authSessionsTable).where(eq(authSessionsTable.tokenHash, digest("session", old)));
-    await tx.insert(authSessionsTable).values({ tokenHash: digest("session", token), userId: result.id, expiresAt: new Date(Date.now() + IDLE_MS) });
+    await tx.insert(authSessionsTable).values({ tokenHash: digest("session", token), userId: result.id, expiresAt: new Date(Date.now() + SESSION_TTL_MS) });
     await tx.delete(authLoginBucketsTable).where(eq(authLoginBucketsTable.key, digest("login-account", email)));
     return true;
   });
   if (!created) { res.status(401).json({ error: "Email atau kata sandi tidak sesuai." }); return; }
-  res.cookie(COOKIE, token, { ...cookieOptions(req), maxAge: IDLE_MS });
+  res.cookie(COOKIE, token, { ...cookieOptions(req), maxAge: SESSION_TTL_MS });
   res.json(LoginResponse.parse({ user: { id: result.id, email: result.email, displayName: result.displayName }, csrfToken: digest("csrf", token) }));
 });
 router.get("/auth/me", requireSession, (_req, res) => { res.json(GetSessionResponse.parse(res.locals.auth)); });

@@ -1,6 +1,5 @@
 import { and, eq, gt, lt } from "drizzle-orm";
 import { db, usersTable, authSessionsTable, lazadaConnectionsTable as connections, lazadaOauthStatesTable as states } from "@workspace/db";
-import { ABSOLUTE_MS } from "../auth/config";
 import { createClient, LazadaError } from "./client";
 import { configuration, hash, nonce, seal, unseal, type LazadaConfig } from "./security";
 
@@ -11,7 +10,7 @@ export async function activeSession(tx: Parameters<Parameters<typeof db.transact
   if (!user) return false;
   const [session] = await tx.select({ hash: authSessionsTable.tokenHash }).from(authSessionsTable).where(and(
     eq(authSessionsTable.tokenHash, sessionHash), eq(authSessionsTable.userId, userId),
-    gt(authSessionsTable.expiresAt, new Date()), gt(authSessionsTable.createdAt, new Date(Date.now() - ABSOLUTE_MS)),
+    gt(authSessionsTable.expiresAt, new Date()),
   )).for("update");
   return !!session;
 }

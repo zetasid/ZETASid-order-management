@@ -53,6 +53,7 @@ test("Login, rotasi session, CSRF logout, pencabutan dan respons tanpa credentia
     assert.equal(response.status, 200);
     const cookieHeader = response.headers.getSetCookie()[0];
     assert.ok(cookieHeader.includes("HttpOnly") && cookieHeader.includes("SameSite=Strict") && cookieHeader.includes("Path=/"));
+    assert.match(cookieHeader, /Max-Age=2592000(?:;|$)/, "Persistent login cookie lasts 30 days");
     const cookie = cookieHeader.split(";")[0];
     assert.ok(cookie !== fixture.cookie);
     const text = await response.text();
@@ -74,7 +75,7 @@ test("Login, rotasi session, CSRF logout, pencabutan dan respons tanpa credentia
   } finally { await fixture.cleanup(); }
 });
 
-test("Session idle/absolut kedaluwarsa dan akun dinonaktifkan tidak diizinkan", async () => {
+test("Session kedaluwarsa dan akun dinonaktifkan tidak diizinkan; batas 8 jam tidak lagi berlaku", async () => {
   const fixture = await createAuthorizedFixture();
   try {
     await fixture.pool.query("UPDATE auth_sessions SET expires_at=now()-interval '1 minute' WHERE user_id=$1", [fixture.id]);
@@ -83,6 +84,8 @@ test("Session idle/absolut kedaluwarsa dan akun dinonaktifkan tidak diizinkan", 
     assert.equal(response.status, 200);
     let cookie = response.headers.getSetCookie()[0].split(";")[0];
     await fixture.pool.query("UPDATE auth_sessions SET created_at=now()-interval '9 hours',expires_at=now()+interval '1 hour' WHERE user_id=$1", [fixture.id]);
+    assert.equal((await fetch(`${api}/orders`, { headers: { Cookie: cookie } })).status, 200);
+    await fixture.pool.query("UPDATE auth_sessions SET created_at=now()-interval '31 days',expires_at=now()-interval '1 minute' WHERE user_id=$1", [fixture.id]);
     assert.equal((await fetch(`${api}/orders`, { headers: { Cookie: cookie } })).status, 401);
     response = await signIn(fixture);
     assert.equal(response.status, 200);

@@ -5,9 +5,10 @@ import { logger } from "./lib/logger";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { lazadaPushRouter } from "./routes/lazada-push";
+import { trustedProxyAddresses } from "./lib/trusted-proxy";
 
 const app: Express = express();
-app.set("trust proxy", 1);
+app.set("trust proxy", trustedProxyAddresses());
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, strictTransportSecurity: process.env.NODE_ENV === "production" ? { maxAge: 31536000 } : false }));
 
 app.use(

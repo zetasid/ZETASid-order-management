@@ -61,6 +61,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET (at least 32 random characters)}
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public HTTPS origin}
+      # Only private Nginx traffic reaches this unexposed API. Override with the
+      # exact Nginx IP/CIDR for a narrower allowlist on your own network.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
       # Optional, backend-only. Do not pass these values to the web/build services.
       LAZADA_MODE: ${LAZADA_MODE:-}
       LAZADA_COUNTRY: ${LAZADA_COUNTRY:-id}

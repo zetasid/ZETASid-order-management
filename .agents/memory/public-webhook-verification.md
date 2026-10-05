@@ -1,6 +1,6 @@
 ---
 name: Public webhook verification
-description: Internal Replit requests can bypass the public private-app gate and expose a proxy certificate.
+description: Public webhook reachability and the user's Nginx/Cloudflare TLS termination on VPS.
 ---
 
 Do not treat a successful request from the workspace or execution sandbox as
@@ -29,6 +29,14 @@ contract.
 **How to apply:** Require documented or independently established Verify format
 before adding a separate ACK path. Preserve raw-body HMAC and normal order
 parser/queue; report missing evidence rather than claiming live Verify works.
-For this work, the user repeatedly instructs: do not commit or deploy; do not
-change OAuth, order sync, database schema, authentication, Docker, UI or other
-endpoints.
+
+The user reports that ZETAS runs behind Nginx/Cloudflare on their VPS. External
+HTTPS and the internal reverse-proxy connection are separate transport layers.
+
+**Why:** The user identified proxy-protocol recognition as a cause of HTTP 400
+at the HTTPS guard. This finding is not permission to relax signature, payload,
+timestamp or queue validation, and does not establish the live Verify format.
+
+**How to apply:** Check the trusted proxy boundary before investigating a
+payload rejection. Forwarded HTTPS is meaningful only from a trusted proxy
+that overwrites client-supplied forwarding headers.

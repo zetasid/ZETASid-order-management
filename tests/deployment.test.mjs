@@ -16,6 +16,7 @@ const env = {
   APP_ORIGIN: "https://configuration.example.invalid",
   APP_BIND: "127.0.0.1",
   APP_PORT: "8080",
+  TRUST_PROXY: "loopback,172.20.0.2/32",
 };
 const cli = (() => {
   try { execFileSync("docker-compose", ["version"], { stdio: "ignore" }); return ["docker-compose", []]; }
@@ -36,6 +37,7 @@ test("Compose valid; persistence, startup gate, health and private ports are enf
   assert.equal(config.services.database.volumes[0].target, "/var/lib/postgresql/data");
   assert.equal(config.services.database.ports, undefined);
   assert.equal(config.services.api.ports, undefined);
+  assert.equal(config.services.api.environment.TRUST_PROXY, env.TRUST_PROXY);
   assert.equal(config.services.migrate.restart, "no");
   assert.equal(config.services.api.depends_on.migrate.condition, "service_completed_successfully");
   assert.equal(config.services.web.depends_on.api.condition, "service_healthy");

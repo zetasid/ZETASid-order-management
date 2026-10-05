@@ -49,7 +49,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
   const before = (await f.pool.query(originalHashSql, [id, secondId])).rows[0];
   const ip = `192.0.2.${randomInt(1, 250)}`;
   const child = spawn(process.execPath, ["--import", "./tests/fixtures/lazada-push-provider.mjs", "artifacts/api-server/dist/index.mjs"], {
-    env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test", LOG_LEVEL: "silent",
+    env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test", LOG_LEVEL: "silent", TRUST_PROXY: "127.0.0.1",
       LAZADA_TEST_ORDER_ID: id, LAZADA_TEST_WORKER_BUNDLE: workerFile,
       LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile },
     stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -102,6 +102,25 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.equal(await readFile(callsFile, "utf8"), "");
     });
     await t.test("HTTPS and raw-byte HMAC remain mandatory; malformed payloads and guessed Verify flags are rejected", async () => {
+      const plainHttp = await send(body(), { "X-Forwarded-Proto": "http" });
+      assert.equal(plainHttp.status, 400);
+      assert.deepEqual(await plainHttp.json(), { error: "HTTPS wajib." });
+      const proxyRaw = JSON.stringify(body());
+      const spoofed = await new Promise((resolve, reject) => {
+        const request = http.request(`${api}/lazada/orders/push`, {
+          method: "POST", localAddress: "127.0.0.2", agent: false,
+          headers: { "Content-Type": "application/json", "X-Forwarded-Proto": "https",
+            Authorization: createHmac("sha256", env.LAZADA_APP_SECRET).update(env.LAZADA_APP_KEY + proxyRaw).digest("hex") },
+        }, response => {
+          let text = "";
+          response.on("data", chunk => { text += chunk; });
+          response.on("end", () => resolve({ status: response.statusCode, body: JSON.parse(text) }));
+        });
+        request.on("error", reject);
+        request.end(proxyRaw);
+      });
+      assert.deepEqual(spoofed, { status: 400, body: { error: "HTTPS wajib." } },
+        "Even a valid raw-body HMAC cannot make an untrusted source's HTTPS header trusted");
       assert.equal((await send(sample, { Authorization: "" })).status, 401);
       assert.equal((await send(sample, { Authorization: "f".repeat(64) })).status, 401);
       assert.equal((await send(sample, { "X-Forwarded-Proto": "http" })).status, 400);

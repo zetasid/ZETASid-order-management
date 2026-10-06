@@ -1,6 +1,6 @@
 import pino from "pino";
 
-const isProduction = process.env.NODE_ENV === "production";
+const usePrettyTransport = process.env.NODE_ENV === "development";
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -14,12 +14,12 @@ export const logger = pino({
     "*.appSecret", "*.app_secret", "*.accessToken", "*.access_token", "*.refreshToken", "*.refresh_token",
     "encryptedTokens", "*.encryptedTokens", "code", "state",
   ],
-  ...(isProduction
-    ? {}
-    : {
+  ...(usePrettyTransport
+    ? {
         transport: {
           target: "pino-pretty",
           options: { colorize: true },
         },
-      }),
+      }
+    : {}),
 });

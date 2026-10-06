@@ -16,7 +16,7 @@ globalThis.fetch = async (input, options = {}) => {
   const json = body => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
   if (params.sign !== expected) return json({ code: "IncompleteSignature" });
   if (path === "/auth/token/create") {
-    if (params.code === "deny") return json({ code: "InvalidCode", message: "test-only-private-provider-detail" });
+    if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });
     if (params.code === "slow") await setTimeout(250);
     return json({ code: "0", country: params.code === "wrong-country" ? "sg" : "id",
       access_token: "test-only-access-token", refresh_token: "test-only-refresh-token",
@@ -97,7 +97,7 @@ globalThis.fetch = async (input, options = {}) => {
     }] });
   }
   if (control === "network") throw new Error("test-only-access-token test-only-private-provider-detail");
-  if (control === "revoked") return json({ code: "IllegalAccessToken", message: "test-only-private-provider-detail" });
-  if (control === "permission") return json({ code: "InsufficientPermissions", message: "test-only-private-provider-detail" });
+  if (control === "revoked") return json({ code: "IllegalAccessToken", message: "Access token expired", request_id: "test-request-revoked" });
+  if (control === "permission") return json({ code: "InsufficientPermissions", message: "Permission denied", request_id: "test-request-permission" });
   return json({ code: "0", data: { seller_id: "test-only-seller", name: "Dummy fixture, not a real seller" } });
 };

@@ -95,6 +95,62 @@ test("Lazada client accepts only validated responses and safely handles network/
   await assert.rejects(malformed.exchange("dummy"), error => error.reason === "authorization_failed");
 });
 
+test("Lazada provider diagnostics contain only safe response fields and preserve error mapping", async () => {
+  const config = security.configuration(env);
+  const diagnosticEntries = [];
+  const diagnosticLogger = { warn: (fields, message) => diagnosticEntries.push({ fields, message }) };
+  const authorizationCode = "test-only-oauth-code-must-not-be-logged";
+  const exposedMessage = `Rejected ${authorizationCode}; secret=${config.appSecret}; https://example.invalid/path?access_token=leaked`;
+  const invalidCode = createClient(config, async () => new Response(JSON.stringify({
+    code: "InvalidCode", message: exposedMessage, request_id: "lazada-request-123",
+  })), undefined, diagnosticLogger);
+
+  await assert.rejects(invalidCode.exchange(authorizationCode), error => error.reason === "authorization_failed");
+  assert.equal(diagnosticEntries.length, 1);
+  const invalidCodeLog = diagnosticEntries[0].fields;
+  assert.deepEqual(Object.keys(invalidCodeLog).sort(),
+    ["path", "httpStatus", "providerCode", "providerMessage", "providerRequestId"].sort());
+  assert.equal(invalidCodeLog.path, "/auth/token/create");
+  assert.equal(invalidCodeLog.httpStatus, 200);
+  assert.equal(invalidCodeLog.providerCode, "InvalidCode");
+  assert.equal(invalidCodeLog.providerRequestId, "lazada-request-123");
+  assert.ok(!JSON.stringify(invalidCodeLog).includes(authorizationCode));
+  assert.ok(!JSON.stringify(invalidCodeLog).includes(config.appSecret));
+  assert.ok(!JSON.stringify(invalidCodeLog).includes("leaked"));
+  assert.ok(!JSON.stringify(invalidCodeLog).includes("https://"));
+
+  const longAuthorizationCode = "test-only-long-oauth-code-".repeat(40);
+  const longCodeClient = createClient(config, async () => new Response(JSON.stringify({
+    code: "InvalidCode",
+    message: `${longAuthorizationCode} was rejected by the provider`,
+    request_id: "lazada-request-long-code",
+  })), undefined, diagnosticLogger);
+  await assert.rejects(longCodeClient.exchange(longAuthorizationCode), error => error.reason === "authorization_failed");
+  const longCodeMessage = diagnosticEntries[1].fields.providerMessage;
+  assert.ok(!longCodeMessage.includes(longAuthorizationCode));
+  assert.ok(longCodeMessage.startsWith("[redacted]"));
+  assert.ok(longCodeMessage.length <= 512);
+
+  const denied = createClient(config, async () => new Response(JSON.stringify({
+    code: "InsufficientPermissions", message: "Permission denied", request_id: "lazada-request-403",
+  }), { status: 403 }), undefined, diagnosticLogger);
+  await assert.rejects(denied.check("test-only-access-token"), error => error.reason === "api_unavailable");
+  assert.equal(diagnosticEntries[2].fields.httpStatus, 403);
+  assert.equal(diagnosticEntries[2].fields.providerCode, "InsufficientPermissions");
+
+  const invalidJsonBody = "response contains test-only-private-provider-detail and must not be logged";
+  const invalidJson = createClient(config, async () => new Response(invalidJsonBody, { status: 502 }), undefined, diagnosticLogger);
+  await assert.rejects(invalidJson.exchange("another-test-code"), error => error.reason === "api_unavailable");
+  assert.deepEqual(diagnosticEntries[3].fields, {
+    path: "/auth/token/create",
+    httpStatus: 502,
+    providerCode: null,
+    providerMessage: null,
+    providerRequestId: null,
+  });
+  assert.ok(!JSON.stringify(diagnosticEntries).includes(invalidJsonBody));
+});
+
 test("Lazada Testing OAuth and connection API — simulated provider, real backend/PostgreSQL", async t => {
   const reservation = http.createServer();
   await new Promise(r => reservation.listen(0, "127.0.0.1", r));
@@ -207,6 +263,8 @@ test("Lazada Testing OAuth and connection API — simulated provider, real backe
     });
     const allCalls = await calls();
     assert.ok(allCalls.every(c => c.path === "/auth/token/create" && c.method === "POST" || c.path === "/seller/get" && c.method === "GET"));
+    assert.ok(logs.includes("providerCode") && logs.includes("InvalidCode"));
+    assert.ok(logs.includes("providerMessage") && logs.includes("Invalid authorization code"));
     for (const sensitive of ["test-only-access-token", "test-only-refresh-token", env.LAZADA_APP_SECRET, "test-only-private-provider-detail"])
       assert.ok(!logs.includes(sensitive), "Logs must not contain secrets, provider details or tokens");
   } finally {

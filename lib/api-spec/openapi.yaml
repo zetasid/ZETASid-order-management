@@ -511,6 +511,9 @@ components:
         status:
           type: ["string", "null"]
           enum: [pending, processing, completed, cancelled, null]
+        paymentStatus:
+          type: string
+          enum: [unpaid, pending, confirmed, cancelled, unknown]
         createdAt:
           type: string
           format: date-time
@@ -529,6 +532,7 @@ components:
         - buyerName
         - amount
         - status
+        - paymentStatus
         - createdAt
         - updatedAt
         - items
@@ -545,6 +549,12 @@ components:
           format: uuid
         productName:
           type: string
+        productMainImage:
+          type: ["string", "null"]
+          format: uri
+          pattern: "^https://"
+          maxLength: 4096
+          description: Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.
         digitalDetail:
           type: ["string", "null"]
           description: Original string or pretty-printed JSON for structured PostgreSQL digital_detail.
@@ -568,7 +578,7 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [id, lazadaOrderItemId, orderId, productName, digitalDetail, status, createdAt, updatedAt]
+      required: [id, lazadaOrderItemId, orderId, productName, productMainImage, digitalDetail, status, createdAt, updatedAt]
     DashboardSummary:
       type: object
       properties:

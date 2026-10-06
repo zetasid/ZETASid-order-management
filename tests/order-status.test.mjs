@@ -17,7 +17,7 @@ const dir = await mkdtemp(`${tmpdir()}/zetas-status-readonly-`);
 await build({ stdin: { contents: `
   export { pool } from './lib/db/src/index.ts';
   export { mapOrder } from './artifacts/api-server/src/modules/lazada/order-mapping.ts';
-  export { groupStatuses, itemStatusGroup, readOrderStatus } from './artifacts/api-server/src/modules/orders/order-status.ts';
+  export { groupStatuses, itemStatusGroup, readOrderPaymentStatus, readOrderStatus } from './artifacts/api-server/src/modules/orders/order-status.ts';
   export { listOrders, findOrder, getOrderSummary } from './artifacts/api-server/src/modules/orders/orders.repository.ts';
   `, resolveDir: process.cwd(), loader: "ts" }, outfile: `${dir}/test.mjs`, bundle: true, platform: "node", format: "esm",
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" }, logLevel: "silent" });
@@ -93,6 +93,36 @@ async function seedStatuses(statuses, storedStatus = "pending") {
   }
 }
 
+async function seedPaymentOrders(cases) {
+  const namespace = randomUUID();
+  const time = "2026-01-01T00:00:00.000Z";
+  const client = await mod.pool.connect();
+  const fixtures = [];
+  try {
+    await client.query("BEGIN");
+    for (const [index, fixture] of cases.entries()) {
+      const externalId = `synthetic-payment-${namespace}-${index}`;
+      const data = fixture.statuses === null ? { statuses: null } : { statuses: fixture.statuses };
+      const { rows: [order] } = await client.query(`INSERT INTO orders
+        (lazada_order_id, product_name, amount, status, lazada_data, synced_at, created_at, updated_at)
+        VALUES ($1, 'SYNTHETIC PAYMENT FIXTURE', $2, 'pending', $3, $4, $4, $4) RETURNING id`,
+      [externalId, fixture.amount, data, time]);
+      await client.query(`INSERT INTO order_items
+        (order_id, lazada_order_item_id, product_name, status, lazada_data, created_at, updated_at)
+        VALUES ($1, $2, 'SYNTHETIC PAYMENT FIXTURE', 'pending', $3, $4, $4)`,
+      [order.id, `${externalId}-item`, { status: fixture.itemStatus === undefined ? "pending" : fixture.itemStatus }, time]);
+      fixtures.push({ id: order.id, ...fixture });
+    }
+    await client.query("COMMIT");
+    return fixtures;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 test("Documented raw Lazada status groups; unknown statuses are not guessed", () => {
   for (const [raw, group] of [
     ["confirmed", "completed"], ["delivered", "completed"], ["canceled", "cancelled"],
@@ -110,6 +140,11 @@ test("Documented raw Lazada status groups; unknown statuses are not guessed", ()
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: { statuses: ["confirmed"] },
     items: [{ lazadaData: { status: "pending" } }] }), "pending", "GetOrderItems overrides inconsistent header");
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: null, items: [] }), "pending", "Legacy data retained");
+  for (const [statuses, expected] of [
+    [["unpaid"], "unpaid"], [["pending"], "pending"], [["canceled"], "cancelled"],
+    [["confirmed"], "confirmed"], [["delivered"], "confirmed"], [["future_status"], "unknown"],
+    [[], "unknown"], [null, "unknown"],
+  ]) assert.equal(mod.readOrderPaymentStatus({ lazadaData: statuses === null ? { statuses: null } : { statuses } }), expected);
   const time = "2026-09-20 10:00:00 +0700";
   const mapped = mod.mapOrder({ order_id: "123", order_number: "123", statuses: [], items_count: 1,
     price: "0.00", created_at: time, updated_at: time }, [{
@@ -155,6 +190,33 @@ test("28 self-seeded synthetic orders: 11 confirmed -> Selesai, 17 canceled -> D
   assert.equal(summary.totalOrders, summary.pendingOrders + summary.processingOrders
     + summary.completedOrders + summary.cancelledOrders + summary.unmappedOrders);
   assert.deepEqual((await mod.pool.query(fingerprintSql)).rows[0], before, "All stored business rows, including timestamps, remain unchanged");
+});
+
+test("Revenue requires confirmed header payment and an eligible non-pending order status", async () => {
+  const before = (await mod.getOrderSummary()).totalRevenue;
+  const fixtures = await seedPaymentOrders([
+    { statuses: ["unpaid"], expected: "unpaid", amount: 110 },
+    { statuses: ["pending"], expected: "pending", amount: 220 },
+    { statuses: ["canceled"], expected: "cancelled", amount: 330 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "packed", amount: 440 },
+    { statuses: ["unknown_future_status"], expected: "unknown", itemStatus: "packed", amount: 550 },
+    { statuses: null, expected: "unknown", itemStatus: "packed", amount: 660 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "unpaid", amount: 770 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "future_item_status", amount: 880 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: null, amount: 990 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "pending", amount: 1010 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "canceled", amount: 1110 },
+  ]);
+  for (const fixture of fixtures) {
+    assert.equal((await mod.findOrder(fixture.id)).paymentStatus, fixture.expected);
+  }
+  const after = await mod.getOrderSummary();
+  const pendingPaid = fixtures.find(fixture => fixture.amount === 1010);
+  assert.ok(pendingPaid);
+  const pendingPaidOrder = await mod.findOrder(pendingPaid.id);
+  assert.equal(pendingPaidOrder.paymentStatus, "confirmed", "Header payment remains separate from item workflow");
+  assert.equal(pendingPaidOrder.status, "pending");
+  assert.equal(after.totalRevenue, before + 440, "Pending and cancelled order states are excluded from revenue");
 });
 
 test("Self-seeded pending/unpaid -> Menunggu and all process statuses -> Diproses; no stored row changes", async () => {

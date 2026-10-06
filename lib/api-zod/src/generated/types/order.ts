@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OrderItem } from './orderItem';
+import type { OrderPaymentStatus } from './orderPaymentStatus';
 import type { OrderStatus } from './orderStatus';
 
 export interface Order {
@@ -34,6 +35,7 @@ export interface Order {
   syncedAt?: Date | null;
   /** @nullable */
   status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
   createdAt: Date;
   updatedAt: Date;
   items: OrderItem[];

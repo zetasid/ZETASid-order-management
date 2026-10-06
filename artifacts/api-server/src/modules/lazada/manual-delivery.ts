@@ -5,6 +5,7 @@ import {
   orderItemsTable,
   ordersTable,
   syncLogsTable,
+  type OrderItem,
 } from "@workspace/db";
 import { presentOrder } from "../orders/orders.presenter";
 import { activeSession } from "./connection";
@@ -22,6 +23,7 @@ const auditMessage = {
 } as const;
 
 type PresentedOrder = ReturnType<typeof presentOrder>;
+type RefreshedOrder = { order: PresentedOrder; allItemsDigital: boolean };
 export type ManualDeliveryOutcome =
   | { ok: true; order: PresentedOrder }
   | { ok: false; status: number; error: string };
@@ -38,6 +40,13 @@ type AuditMetadata = {
 };
 
 const failure = (status: number, error: string): ManualDeliveryOutcome => ({ ok: false, status, error });
+
+function paymentBlockedMessage(status: string) {
+  if (status === "unpaid") return "Pembayaran Lazada belum selesai. Pesanan belum dapat dikirim.";
+  if (status === "pending") return "Pembayaran masih menunggu konfirmasi Lazada. Pesanan belum dapat dikirim.";
+  if (status === "cancelled") return "Pesanan telah dibatalkan di Lazada dan tidak dapat dikirim.";
+  return "Status pembayaran Lazada belum dapat dipastikan. Pesanan tidak dikirim.";
+}
 
 function metadataStringArray(value: unknown, key: string): string[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
@@ -83,8 +92,12 @@ async function findOrder(tx: OrderTx, orderId: string) {
   });
 }
 
+function allItemsExplicitlyDigital(items: readonly { lazadaData: OrderItem["lazadaData"] }[]) {
+  return items.length > 0 && items.every(item => item.lazadaData?.is_digital === true);
+}
+
 async function refreshOrderFromLazada(tx: OrderTx, order: Awaited<ReturnType<typeof findOrder>>,
-  accessToken: string, client: ReturnType<typeof createClient>) {
+  accessToken: string, client: ReturnType<typeof createClient>): Promise<RefreshedOrder> {
   if (!order?.lazadaOrderId) throw new LazadaError("invalid_response");
   const providerOrderId = providerId(order.lazadaOrderId);
   const [header, itemResponse] = await Promise.all([
@@ -101,7 +114,7 @@ async function refreshOrderFromLazada(tx: OrderTx, order: Awaited<ReturnType<typ
   await storeOrder(tx, refreshed);
   const saved = await findOrder(tx, order.id);
   if (!saved) throw new LazadaError("invalid_response");
-  return presentOrder(saved);
+  return { order: presentOrder(saved), allItemsDigital: allItemsExplicitlyDigital(saved.items) };
 }
 
 function responseMatches(responseItems: DigitalDeliveryItemResult[], orderId: string, expected: ItemRef[]) {
@@ -135,13 +148,23 @@ export async function deliverDigitalOrder(operatorId: string, sessionHash: strin
 
     const itemRefs = order.items.map(item => ({ recordId: item.id, providerId: providerId(item.lazadaOrderItemId) }));
     const detail = presentOrder(order);
-    if (detail.status !== "pending") {
+    if (detail.paymentStatus !== "confirmed") {
+      await recordAttempt(tx, "failed", metadataFor(orderId, operatorId, itemRefs.length,
+        `payment_not_confirmed_${detail.paymentStatus}`), 0);
+      return failure(409, paymentBlockedMessage(detail.paymentStatus));
+    }
+    if (detail.status !== "pending" || !detail.items.length
+      || detail.items.some(item => item.sourceStatus !== "pending")) {
       await recordAttempt(tx, "failed", metadataFor(orderId, operatorId, itemRefs.length, "rejected_not_pending"), 0);
       return failure(409, "Hanya pesanan berstatus Menunggu yang dapat dikirim.");
     }
     if (!order.syncedAt || !order.lazadaOrderId || !itemRefs.length) {
       await recordAttempt(tx, "failed", metadataFor(orderId, operatorId, itemRefs.length, "not_deliverable"), 0);
       return failure(409, "Pesanan Lazada ini belum memiliki item yang dapat dikirim.");
+    }
+    if (!allItemsExplicitlyDigital(order.items)) {
+      await recordAttempt(tx, "failed", metadataFor(orderId, operatorId, itemRefs.length, "item_not_digital"), 0);
+      return failure(409, "Semua item harus dikonfirmasi sebagai digital oleh Lazada sebelum dikirim.");
     }
 
     const history = await tx.select({ status: syncLogsTable.status, metadata: syncLogsTable.metadata })
@@ -200,10 +223,23 @@ export async function deliverDigitalOrder(operatorId: string, sessionHash: strin
           metadataFor(orderId, operatorId, claim.itemRefs.length, "order_missing"), 0);
         return failure(404, "Pesanan tidak ditemukan.");
       }
-      if (presentOrder(order).status !== "pending") {
+      const detail = presentOrder(order);
+      if (detail.paymentStatus !== "confirmed") {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length,
+            `payment_not_confirmed_${detail.paymentStatus}`), 0);
+        return failure(409, paymentBlockedMessage(detail.paymentStatus));
+      }
+      if (detail.status !== "pending" || !detail.items.length
+        || detail.items.some(item => item.sourceStatus !== "pending")) {
         await finishAttempt(tx, claim.attemptId, "failed",
           metadataFor(orderId, operatorId, claim.itemRefs.length, "order_no_longer_pending"), 0);
         return failure(409, "Hanya pesanan berstatus Menunggu yang dapat dikirim.");
+      }
+      if (!allItemsExplicitlyDigital(order.items)) {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length, "item_not_digital"), 0);
+        return failure(409, "Semua item harus dikonfirmasi sebagai digital oleh Lazada sebelum dikirim.");
       }
 
       if (!await activeSession(tx, operatorId, sessionHash)) {
@@ -237,6 +273,35 @@ export async function deliverDigitalOrder(operatorId: string, sessionHash: strin
         return failure(409, "Koneksi Lazada tidak aktif. Hubungkan ulang di Pengaturan.");
       }
 
+      let freshOrder: PresentedOrder;
+      let freshItemsAreDigital = false;
+      try {
+        const refreshed = await refreshOrderFromLazada(tx, order, accessToken, createClient(config));
+        freshOrder = refreshed.order;
+        freshItemsAreDigital = refreshed.allItemsDigital;
+      } catch {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length, "payment_preflight_unavailable"), 0);
+        return failure(409, "Status pembayaran terbaru tidak dapat diverifikasi dari Lazada. Pesanan tidak dikirim.");
+      }
+      if (freshOrder.paymentStatus !== "confirmed") {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length,
+            `live_payment_not_confirmed_${freshOrder.paymentStatus}`), 0);
+        return failure(409, paymentBlockedMessage(freshOrder.paymentStatus));
+      }
+      if (freshOrder.status !== "pending" || !freshOrder.items.length
+        || freshOrder.items.some(item => item.sourceStatus !== "pending")) {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length, "live_order_no_longer_pending"), 0);
+        return failure(409, "Status proses pesanan berubah di Lazada. Muat ulang pesanan sebelum mengirim.");
+      }
+      if (!freshItemsAreDigital) {
+        await finishAttempt(tx, claim.attemptId, "failed",
+          metadataFor(orderId, operatorId, claim.itemRefs.length, "live_item_not_digital"), 0);
+        return failure(409, "Semua item harus dikonfirmasi sebagai digital oleh Lazada sebelum dikirim.");
+      }
+
       let providerResult;
       try {
         providerResult = await createClient(config).deliverDigital(
@@ -247,15 +312,17 @@ export async function deliverDigitalOrder(operatorId: string, sessionHash: strin
       } catch (error) {
         if (error instanceof LazadaError && error.reason === "api_unavailable") {
           try {
-            const observed = await refreshOrderFromLazada(tx, order, accessToken, createClient(config));
-            if (observed.status === "completed") {
+            const observed = (await refreshOrderFromLazada(tx, order, accessToken, createClient(config))).order;
+            if (observed.paymentStatus === "confirmed" && observed.items.length > 0
+              && observed.items.every(item => item.status === "completed")) {
               const allItemIds = order.items.map(item => item.id);
               await finishAttempt(tx, claim.attemptId, "completed",
                 metadataFor(orderId, operatorId, allItemIds.length, "status_confirmed_after_api_error",
                   allItemIds, claim.nonRetryableItemRecordIds), claim.itemRefs.length);
               return { ok: true, order: observed };
             }
-            if (observed.status === "pending") {
+            if (observed.paymentStatus === "confirmed" && observed.status === "pending"
+              && observed.items.length > 0 && observed.items.every(item => item.sourceStatus === "pending")) {
               await finishAttempt(tx, claim.attemptId, "failed",
                 metadataFor(orderId, operatorId, claim.itemRefs.length, "provider_error_order_still_pending",
                   claim.successfulItemRecordIds, claim.nonRetryableItemRecordIds), 0);
@@ -311,8 +378,9 @@ export async function deliverDigitalOrder(operatorId: string, sessionHash: strin
       if (allItemIds.every(itemId => allSuccessful.has(itemId))) {
         let refreshed;
         try {
-          refreshed = await refreshOrderFromLazada(tx, order, accessToken, createClient(config));
-          if (refreshed.status === "pending") {
+          refreshed = (await refreshOrderFromLazada(tx, order, accessToken, createClient(config))).order;
+          if (refreshed.paymentStatus !== "confirmed" || refreshed.items.length !== allItemIds.length
+            || !refreshed.items.every(item => item.status === "completed")) {
             throw new LazadaError("invalid_response");
           }
         } catch {

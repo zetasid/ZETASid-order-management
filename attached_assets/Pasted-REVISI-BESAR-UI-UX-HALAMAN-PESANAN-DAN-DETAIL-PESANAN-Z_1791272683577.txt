@@ -1,0 +1,340 @@
+REVISI BESAR UI/UX HALAMAN PESANAN DAN DETAIL PESANAN ZETAS.id.
+
+HASIL SEBELUMNYA BELUM SESUAI DENGAN DESAIN YANG KITA SEPAKATI.
+JANGAN MENGANGGAP UI SAAT INI SUDAH FINAL.
+
+PENTING:
+- Jangan mengubah logic transaksi.
+- Jangan mengubah API/backend yang sudah berjalan.
+- Jangan mengubah database.
+- Jangan mengubah Dashboard/Ringkasan yang sudah selesai.
+- Fokus pada UI/UX halaman Pesanan dan Detail Pesanan.
+- Gunakan DATA ORDER YANG SUDAH ADA, bukan dummy.
+- Jangan menampilkan tampilan teknis/API mentah sebagai fokus utama.
+- Mobile-first untuk penggunaan admin dari Android.
+
+TUJUAN:
+Aplikasi ZETAS harus terasa seperti aplikasi operasional order digital profesional, bukan halaman untuk melihat response API.
+
+==================================================
+1. HALAMAN PESANAN
+==================================================
+
+Jadikan daftar pesanan sebagai fokus utama.
+
+JANGAN membuat panel:
+"Baca order Lazada — READ-ONLY"
+menjadi kartu besar seperti sekarang.
+
+Fungsi membaca/sinkronisasi order tetap dipertahankan, tetapi UI-nya harus jauh lebih ringkas.
+
+Gunakan struktur:
+
+HEADER
+"Pesanan"
+
+SUBTITLE singkat:
+"Kelola pesanan digital Lazada."
+
+SEARCH
+Cari ID pesanan atau produk
+
+FILTER STATUS:
+Semua
+Menunggu
+Diproses
+Selesai
+Dibatalkan
+
+Tampilkan jumlah:
+"28 pesanan"
+
+ORDER CARD:
+
+Setiap kartu harus mempunyai:
+- Foto produk Lazada jika tersedia
+- Nama produk
+- Order ID
+- Status
+- Harga
+- Waktu order
+- Chevron untuk membuka detail
+
+Contoh:
+
+[Foto produk]
+
+Gopay Saldo Top Up
+oleh Zetas.id
+
+#2787170078500594
+
+Rp60.000
+02 Okt • 20:23
+
+[Dibatalkan]                         >
+
+Jangan menampilkan terlalu banyak informasi teknis di kartu.
+
+Kartu harus compact tetapi tetap lega dan mudah dibaca.
+
+==================================================
+2. DETAIL PESANAN
+==================================================
+
+Halaman Detail Pesanan harus benar-benar didesain ulang.
+
+HEADER:
+
+←
+Detail Pesanan
+
+Jangan hanya menampilkan data mentah.
+
+==================================================
+3. STATUS
+==================================================
+
+Buat status sebagai card yang jelas.
+
+Contoh:
+
+STATUS PESANAN
+
+Dibatalkan
+
+Gunakan warna status yang konsisten:
+- Menunggu = orange
+- Diproses = biru
+- Selesai = hijau
+- Dibatalkan = merah
+
+Jangan menggunakan bahasa Inggris "canceled/confirmed"
+sebagai tampilan utama jika bisa diterjemahkan.
+
+Gunakan:
+Menunggu
+Diproses
+Selesai
+Dibatalkan
+
+==================================================
+4. PRODUK
+==================================================
+
+Buat card PRODUK.
+
+Jika foto produk tersedia dari data Lazada, tampilkan foto tersebut.
+
+Contoh:
+
+[ FOTO PRODUK ]
+
+Gopay Saldo Top Up oleh Zetas.id
+Praktis, Aman, Langsung Masuk
+
+Variasi: Rp60.000
+
+Foto produk harus terlihat jelas tetapi tidak terlalu besar.
+
+==================================================
+5. INFORMASI PESANAN
+==================================================
+
+Tampilkan informasi penting dengan desain label/value:
+
+Order ID
+#2787170078500594    [Salin]
+
+Item ID
+2787170078600594     [Salin]
+
+Waktu order
+02 Okt 2026 • 20:23 WIB
+
+Nilai transaksi
+Rp60.000
+
+Jangan tampilkan:
+"60000.00 IDR"
+
+Gunakan format Rupiah yang mudah dibaca.
+
+==================================================
+6. DETAIL DIGITAL
+==================================================
+
+INI BAGIAN TERPENTING.
+
+Buat section khusus:
+
+DETAIL DIGITAL
+
+Tampilkan field digital yang BENAR-BENAR tersedia dari order Lazada.
+
+Contoh jika tersedia:
+
+Nomor tujuan
+08xxxxxxxxxx    [Salin]
+
+User ID
+xxxxxxxx        [Salin]
+
+Server ID
+xxxx            [Salin]
+
+Nominal
+Rp60.000
+
+JANGAN MENGARANG DATA.
+
+Jika suatu field tidak tersedia, jangan membuat nilai palsu.
+Gunakan:
+"Tidak tersedia"
+
+Setiap data yang penting untuk diproses harus mempunyai tombol SALIN.
+
+==================================================
+7. AKSI ORDER
+==================================================
+
+Untuk order yang dapat diproses:
+
+Buat tombol utama besar:
+
+PROSES / KIRIM DIGITAL
+
+Gunakan warna orange ZETAS.
+
+Sebelum proses, tampilkan confirmation dialog:
+
+"Konfirmasi Pesanan"
+
+Produk
+Tujuan
+Nominal
+
+"Pastikan data tujuan sudah benar."
+
+[Batal] [Kirim Digital]
+
+Saat proses berlangsung:
+- tombol disabled
+- tampilkan loading
+- cegah double click
+- jangan memungkinkan order terkirim dua kali
+
+Untuk order selesai:
+jangan tampilkan tombol proses aktif.
+
+Untuk order dibatalkan:
+jangan tampilkan tombol kirim digital.
+
+==================================================
+8. FORMAT DATA
+==================================================
+
+Ubah format teknis:
+
+2026-10-02 20:23:41 +0700
+
+menjadi:
+
+02 Okt 2026 • 20:23 WIB
+
+Ubah:
+
+60000.00 IDR
+
+menjadi:
+
+Rp60.000
+
+ID tetap boleh menggunakan format asli.
+
+==================================================
+9. DESAIN
+==================================================
+
+Pertahankan desain Dashboard yang sekarang karena Dashboard sudah cukup baik.
+
+Gunakan:
+- Navy/dark blue
+- Orange ZETAS
+- Background abu sangat muda
+- White card
+- Rounded corners
+- Shadow/border tipis
+- Typography modern
+- Spacing lega
+- Mobile-first
+
+Ukuran layar target:
+360px
+390px
+412px
+430px
+
+Tidak boleh ada horizontal scrolling.
+
+==================================================
+10. NAVIGASI
+==================================================
+
+Bottom navigation tetap:
+
+Ringkasan
+Pesanan
+Pengaturan
+
+Pesanan aktif menggunakan warna orange.
+
+Klik order:
+Pesanan → Detail Pesanan
+
+Tombol kembali:
+Detail Pesanan → Pesanan
+
+==================================================
+11. JANGAN UBAH BACKEND
+==================================================
+
+Gunakan data dan API yang sudah tersedia.
+
+Jangan membuat ulang endpoint.
+
+Jangan mengganti struktur database.
+
+Jangan mengubah logic transaksi.
+
+Jangan mengubah proses Lazada.
+
+Jangan mengubah Dashboard.
+
+==================================================
+12. HASIL AKHIR
+==================================================
+
+Setelah implementasi:
+
+1. Jalankan typecheck.
+2. Jalankan build.
+3. Jalankan test yang tersedia.
+4. Pastikan Dashboard tetap berfungsi.
+5. Pastikan Pesanan tetap mengambil data asli.
+6. Pastikan Detail Pesanan mengambil order yang dipilih.
+7. Pastikan tidak ada horizontal scroll.
+8. Pastikan tombol proses tidak menyebabkan double-submit.
+
+Kemudian berikan laporan:
+- file yang diubah
+- UI yang diperbaiki
+- hasil typecheck
+- hasil build
+- hasil test
+
+JANGAN MERGE.
+JANGAN MENGUBAH MAIN.
+JANGAN MENGUBAH LOGIC TRANSAKSI.
+
+KERJAKAN UI/UX SAJA.

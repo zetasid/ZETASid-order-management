@@ -1,0 +1,764 @@
+LANJUTKAN FINISHING UI ZETAS.id
+================================
+
+PROJECT:
+ZETAS.id Order Management
+
+BRANCH AKTIF:
+ui-redesign-orders
+
+TUJUAN:
+Melanjutkan finishing UI/UX ZETAS.id agar lebih modern, profesional,
+nyaman digunakan di Android/mobile, dan konsisten antara:
+
+- Ringkasan/Dashboard
+- Pesanan
+- Detail Pesanan
+- Pengaturan
+
+Fokus utama hanya UI/UX.
+
+============================================================
+ATURAN PALING PENTING — JANGAN MELANGGAR
+============================================================
+
+JANGAN mengubah logic transaksi yang sudah berjalan.
+
+JANGAN mengubah:
+- API
+- endpoint
+- database schema
+- database query
+- authentication
+- payment logic
+- order processing logic
+- order status logic
+- Lazada integration
+- supplier integration
+- digital delivery logic
+- webhook
+- hook/query API
+- backend business logic
+- GitHub Actions workflow
+- Docker configuration
+- dependency configuration
+
+JANGAN mengubah behavior backend hanya demi UI.
+
+JANGAN membuat logic baru yang tidak diperlukan.
+
+JANGAN membuat setting palsu yang terlihat aktif tetapi sebenarnya
+tidak memiliki fungsi backend.
+
+Jika sebuah perubahan bisa dilakukan hanya dengan mengubah:
+- text
+- CSS
+- component UI
+- layout
+- animation
+- responsive behavior
+
+maka lakukan hanya dengan cara tersebut.
+
+============================================================
+KONDISI PROJECT SAAT INI
+============================================================
+
+CI sebelumnya sudah berhasil:
+
+- pnpm install --frozen-lockfile → PASS
+- typecheck → PASS
+- build → PASS
+- test → 91 PASS / 0 FAIL
+- git diff --check → PASS
+- GitHub Actions → SUCCESS
+
+JANGAN merusak kondisi tersebut.
+
+Perubahan UI ini belum boleh langsung di-commit/push.
+
+============================================================
+1. TYPOGRAPHY
+============================================================
+
+Perbaiki typography seluruh aplikasi agar terasa:
+
+- modern
+- profesional
+- bersih
+- nyaman dibaca
+- tidak terlalu berat
+- cocok untuk aplikasi order management
+
+Gunakan font sans-serif modern yang sudah tersedia/aman digunakan
+di project.
+
+Jangan menambahkan dependency baru jika tidak diperlukan.
+
+Hierarchy:
+
+Page Title
+→ Section Title
+→ Card Title
+→ Primary Data
+→ Secondary Data
+→ Metadata
+
+Gunakan font weight yang konsisten.
+
+Order ID dan kode:
+- mudah dibaca
+- gunakan karakter spacing yang nyaman
+- jangan terlalu kecil
+
+Nominal:
+- lebih tegas
+- mudah dipindai dengan cepat
+
+Pastikan typography tetap nyaman pada:
+- 360px
+- 390px
+- 412px
+- tablet
+- desktop
+
+============================================================
+2. ANIMASI
+============================================================
+
+Tambahkan animasi ringan dan profesional.
+
+JANGAN menggunakan animasi berlebihan.
+
+Gunakan:
+
+- fade-in ringan
+- slight slide-up
+- stagger animation pada card dashboard
+- smooth filter transition
+- smooth page transition
+- button press feedback
+- card press feedback
+- modal fade/scale ringan
+- skeleton/shimmer jika memang diperlukan
+- count-up ringan untuk angka statistik
+
+Animasi harus:
+- cepat
+- halus
+- tidak mengganggu pekerjaan operator
+- tidak menyebabkan layout shift
+- tidak memperlambat aplikasi
+- tidak mengganggu tombol proses/kirim digital
+
+Hormati:
+
+prefers-reduced-motion
+
+Jika user mengaktifkan reduced motion,
+kurangi/nonaktifkan animasi yang tidak penting.
+
+JANGAN menambahkan library animasi baru jika tidak diperlukan.
+
+============================================================
+3. NAVIGASI
+============================================================
+
+DESKTOP/TABLET:
+
+Gunakan sidebar modern.
+
+Menu:
+
+- Ringkasan
+- Pesanan
+- Pengaturan
+
+Sidebar:
+- navy/dark blue
+- logo ZETAS.id
+- icon + label
+- active state orange
+- rounded active item
+- spacing lega
+- fixed/sticky jika sesuai layout
+
+MOBILE:
+
+Gunakan bottom navigation.
+
+Menu:
+
+Ringkasan
+Pesanan
+Pengaturan
+
+Bottom navigation:
+- fixed di bawah
+- nyaman untuk jempol
+- icon + text
+- active state orange
+- tidak menutupi konten
+- safe area untuk perangkat Android
+
+Jangan membuat sidebar permanen pada layar HP.
+
+============================================================
+4. DASHBOARD / RINGKASAN
+============================================================
+
+Pertahankan konsep dashboard saat ini.
+
+Dashboard harus ringkas dan tidak berubah menjadi daftar panjang.
+
+Card utama:
+
+- Total Pesanan
+- Belum Dibayar
+- Diproses
+- Selesai
+- Dibatalkan
+- Total Pendapatan
+
+Card status harus clickable.
+
+Ketika card diklik:
+- Total Pesanan → halaman Pesanan dengan Semua
+- Belum Dibayar → filter Belum Dibayar
+- Diproses → filter Diproses
+- Selesai → filter Selesai
+- Dibatalkan → filter Dibatalkan
+
+JANGAN mengubah cara data statistik dihitung.
+
+JANGAN mengubah API atau query.
+
+Hanya gunakan data yang sudah tersedia.
+
+------------------------------------------------------------
+LABEL DASHBOARD
+------------------------------------------------------------
+
+UBAH LABEL UI:
+
+"Menunggu"
+
+menjadi:
+
+"Belum Dibayar"
+
+PENTING:
+
+Ini hanya perubahan teks UI.
+
+Jika internal status masih menggunakan:
+pending
+
+atau status lain yang sudah digunakan backend,
+BIARKAN.
+
+JANGAN mengubah enum/status internal.
+
+JANGAN mengubah database.
+
+JANGAN mengubah query.
+
+Tujuannya hanya membuat bahasa UI lebih mudah dipahami operator.
+
+============================================================
+5. PENDAPATAN
+============================================================
+
+Pertahankan kartu:
+
+Total Pendapatan
+
+JANGAN mengubah logic perhitungan pendapatan.
+
+Pesanan yang:
+- unpaid
+- canceled
+
+tetap mengikuti logic backend yang sekarang.
+
+Jangan membuat perhitungan baru hanya untuk kebutuhan UI.
+
+============================================================
+6. HALAMAN PESANAN
+============================================================
+
+Pertahankan struktur halaman Pesanan yang sekarang:
+
+- Page title
+- subtitle
+- Sinkronkan Pesanan
+- Search
+- Filter
+- jumlah pesanan
+- sorting
+- order cards
+
+Jangan mengubah sumber data order.
+
+------------------------------------------------------------
+FILTER PESANAN
+------------------------------------------------------------
+
+Gunakan:
+
+Semua
+Belum Dibayar
+Diproses
+Selesai
+Dibatalkan
+
+Ganti tampilan:
+
+"Menunggu"
+
+menjadi:
+
+"Belum Dibayar"
+
+TAPI INTERNAL STATUS TETAP SAMA.
+
+JANGAN mengubah filter backend/query.
+
+------------------------------------------------------------
+HORIZONTAL FILTER
+------------------------------------------------------------
+
+Pada mobile, JANGAN memaksa semua chip masuk ke satu layar.
+
+Gunakan horizontal scrolling.
+
+Contoh:
+
+[ Semua ] [ Belum Dibayar ] [ Diproses ] [ Selesai ] [ Dibatalkan ]
+
+Jika layar tidak cukup,
+chip boleh melewati sisi kanan dan dapat digeser horizontal.
+
+Ketentuan:
+
+- tinggi chip sekitar 44–48px
+- tap target nyaman
+- font tetap mudah dibaca
+- padding horizontal cukup
+- tidak terlalu besar
+- tidak terlalu kecil
+- active state jelas
+- tidak ada chip terpotong secara tidak sengaja
+- horizontal scrolling smooth
+- scrollbar tidak perlu ditampilkan
+- posisi awal selalu di "Semua"
+
+JANGAN mengecilkan font atau chip secara berlebihan hanya untuk
+memaksa semua filter masuk satu baris.
+
+PRIORITAS:
+Usability > memaksa semua item terlihat sekaligus.
+
+Pada desktop/tablet:
+Jika ruang cukup, tampilkan semua filter tanpa scrolling.
+
+------------------------------------------------------------
+SEARCH
+------------------------------------------------------------
+
+Pertahankan search:
+
+"Cari ID pesanan atau produk"
+
+Pastikan:
+- nyaman disentuh
+- icon jelas
+- placeholder tidak terlalu besar
+- tidak menyebabkan overflow
+- tetap responsive
+
+============================================================
+7. ORDER CARD
+============================================================
+
+Pertahankan order card yang sekarang.
+
+Tampilkan informasi secara hierarchy:
+
+Nama produk
+Status order
+Status pembayaran
+Order ID
+Tanggal/waktu
+Nominal
+Arrow/detail
+
+Pastikan:
+- status order mudah dibedakan
+- status pembayaran mudah dibedakan
+- nominal mudah ditemukan
+- card tidak terlalu padat
+
+Gunakan warna status yang konsisten:
+
+Selesai → hijau
+Dibatalkan → merah
+Belum Dibayar → orange/amber
+Diproses → warna netral/primary yang sesuai
+
+Jangan menggunakan warna berlebihan.
+
+============================================================
+8. DETAIL PESANAN
+============================================================
+
+Pertahankan struktur:
+
+Status Pesanan
+Informasi Pesanan
+Produk
+Detail Digital
+
+------------------------------------------------------------
+STATUS
+------------------------------------------------------------
+
+Untuk pesanan selesai:
+
+"Pesanan Selesai"
+
+dan:
+
+"Pesanan telah selesai diproses."
+
+Tampilan harus bersih.
+
+Jangan tampilkan pesan eligibility pengiriman digital pada pesanan
+yang sudah Selesai.
+
+Contoh pesan:
+
+"Status item Lazada belum memenuhi syarat untuk pengiriman digital."
+
+TIDAK BOLEH muncul jika order sudah berstatus Selesai.
+
+Namun:
+
+JANGAN mengubah logic eligibility.
+
+Jangan menghapus logic backend.
+
+Hanya sembunyikan pesan pada kondisi UI yang sesuai.
+
+------------------------------------------------------------
+KIRIM DIGITAL
+------------------------------------------------------------
+
+ATURAN YANG SUDAH ADA HARUS TETAP.
+
+Belum Dibayar:
+- tidak boleh ada tombol Kirim Digital
+
+Dibatalkan:
+- tidak boleh ada tombol Kirim Digital
+
+Selesai:
+- tidak boleh ada kontrol proses pengiriman digital
+
+Diproses:
+- tampilkan aksi proses hanya jika logic/backend yang sekarang
+  memang mengizinkan.
+
+JANGAN mengubah eligibility backend.
+
+JANGAN mengubah payment status logic.
+
+JANGAN mengubah transaksi.
+
+============================================================
+9. HALAMAN PENGATURAN
+============================================================
+
+Halaman Pengaturan belum mendapat redesign.
+
+Buat tampilannya konsisten dengan:
+- Dashboard
+- Pesanan
+- Detail Pesanan
+
+Gunakan:
+
+- navy
+- orange accent
+- light background
+- white cards
+- rounded corners
+- subtle shadow/border
+- typography modern
+- spacing lega
+- icon sederhana
+
+------------------------------------------------------------
+HEADER
+------------------------------------------------------------
+
+Judul:
+
+Pengaturan
+
+Subtitle:
+
+Kelola pengaturan aplikasi ZETAS.id.
+
+------------------------------------------------------------
+A. AKUN / PROFIL
+------------------------------------------------------------
+
+Tampilkan hanya informasi akun yang SUDAH tersedia.
+
+Contoh:
+
+- Nama akun/operator
+- Status akun
+- Informasi akun yang memang sudah ada
+
+JANGAN membuat form baru untuk mengumpulkan data pribadi.
+
+JANGAN meminta data yang belum diperlukan.
+
+------------------------------------------------------------
+B. INTEGRASI
+------------------------------------------------------------
+
+Tampilkan informasi integrasi yang memang sudah tersedia.
+
+Contoh visual:
+
+Lazada
+Status koneksi
+Sinkronisasi
+
+JANGAN membuat:
+- API key baru
+- token baru
+- credential baru
+
+JANGAN mengubah konfigurasi backend.
+
+------------------------------------------------------------
+C. PREFERENSI
+------------------------------------------------------------
+
+Jika aplikasi memang sudah memiliki setting tersebut,
+tampilkan:
+
+- Notifikasi
+- Tampilan
+- Animasi
+
+Gunakan toggle hanya jika setting tersebut benar-benar memiliki
+fungsi.
+
+JANGAN membuat toggle palsu.
+
+Jika setting belum didukung backend:
+lebih baik jangan tampilkan daripada membuat UI yang tidak berfungsi.
+
+------------------------------------------------------------
+D. SISTEM
+------------------------------------------------------------
+
+Tampilkan informasi yang aman:
+
+- versi aplikasi
+- status sistem jika tersedia
+- informasi environment yang aman
+
+JANGAN tampilkan:
+- password
+- API key
+- token
+- secret
+- credential
+- database password
+
+------------------------------------------------------------
+E. BANTUAN
+------------------------------------------------------------
+
+Buat card:
+
+Bantuan
+
+"Panduan penggunaan dan informasi aplikasi"
+
+Jika fitur bantuan belum tersedia,
+buat hanya UI yang aman tanpa membuat backend baru.
+
+============================================================
+10. RESPONSIVE
+============================================================
+
+Pastikan semua halaman nyaman pada:
+
+360px
+390px
+412px
+tablet
+desktop
+
+Periksa:
+
+- tidak ada horizontal overflow yang tidak disengaja
+- tidak ada teks terpotong
+- tidak ada tombol keluar layar
+- bottom navigation tidak menutupi konten
+- sidebar tidak menutupi konten
+- filter bisa digeser
+- card tetap proporsional
+
+============================================================
+11. MOBILE UX
+============================================================
+
+Karena ZETAS digunakan untuk memproses order melalui Android:
+
+Prioritaskan:
+- tap target besar
+- spacing nyaman
+- text mudah dibaca
+- navigasi satu tangan
+- loading cepat
+- animasi ringan
+- informasi order cepat dipindai
+
+Jangan membuat UI terlalu dekoratif.
+
+Operator harus dapat:
+1. melihat order
+2. melihat status
+3. membuka detail
+4. menyalin data
+5. memproses order
+
+dengan cepat.
+
+============================================================
+12. VISUAL IDENTITY
+============================================================
+
+Pertahankan identitas ZETAS.id:
+
+Primary:
+Navy / Dark Blue
+
+Accent:
+Orange
+
+Background:
+Light neutral
+
+Card:
+White
+
+Style:
+Modern
+Clean
+Premium
+Professional
+Mobile-first
+
+Jangan membuat warna terlalu ramai.
+
+============================================================
+13. ACCESSIBILITY
+============================================================
+
+Pastikan:
+- kontras teks cukup
+- tombol mudah disentuh
+- icon tidak menjadi satu-satunya indikator status
+- status memiliki text + visual
+- focus state tetap terlihat pada perangkat yang mendukung
+- reduced motion dihormati
+
+============================================================
+14. PERFORMANCE
+============================================================
+
+Jangan menambahkan library besar hanya untuk animasi sederhana.
+
+Gunakan CSS/komponen yang sudah ada jika memungkinkan.
+
+Jangan menyebabkan:
+- render berlebihan
+- layout shift
+- loading lambat
+- memory usage berlebihan
+
+============================================================
+15. JANGAN UBAH FILE BACKEND
+============================================================
+
+Prioritaskan perubahan pada file UI/component/style.
+
+Jangan mengubah backend hanya untuk menyelesaikan masalah visual.
+
+Jika menemukan kebutuhan perubahan backend:
+STOP dan laporkan kepada saya.
+
+Jangan implementasikan sendiri.
+
+============================================================
+16. VALIDASI SETELAH SELESAI
+============================================================
+
+Jalankan:
+
+pnpm run typecheck
+
+pnpm run build
+
+test yang tersedia
+
+git diff --check
+
+Kemudian periksa:
+
+- tidak ada API berubah
+- tidak ada database berubah
+- tidak ada backend business logic berubah
+- tidak ada payment logic berubah
+- tidak ada order processing logic berubah
+- tidak ada Lazada integration berubah
+- tidak ada GitHub Actions berubah
+- tidak ada Docker workflow berubah
+
+============================================================
+17. JANGAN COMMIT / PUSH DULU
+============================================================
+
+SETELAH SEMUA SELESAI:
+
+JANGAN commit.
+
+JANGAN push.
+
+JANGAN merge.
+
+Tampilkan laporan:
+
+1. Screenshot/preview Dashboard
+2. Screenshot/preview Pesanan
+3. Screenshot/preview Detail Pesanan
+4. Screenshot/preview Pengaturan
+5. Daftar file yang berubah
+6. git diff --stat
+7. Hasil typecheck
+8. Hasil build
+9. Hasil test
+10. Konfirmasi bahwa backend/API/database/logic transaksi tidak berubah
+
+TUNGGU PERSETUJUAN SAYA.
+
+Jangan melakukan commit atau push sebelum saya memberikan persetujuan.

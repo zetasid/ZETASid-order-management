@@ -143,6 +143,17 @@ export const OrderStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type OrderPaymentStatus = typeof OrderPaymentStatus[keyof typeof OrderPaymentStatus];
+
+
+export const OrderPaymentStatus = {
+  unpaid: 'unpaid',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+  unknown: 'unknown',
+} as const;
+
 /**
  * @nullable
  */
@@ -161,6 +172,13 @@ export interface OrderItem {
   lazadaOrderItemId: string;
   orderId: string;
   productName: string;
+  /**
+     * Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.
+     * @maxLength 4096
+     * @nullable
+     * @pattern ^https://
+     */
+  productMainImage: string | null;
   /**
      * Original string or pretty-printed JSON for structured PostgreSQL digital_detail.
      * @nullable
@@ -220,6 +238,7 @@ export interface Order {
   syncedAt?: string | null;
   /** @nullable */
   status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];

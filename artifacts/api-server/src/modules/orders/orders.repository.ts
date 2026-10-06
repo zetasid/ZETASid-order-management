@@ -51,7 +51,8 @@ export async function getOrderSummary() {
     completedOrders: sql<number>`count(*) filter (where ${read.status} = 'completed')::integer`,
     cancelledOrders: sql<number>`count(*) filter (where ${read.status} = 'cancelled')::integer`,
     unmappedOrders: sql<number>`count(*) filter (where ${read.status} is null)::integer`,
-    totalRevenue: sql<number>`coalesce(sum(${read.amount}) filter (where ${read.status} = 'completed'), 0)::float8`,
+    totalRevenue: sql<number>`coalesce(sum(${read.amount}) filter (where ${read.paymentConfirmed}
+      and ${read.status} in ('processing', 'completed')), 0)::float8`,
   }).from(read);
   return summary;
 }

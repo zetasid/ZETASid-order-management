@@ -1,0 +1,83 @@
+LANJUT KE TAHAP AUDIT FOTO PRODUK LAZADA.
+
+PENTING:
+- JANGAN mengubah kode dulu.
+- JANGAN commit.
+- JANGAN push.
+- JANGAN merge.
+- JANGAN menyentuh branch main.
+- Jangan mengubah database, API transaksi, workflow pembayaran, atau keamanan Kirim Digital.
+- Jangan mengubah UI dulu.
+- Jangan meminta saya mengubah Lazada Developer sebelum audit selesai.
+
+TUJUAN:
+Saya ingin menampilkan FOTO PRODUK LAZADA secara otomatis pada:
+1. kartu Pesanan
+2. halaman Detail Pesanan
+
+Saya tidak ingin upload ulang foto produk ke server ZETAS jika URL gambar dari Lazada bisa digunakan.
+
+TOLONG AUDIT IMPLEMENTASI SEKARANG:
+
+1. Periksa endpoint/API Lazada yang saat ini digunakan ZETAS untuk mengambil daftar pesanan dan detail pesanan.
+
+2. Periksa response order/item yang sudah diterima aplikasi.
+   Cari apakah sudah tersedia:
+   - order_id
+   - order_item_id
+   - item_id
+   - sku_id
+   - seller_sku
+   - product_id
+   - item information
+   - image URL
+   - atau identifier lain yang bisa digunakan untuk mengambil foto produk.
+
+3. Periksa seluruh service/repository Lazada yang sudah ada.
+   Tentukan apakah aplikasi saat ini sudah mempunyai mekanisme untuk:
+   - GetOrderItems / GetMultipleOrderItems
+   - GetProductItem / GetProducts
+   - atau endpoint produk Lazada lain.
+
+4. Periksa mapping data dari response Lazada sampai ke frontend.
+   Jelaskan apakah foto produk sebenarnya sudah tersedia tetapi belum diteruskan ke UI.
+
+5. Periksa kebutuhan API permission Lazada.
+   Jika foto dapat diperoleh dari API yang sudah memiliki permission, katakan bahwa tidak perlu permission tambahan.
+   Jika membutuhkan permission tambahan, sebutkan:
+   - nama API
+   - permission/API Permission Group yang diperlukan
+   - bagian Lazada Developer tempat permission tersebut diajukan.
+
+6. Periksa apakah penggunaan URL gambar Lazada langsung di frontend memungkinkan berdasarkan implementasi aplikasi saat ini.
+
+7. Jangan membuat solusi baru jika data yang dibutuhkan sebenarnya sudah tersedia.
+
+HASIL AUDIT YANG SAYA INGINKAN:
+
+A. Data gambar dari order:
+   ADA / TIDAK ADA
+
+B. Jika ADA:
+   - field/JSON path-nya apa
+   - berasal dari endpoint mana
+   - apakah bisa langsung dipakai frontend
+
+C. Jika TIDAK ADA:
+   - identifier apa yang tersedia
+   - endpoint Lazada apa yang perlu dipanggil
+   - permission apa yang diperlukan
+
+D. Status API produk Lazada yang sekarang:
+   - sudah ada / belum ada
+
+E. Status permission:
+   - sudah cukup / perlu tambahan
+
+F. Rekomendasi implementasi paling aman.
+
+G. File yang nantinya perlu diubah jika audit selesai.
+   Hanya sebutkan file, JANGAN ubah sekarang.
+
+Setelah selesai, berikan laporan audit saja.
+Jangan melakukan perubahan kode sampai saya memberikan instruksi berikutnya.

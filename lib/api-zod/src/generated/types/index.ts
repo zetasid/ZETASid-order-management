@@ -28,4 +28,5 @@ export * from './loginCredentials';
 export * from './order';
 export * from './orderItem';
 export * from './orderItemStatus';
+export * from './orderPaymentStatus';
 export * from './orderStatus';

@@ -1,0 +1,80 @@
+LANJUTKAN IMPLEMENTASI FOTO PRODUK LAZADA BERDASARKAN HASIL AUDIT.
+
+PENTING:
+- Tetap di branch ui-redesign-orders.
+- Jangan sentuh branch main.
+- Jangan commit.
+- Jangan push.
+- Jangan merge.
+- Jangan ubah permission Lazada Developer.
+- Jangan menambah API Product Lazada.
+- Jangan mengubah workflow pembayaran atau keamanan Kirim Digital.
+
+HASIL AUDIT SUDAH MEMBUKTIKAN:
+GetOrderItems sudah mengembalikan:
+body.data[i].product_main_image
+
+Jadi gunakan field tersebut sebagai sumber foto produk.
+
+IMPLEMENTASIKAN:
+
+1. Teruskan `product_main_image` dari response GetOrderItems melalui order mapping/API sampai ke frontend.
+
+2. Jangan membuat database migration.
+   Manfaatkan data lazadaData/JSONB yang sudah ada jika memang itu jalur penyimpanannya.
+
+3. Tampilkan foto produk aktual pada:
+   - kartu Pesanan
+   - halaman Detail Pesanan
+
+4. Jika `product_main_image` kosong, invalid, atau gagal dimuat:
+   - gunakan placeholder yang sudah ada
+   - jangan membuat halaman error.
+
+5. Untuk keamanan URL:
+   - hanya izinkan URL HTTPS.
+   - jangan membuka image source ke semua domain.
+
+6. Periksa nilai `product_main_image` nyata dari data/inventaris yang sudah tersedia untuk mengetahui host CDN Lazada yang benar-benar digunakan.
+
+7. Setelah host CDN diketahui, ubah CSP `img-src` di deploy/nginx.conf secara TERBATAS hanya untuk host yang memang diperlukan.
+
+8. Jangan gunakan wildcard seperti:
+   https:
+   *
+   atau semua domain.
+
+9. Pastikan perubahan tidak mengganggu:
+   - login
+   - API
+   - order sync
+   - pembayaran
+   - Kirim Digital
+   - database
+   - workflow order.
+
+10. Tambahkan/update test yang relevan untuk:
+   - product_main_image tersedia
+   - product_main_image diteruskan ke response
+   - URL HTTPS diterima
+   - URL HTTP/invalid ditolak
+   - image kosong menggunakan placeholder.
+
+VERIFIKASI:
+- pnpm run typecheck
+- test yang relevan
+- build
+- git diff --check
+
+SETELAH SELESAI:
+Berikan laporan lengkap:
+- file yang berubah
+- alur data product_main_image
+- host CDN Lazada yang ditemukan
+- perubahan CSP
+- test yang dijalankan dan hasilnya
+- apakah ada database migration
+- apakah ada perubahan API permission
+- apakah ada risiko terhadap workflow order.
+
+JANGAN COMMIT/PUSH/MERGE.

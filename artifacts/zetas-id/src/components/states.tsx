@@ -5,9 +5,9 @@ import { STATUS_LABEL } from '@/lib/format';
 
 export function PageHeading({ title, sub }: { title: string; sub: string }) {
   return (
-    <div className="mb-5">
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-      <p className="text-sm text-muted-foreground mt-1">{sub}</p>
+    <div className="page-enter mb-6">
+      <h1 className="text-[26px] font-bold tracking-[-.035em] text-[#14213A] md:text-[30px]">{title}</h1>
+      <p className="mt-1.5 text-sm leading-6 text-[#687587]">{sub}</p>
     </div>
   );
 }
@@ -29,10 +29,12 @@ export function StatusBadge({ status }: { status: keyof typeof TONE }) {
 
 export function EmptyState({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
   return (
-    <div data-testid="state-empty" className="rounded-xl border border-dashed border-input bg-card px-6 py-10 text-center">
-      <div className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-muted"><Inbox className="size-5 text-muted-foreground" /></div>
-      <p className="font-semibold">{title}</p>
-      <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">{text}</p>
+    <div data-testid="state-empty" className="rounded-2xl border border-dashed border-[#CFD6E0] bg-white px-4 py-8 text-center md:px-6 md:py-11">
+      <div className="mx-auto mb-3 grid size-10 place-items-center rounded-full bg-[#FFF1E8]">
+        <Inbox className="size-5 text-[#E96B27]" />
+      </div>
+      <p className="text-base font-semibold text-[#14213A]">{title}</p>
+      <p className="mx-auto mt-1 max-w-xs text-sm leading-5 text-[#687587]">{text}</p>
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -40,12 +42,12 @@ export function EmptyState({ title, text, action }: { title: string; text: strin
 
 export function ErrorState({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
-    <div role="alert" data-testid="state-error" className="rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-8 text-center">
-      <AlertTriangle className="mx-auto mb-2 size-6 text-destructive" />
-      <p className="font-semibold">Gagal memuat data</p>
-      <p className="mt-1 text-sm text-muted-foreground">{text}</p>
+    <div role="alert" data-testid="state-error" className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 md:px-6 py-6 md:py-8 text-center">
+      <AlertTriangle className="mx-auto mb-2 size-5 md:size-6 text-destructive" />
+      <p className="text-sm md:text-base font-semibold">Gagal memuat data</p>
+      <p className="mt-1 text-xs md:text-sm text-muted-foreground">{text}</p>
       <button type="button" onClick={onRetry} data-testid="button-retry"
-        className="mt-4 min-h-11 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-transform active:scale-95">
+        className="mt-4 min-h-11 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-transform hover:opacity-90 active:scale-95">
         Coba lagi
       </button>
     </div>
@@ -55,7 +57,7 @@ export function ErrorState({ text, onRetry }: { text: string; onRetry: () => voi
 export function ListSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div data-testid="state-loading" aria-busy="true" className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="skeleton-shimmer h-16 md:h-20 w-full rounded-xl" />)}
     </div>
   );
 }

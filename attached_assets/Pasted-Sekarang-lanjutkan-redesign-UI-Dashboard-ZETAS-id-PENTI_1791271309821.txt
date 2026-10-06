@@ -1,0 +1,227 @@
+Sekarang lanjutkan redesign UI Dashboard ZETAS.id.
+
+PENTING:
+Desain harus mengikuti visual style yang sudah kita sepakati untuk halaman Orders dan Order Detail. Jangan membuat gaya baru yang berbeda.
+
+TUJUAN:
+Dashboard harus terlihat seperti aplikasi order-management profesional, bukan seperti template admin generik.
+
+=== PALET WARNA ZETAS ===
+
+Gunakan warna berikut secara konsisten:
+
+- Navy utama: #0F172A
+  Untuk header utama, judul penting, atau elemen navigasi utama.
+
+- Navy secondary: #1E293B
+  Untuk elemen navy yang lebih ringan.
+
+- Primary blue: #2563EB
+  Untuk tombol utama, link aktif, dan elemen interaktif utama.
+
+- Orange accent: #F97316
+  Untuk aksen ZETAS, highlight, badge tertentu, dan action yang membutuhkan perhatian.
+
+- Background utama: #F8FAFC
+  Jangan gunakan background putih polos untuk seluruh halaman.
+
+- Card: #FFFFFF
+  Card tetap putih agar informasi mudah dibaca.
+
+- Border: #E2E8F0
+  Gunakan border tipis dan halus.
+
+- Text utama: #0F172A
+  Untuk judul dan informasi utama.
+
+- Text secondary: #64748B
+  Untuk keterangan dan informasi pendukung.
+
+- Success: #16A34A
+  Untuk status berhasil/selesai.
+
+- Warning: #F59E0B
+  Untuk status menunggu/perhatian.
+
+- Danger: #DC2626
+  Untuk error/gagal.
+
+Jangan menggunakan terlalu banyak warna.
+Warna utama aplikasi tetap navy/dark blue dengan orange sebagai accent.
+
+=== TOMBOL ===
+
+Primary button:
+- Background #2563EB
+- Text putih
+- Border-radius 10px
+- Tinggi minimal 44px
+- Font semi-bold
+- Padding horizontal yang cukup
+- Saat ditekan/hover gunakan warna biru yang sedikit lebih gelap.
+
+Secondary button:
+- Background #FFFFFF
+- Text #0F172A
+- Border #E2E8F0
+- Border-radius 10px
+- Tinggi minimal 44px
+
+Orange action:
+- Background #F97316
+- Text putih
+- Gunakan hanya untuk action yang memang membutuhkan perhatian.
+
+Danger:
+- Background #DC2626
+- Text putih
+- Jangan gunakan untuk tombol biasa.
+
+Semua tombol harus nyaman digunakan dengan jari pada Android.
+Touch target minimal 44px.
+
+=== CARD ===
+
+Gunakan card yang bersih:
+
+- Background putih
+- Border #E2E8F0
+- Border-radius 14–16px
+- Padding nyaman
+- Shadow sangat tipis, jangan berlebihan
+- Jarak antar-card konsisten.
+
+Jangan membuat card terlalu penuh.
+
+=== DASHBOARD MOBILE ===
+
+Mobile adalah prioritas utama.
+
+Urutan informasi:
+
+1. Header Dashboard
+2. Ringkasan statistik paling penting
+3. Pendapatan
+4. Pesanan terbaru
+5. Informasi tambahan
+
+Pada layar kecil:
+- Hindari tabel lebar yang harus digeser horizontal jika bisa menggunakan card.
+- Statistik boleh menggunakan grid 2 kolom.
+- Gunakan spacing yang cukup.
+- Jangan membuat tulisan terlalu kecil.
+- Informasi penting harus terlihat tanpa membuka banyak menu.
+
+=== HEADER ===
+
+Header harus:
+- Bersih
+- Modern
+- Tidak terlalu tinggi
+- Judul Dashboard jelas
+- Action penting mudah ditemukan
+- Tetap nyaman pada layar HP.
+
+Gunakan navy sebagai warna utama bila sesuai dengan struktur komponen yang sudah ada.
+
+=== STATISTIK ===
+
+Pertahankan SEMUA data/statistik yang sekarang sudah digunakan Dashboard.
+
+Jangan mengubah:
+- API
+- hook data
+- query
+- struktur data
+- business logic.
+
+Hanya ubah cara informasi tersebut ditampilkan.
+
+Buat setiap statistik mudah dipindai:
+- Label kecil warna #64748B
+- Angka utama besar dan tegas #0F172A
+- Icon sederhana jika memang sudah tersedia
+- Gunakan accent warna secara terbatas.
+
+Jangan membuat semua card berwarna-warni.
+
+=== PENDAPATAN ===
+
+Buat bagian pendapatan terlihat sebagai informasi penting tetapi tetap sederhana.
+
+Gunakan:
+- angka utama besar
+- label yang jelas
+- card putih
+- accent navy/orange secara terbatas.
+
+Jangan mengubah cara nilai pendapatan dihitung.
+
+=== PESANAN TERBARU ===
+
+Gunakan card/list yang bersih.
+
+Setiap pesanan harus mudah dipindai:
+- nomor/order identifier
+- produk
+- status
+- waktu
+- nilai transaksi jika memang sudah tersedia.
+
+Gunakan badge status dengan warna yang sesuai:
+- Selesai = hijau
+- Menunggu = amber/orange
+- Gagal = merah
+- Status lainnya mengikuti status yang sudah ada.
+
+Jangan mengubah status atau logika order.
+
+=== LOADING / ERROR / EMPTY ===
+
+Pertahankan semua state yang sudah ada.
+
+Namun tampilannya harus mengikuti desain baru:
+- Loading: skeleton yang halus
+- Empty: sederhana dan tidak terlalu besar
+- Error: jelas tetapi tidak memenuhi layar
+- Gunakan warna dan typography yang sama dengan design system.
+
+=== RESPONSIVE DESKTOP ===
+
+Pada desktop:
+- Gunakan ruang layar dengan baik.
+- Jangan membuat card terlalu besar.
+- Dashboard harus tetap terlihat lega.
+- Grid statistik dapat diperlebar sesuai ukuran layar.
+- Pertahankan hierarchy yang sama dengan mobile.
+
+=== ATURAN KETAT ===
+
+HANYA UI/UX.
+
+JANGAN:
+- mengubah backend
+- mengubah API
+- mengubah database
+- mengubah authentication
+- mengubah Docker
+- mengubah business logic
+- mengubah transaksi
+- mengubah proses pengiriman digital
+- mengubah Orders
+- mengubah Order Detail
+- menghapus fitur
+- mengganti data dengan dummy data
+- membuat endpoint baru
+- melakukan refactor besar.
+
+Gunakan komponen dan design token yang sudah ada jika tersedia.
+
+Sebelum selesai:
+1. Pastikan Dashboard menggunakan data asli seperti sebelumnya.
+2. Pastikan tidak ada perubahan pada logic.
+3. Jalankan typecheck/build jika tersedia.
+4. Laporkan file yang diubah.
+5. Laporkan jika ada file selain komponen UI Dashboard yang ikut berubah.
+
+Jangan mengerjakan halaman lain.

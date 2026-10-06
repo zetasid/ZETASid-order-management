@@ -1,0 +1,145 @@
+Lakukan FINISHING UI/UX ZETAS.id pada branch aktif ui-redesign-orders.
+
+PENTING:
+- Jangan ubah API.
+- Jangan ubah database.
+- Jangan ubah logic transaksi.
+- Jangan ubah logic pembayaran.
+- Jangan ubah logic Kirim Digital.
+- Jangan ubah authentication.
+- Jangan ubah workflow CI/Docker.
+- Jangan ubah branch main.
+- Fokus hanya pada polishing UI/UX yang sudah ada.
+
+HASIL UI SAAT INI SUDAH SESUAI:
+- Dashboard menggunakan label "Belum Dibayar".
+- Pesanan menggunakan filter:
+  Semua
+  Belum Dibayar
+  Diproses
+  Selesai
+  Dibatalkan
+- Pengaturan sudah tersedia.
+- Navy + orange menjadi identitas utama.
+- Mobile-first.
+
+1. FILTER PESANAN MOBILE
+Perbaiki bar filter agar nyaman di layar HP.
+
+Urutan:
+Semua | Belum Dibayar | Diproses | Selesai | Dibatalkan
+
+Gunakan horizontal scrolling yang halus jika ruang tidak cukup.
+Jangan sampai tombol "Dibatalkan" terlihat terpotong secara aneh.
+Buat ukuran/padding tombol sedikit lebih compact agar lebih banyak filter terlihat.
+Tetap mudah disentuh dengan jari.
+
+2. TYPOGRAPHY
+Poles typography agar terlihat lebih premium dan profesional.
+
+- Heading: tegas dan jelas.
+- Statistik/angka: bold dan mudah dibaca.
+- Body text: nyaman dibaca.
+- Secondary text: lebih soft tetapi tetap kontras.
+- Order ID tetap menggunakan monospace.
+- Jangan menggunakan terlalu banyak jenis font.
+- Pertahankan konsistensi seluruh halaman.
+
+3. ANIMASI RINGAN
+Tambahkan micro-interaction yang halus:
+
+Dashboard:
+- card muncul dengan fade/slide ringan.
+- angka statistik dapat menggunakan count-up ringan.
+- jangan membuat animasi berlebihan.
+
+Pesanan:
+- card mempunyai press/tap feedback ringan.
+- perpindahan filter menggunakan transisi pendek.
+- tombol Sinkronkan Pesanan mempunyai loading state yang jelas ketika aktif.
+
+Detail Pesanan:
+- section/card masuk dengan fade/slide ringan.
+- tombol copy memberikan feedback singkat setelah berhasil.
+
+Pengaturan:
+- card muncul dengan transisi ringan.
+- status system menggunakan indikator yang halus.
+
+Gunakan animasi sekitar 150–250ms.
+Hindari animasi berulang yang mengganggu.
+Hormati prefers-reduced-motion.
+
+4. SPACING DAN RESPONSIVE
+Pastikan:
+- tidak ada teks terpotong.
+- tidak ada tombol keluar layar.
+- tidak ada horizontal overflow yang tidak disengaja.
+- bottom navigation tetap aman di layar HP.
+- content tidak tertutup bottom navigation.
+- card tetap nyaman pada layar kecil.
+
+5. DASHBOARD
+Jangan mengubah struktur dashboard yang sudah ada.
+Pertahankan:
+Total Pesanan
+Belum Dibayar
+Diproses
+Selesai
+Dibatalkan
+Total Pendapatan
+Pesanan terbaru
+
+Pastikan card status tetap dapat diklik dan membuka filter pesanan yang sesuai.
+
+6. PENGATURAN
+Pertahankan struktur yang sudah dibuat:
+- Akun operator
+- Status sistem
+- Koneksi Lazada
+- informasi aplikasi/bantuan jika memang sudah tersedia.
+
+Jangan membuat setting palsu.
+Jangan menambahkan toggle yang tidak didukung backend.
+
+7. KEAMANAN STATUS PESANAN
+Jangan mengubah aturan yang sudah benar:
+
+Belum Dibayar:
+- bukan pendapatan
+- tidak boleh diproses
+- tidak boleh Kirim Digital
+
+Diproses:
+- hanya pesanan yang memang memenuhi syarat pembayaran/proses.
+
+Selesai:
+- tidak boleh diproses ulang.
+
+Dibatalkan:
+- bukan pendapatan
+- tidak boleh diproses.
+
+Jangan mengubah backend/API untuk polishing UI ini.
+
+8. VERIFIKASI
+Setelah selesai jalankan:
+pnpm run typecheck
+pnpm run build
+git diff --check
+
+Jika memungkinkan jalankan test yang relevan.
+
+Jangan melakukan git push atau merge otomatis.
+
+Setelah selesai, laporkan:
+- file UI yang berubah
+- perubahan typography
+- perubahan animasi
+- perubahan filter mobile
+- hasil typecheck
+- hasil build
+- hasil git diff --check
+- apakah ada perubahan di luar UI.
+
+Jangan menyentuh main.

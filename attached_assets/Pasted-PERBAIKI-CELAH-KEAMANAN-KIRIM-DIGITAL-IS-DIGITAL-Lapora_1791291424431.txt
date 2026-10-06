@@ -1,0 +1,76 @@
+PERBAIKI CELAH KEAMANAN KIRIM DIGITAL — IS_DIGITAL
+
+Laporan audit menemukan satu celah:
+
+Backend belum memastikan item yang akan dikirim melalui DeliverDigital
+memiliki is_digital === true.
+
+Saat ini item dengan:
+- is_digital === false
+- is_digital === null
+- is_digital tidak tersedia / undefined
+
+masih berpotensi mencapai DeliverDigital apabila status pembayaran dan
+status order lainnya memenuhi syarat.
+
+Tolong perbaiki hanya masalah ini.
+
+ATURAN WAJIB:
+
+1. Sebelum memanggil DeliverDigital, backend WAJIB memastikan:
+   item.is_digital === true
+
+2. Jika is_digital:
+   - false
+   - null
+   - undefined
+   - tidak tersedia
+   - tipe/nilai tidak valid
+
+   maka FAIL CLOSED:
+   - jangan panggil DeliverDigital
+   - request harus ditolak
+   - jangan menandai order sebagai berhasil dikirim.
+
+3. Jangan mengubah aturan payment/status yang sudah ada.
+
+4. Tetap pertahankan aturan:
+   - unpaid/pending/cancelled/unknown → ditolak
+   - order/item yang sudah berhasil dikirim → tidak boleh dikirim ulang
+   - hanya payment confirmed + order/item memenuhi syarat + is_digital === true
+     yang boleh mencapai DeliverDigital.
+
+5. Tambahkan/update automated tests untuk minimal:
+   A. confirmed + pending + is_digital=true → boleh lanjut
+   B. confirmed + pending + is_digital=false → ditolak
+   C. confirmed + pending + is_digital=null → ditolak
+   D. confirmed + pending + is_digital undefined/tidak ada → ditolak
+   E. unpaid + is_digital=true → ditolak
+   F. cancelled + is_digital=true → ditolak
+   G. duplicate/already delivered → ditolak
+
+6. Pastikan validasi dilakukan SERVER-SIDE, bukan hanya frontend.
+
+7. Jangan mengubah UI, foto produk, API Lazada, database schema,
+   Docker, CSP, atau workflow lain yang tidak diperlukan.
+
+8. Jalankan test yang relevan setelah perubahan.
+
+9. Jalankan:
+   pnpm run typecheck
+   git diff --check
+
+10. JANGAN merge.
+11. JANGAN push ke GitHub.
+12. JANGAN mengubah branch main.
+
+Setelah selesai berikan laporan:
+- file yang diubah
+- perubahan validasi is_digital
+- hasil setiap test
+- typecheck
+- git diff --check
+- apakah working tree bersih
+- apakah masih ada masalah keamanan lain.
+
+Jangan menyatakan aman sebelum test berhasil.

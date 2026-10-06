@@ -5,9 +5,21 @@ import { groupStatuses } from "../orders/order-status";
 export type ProviderRecord = Record<string, unknown>;
 export const orderKeys = ["order_id", "order_number", "price", "statuses", "created_at", "updated_at"];
 export const itemKeys = ["order_id", "order_item_id", "name", "item_price", "paid_price", "currency",
-  "variation", "sku", "shop_sku", "digital_delivery_info", "extra_attributes", "status", "created_at", "updated_at", "is_digital"];
+  "variation", "sku", "shop_sku", "digital_delivery_info", "extra_attributes", "product_main_image",
+  "status", "created_at", "updated_at", "is_digital"];
 export const pick = (value: ProviderRecord, keys: string[]) =>
   Object.fromEntries(keys.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
+
+export function httpsProductImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value || value.length > 4096) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export function providerId(value: unknown): string {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return String(value);
@@ -52,8 +64,11 @@ export function mapOrder(raw: ProviderRecord, items: ProviderRecord[]) {
     seen.add(itemId);
     // No extra_attributes guessing: use only the documented digital_delivery_info field.
     const digital = Object.hasOwn(item, "digital_delivery_info") ? item.digital_delivery_info : null;
+    const lazadaData = pick(item, itemKeys);
+    if (Object.hasOwn(lazadaData, "product_main_image"))
+      lazadaData.product_main_image = httpsProductImageUrl(lazadaData.product_main_image);
     return { lazadaOrderItemId: itemId, productName: item.name, digitalDetail: digital,
-      lazadaData: pick(item, itemKeys), status: localStatus([item.status]),
+      lazadaData, status: localStatus([item.status]),
       createdAt: providerDate(item.created_at), updatedAt: providerDate(item.updated_at) };
   });
   return { header: { lazadaOrderId: id, marketplaceOrderId: sourceText(raw.order_number) ?? id,

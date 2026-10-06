@@ -1,6 +1,6 @@
 import type { Order, OrderItem } from "@workspace/db";
-import { sourceText } from "../lazada/order-mapping";
-import { itemStatusGroup, readOrderStatus } from "./order-status";
+import { httpsProductImageUrl, sourceText } from "../lazada/order-mapping";
+import { itemStatusGroup, readOrderPaymentStatus, readOrderStatus } from "./order-status";
 
 function digitalText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -27,6 +27,7 @@ export function presentOrder(order: Order & { items: OrderItem[] }) {
     currency: currencies.length === 1 ? currencies[0] : null,
     syncedAt: order.syncedAt?.toISOString() ?? null,
     status: readOrderStatus(order),
+    paymentStatus: readOrderPaymentStatus(order),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     items: order.items.map((item) => ({
@@ -34,6 +35,7 @@ export function presentOrder(order: Order & { items: OrderItem[] }) {
       lazadaOrderItemId: item.lazadaOrderItemId,
       orderId: item.orderId,
       productName: item.productName,
+      productMainImage: httpsProductImageUrl(item.lazadaData?.product_main_image),
       digitalDetail: digitalText(item.digitalDetail),
       digitalDetailSource: item.lazadaData && Object.hasOwn(item.lazadaData, "digital_delivery_info") ? "digital_delivery_info" : null,
       sourceStatus: sourceText(item.lazadaData?.status),

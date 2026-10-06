@@ -16,7 +16,7 @@ globalThis.fetch = async (input, options = {}) => {
   const json = body => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
   if (params.sign !== expected) return json({ code: "IncompleteSignature" });
   if (path === "/auth/token/create") {
-    if (params.code === "deny") return json({ code: "InvalidCode", message: "test-only-private-provider-detail" });
+    if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });
     if (params.code === "slow") await setTimeout(250);
     return json({ code: "0", country: params.code === "wrong-country" ? "sg" : "id",
       access_token: "test-only-access-token", refresh_token: "test-only-refresh-token",

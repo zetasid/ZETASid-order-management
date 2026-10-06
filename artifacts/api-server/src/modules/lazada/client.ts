@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { logger } from "../../lib/logger";
 import { endpoints, type LazadaConfig } from "./security";
 
 export class LazadaError extends Error {
@@ -18,33 +19,94 @@ export function signature(path: string, params: Record<string, string>, secret: 
   const message = path + Object.keys(params).filter(k => k !== "sign").sort().map(k => k + params[k]).join("");
   return createHmac("sha256", secret).update(message, "utf8").digest("hex").toUpperCase();
 }
+
+type DiagnosticLogger = Pick<typeof logger, "warn">;
+
+function safeDiagnosticValue(value: unknown, sensitiveValues: readonly string[]): string | number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  let result = String(value).slice(0, 512);
+  for (const sensitive of sensitiveValues) {
+    if (sensitive) result = result.split(sensitive).join("[redacted]");
+  }
+  return result
+    .replace(/https?(?::|%3a)(?:\/|%2f){2}[^\s"'<>]+/gi, "[redacted-url]")
+    .replace(/\b(access_token|refresh_token|app_secret|app_key|code|sign|timestamp)(?:=|%3d)[^&\s"'<>]*/gi,
+      "$1=[redacted]");
+}
+
+function logFailedResponse(
+  diagnosticLogger: DiagnosticLogger,
+  path: string,
+  httpStatus: number | null,
+  body: unknown,
+  sensitiveValues: readonly string[],
+) {
+  const responseBody = body && typeof body === "object" && !Array.isArray(body)
+    ? body as Record<string, unknown> : {};
+  diagnosticLogger.warn({
+    path,
+    httpStatus,
+    providerCode: safeDiagnosticValue(responseBody.code, sensitiveValues),
+    providerMessage: safeDiagnosticValue(responseBody.message, sensitiveValues),
+    providerRequestId: safeDiagnosticValue(responseBody.request_id, sensitiveValues),
+  }, "Lazada API response failed");
+}
+
 // Explicit allowlist: OAuth, seller verification, order reads and manual digital delivery only.
-export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal) {
+export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal,
+  diagnosticLogger: DiagnosticLogger = logger) {
   async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get" | "/order/digital/delivered",
     business: Record<string, string>, method?: "GET" | "POST") {
     const params = { ...business, app_key: config.appKey, sign_method: "sha256", timestamp: String(Date.now()) };
     const signed = new URLSearchParams({ ...params, sign: signature(path, params, config.appSecret) });
+    const sensitiveValues = [...Object.values(params), config.appSecret, signed.get("sign") ?? ""];
     const url = new URL((path === "/auth/token/create" ? "https://auth.lazada.com/rest" : endpoints[config.country]) + path);
     const tokenRequest = path === "/auth/token/create";
     const requestMethod = method ?? (tokenRequest ? "POST" : "GET");
     if (!tokenRequest && requestMethod === "GET") url.search = signed.toString();
+    let httpStatus: number | null = null;
+    let diagnosticLogged = false;
+    const logFailure = (body: unknown = null) => {
+      logFailedResponse(diagnosticLogger, path, httpStatus, body, sensitiveValues);
+      diagnosticLogged = true;
+    };
     try {
       const response = await transport(url, { method: requestMethod, redirect: "error",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
         ...(requestMethod === "POST" ? { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: signed.toString() } : {}) });
+      httpStatus = response.status;
       // Limit provider payloads. Raw bodies/URLs/errors never reach logs or API responses.
       const text = await response.text();
-      if (text.length > 2_000_000) throw new LazadaError("api_unavailable");
-      const body = JSON.parse(text);
-      if (!body || typeof body !== "object" || !response.ok) throw new LazadaError("api_unavailable");
-      if (String(body.code) !== "0") {
-        const code = String(body.code);
+      if (text.length > 2_000_000) {
+        logFailure();
+        throw new LazadaError("api_unavailable");
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        logFailure();
+        throw new LazadaError("api_unavailable");
+      }
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        logFailure();
+        throw new LazadaError("api_unavailable");
+      }
+      if (!response.ok) {
+        logFailure(body);
+        throw new LazadaError("api_unavailable");
+      }
+      const responseBody = body as Record<string, unknown>;
+      if (String(responseBody.code) !== "0") {
+        logFailure(responseBody);
+        const code = String(responseBody.code);
         throw new LazadaError(/IllegalAccessToken|InvalidAccessToken|InvalidCode|TokenExpired/i.test(code)
           ? "authorization_failed" : /Permission|Forbidden|AccessDenied|Scope/i.test(code) ? "permission_denied" : "api_unavailable");
       }
-      return body;
+      return responseBody;
     } catch (error) {
       if (error instanceof LazadaError) throw error;
+      if (!diagnosticLogged) logFailure();
       throw new LazadaError("api_unavailable");
     }
   }

@@ -1,0 +1,130 @@
+LANJUTKAN PROJECT ZETAS.id DARI UI YANG SUDAH ADA.
+
+Fokus tahap berikutnya: MEMBUAT / MENYEMPURNAKAN HALAMAN DETAIL PESANAN.
+
+PENTING:
+- Jangan mengubah atau merusak logic/API/transaksi yang sudah berjalan.
+- Jangan mengubah database atau struktur backend kecuali benar-benar diperlukan.
+- Jangan mengubah Dashboard/Ringkasan yang sudah selesai.
+- Pertahankan desain yang sudah terlihat pada aplikasi saat ini.
+- Fokus UI/UX mobile-first untuk admin yang bekerja dari HP.
+- Jangan menambahkan fitur yang belum diminta.
+- Jangan menggunakan data dummy jika data order/API yang sudah ada bisa digunakan.
+
+DESAIN YANG HARUS DIPERTAHANKAN:
+- Brand ZETAS.id
+- Navy/dark blue sebagai warna utama
+- Orange sebagai warna aksen/action
+- Background putih/abu sangat muda
+- Card rounded dengan border/shadow tipis
+- Typography bersih dan mudah dibaca
+- Spacing lega
+- Tampilan profesional seperti dashboard yang sekarang
+- Bottom navigation tetap konsisten: Ringkasan, Pesanan, Pengaturan
+
+HALAMAN DETAIL PESANAN:
+
+Ketika user menekan salah satu order pada halaman Pesanan atau Dashboard, buka halaman:
+
+"Detail Pesanan"
+
+Buat struktur:
+
+1. HEADER
+- Tombol kembali
+- Judul "Detail Pesanan"
+- Jangan gunakan header yang terlalu tinggi.
+
+2. STATUS PESANAN
+Buat card status yang jelas.
+Tampilkan:
+- Status order
+- Informasi singkat status
+Gunakan warna yang konsisten:
+- Menunggu → orange
+- Diproses → biru
+- Selesai → hijau
+- Dibatalkan → merah
+
+3. INFORMASI PESANAN
+Tampilkan dalam card:
+- Order ID Lazada
+- Item ID
+- Tanggal & waktu
+- Nama produk
+- SKU/variasi
+- Harga/nilai transaksi
+
+Gunakan layout label + value yang mudah dipindai.
+
+4. DETAIL DIGITAL / DATA TUJUAN
+Ini adalah bagian PALING PENTING.
+
+Tampilkan data digital yang tersedia dari order Lazada, misalnya:
+- Nomor HP
+- User ID
+- Server ID
+- Nominal
+- Variasi
+- Data tujuan lainnya
+
+Jangan mengarang data.
+Gunakan field yang benar-benar tersedia dari response/order yang sudah ada.
+
+Setiap data penting harus mudah disalin dengan tombol "Salin".
+
+5. AKSI PESANAN
+Untuk order yang memang perlu diproses, tampilkan tombol utama:
+
+"Kirim Digital"
+
+Buat tombol besar dan mudah ditekan dari HP.
+
+Jika order sudah selesai:
+- Jangan tampilkan tombol proses yang tidak diperlukan.
+- Tampilkan status selesai.
+
+Jika order dibatalkan:
+- Tampilkan status dibatalkan dan jangan memberikan tombol kirim digital.
+
+6. KEAMANAN UX
+Hindari kemungkinan salah proses:
+- Sebelum pengiriman, tampilkan konfirmasi.
+- Tampilkan kembali produk + tujuan + nominal sebelum user menekan konfirmasi.
+- Jangan membuat satu order bisa terkirim dua kali hanya karena user menekan tombol berkali-kali.
+- Tombol harus memiliki loading/disabled state ketika proses berlangsung.
+- Gunakan status dari sistem yang sudah ada sebagai sumber kebenaran.
+
+7. RESPONSIVE
+Pastikan:
+- Nyaman pada layar HP 360px–430px.
+- Tidak ada horizontal scrolling.
+- Tombol mudah ditekan.
+- Text panjang seperti nama produk/order ID tidak merusak layout.
+- Desktop tetap usable.
+
+8. NAVIGASI
+Pesanan dari Dashboard → Detail Pesanan.
+Pesanan dari halaman Pesanan → Detail Pesanan.
+Tombol kembali kembali ke halaman sebelumnya.
+
+9. JANGAN MERUSAK FITUR YANG SUDAH ADA
+Sebelum melakukan perubahan:
+- Periksa struktur project.
+- Periksa routing yang sudah digunakan.
+- Periksa komponen UI yang sudah ada.
+- Gunakan komponen/style yang sudah ada jika memungkinkan.
+- Jangan membuat ulang sistem yang sudah tersedia.
+
+SETELAH SELESAI:
+- Jalankan typecheck/build/test yang tersedia.
+- Pastikan tidak ada error.
+- Pastikan Dashboard yang sekarang tetap sama.
+- Pastikan daftar Pesanan tetap berfungsi.
+- Pastikan klik order membuka Detail Pesanan.
+- Berikan laporan singkat file yang diubah dan hasil test.
+
+KERJAKAN LANGSUNG DI PROJECT YANG SEDANG TERBUKA.
+JANGAN MERGE.
+JANGAN MENGUBAH BRANCH MAIN.
+JANGAN MENGUBAH LOGIC TRANSAKSI YANG SUDAH STABIL.

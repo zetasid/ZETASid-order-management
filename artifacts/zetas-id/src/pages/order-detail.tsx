@@ -73,7 +73,6 @@ export default function OrderDetail() {
   ];
   return (
     <>
-      {/* Header dengan back button */}
       <div className="mb-4 md:mb-6">
         <Link href={`/orders${from ? `?${from}` : ''}`} data-testid="link-back" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="size-4" /> Kembali
@@ -84,7 +83,6 @@ export default function OrderDetail() {
       {q.isError && <ErrorState text="Pesanan tidak ditemukan atau server tidak merespons." onRetry={() => q.refetch()} />}
       {o && rows && (
         <>
-          {/* Main status header card */}
           <div className="mb-4 md:mb-6 overflow-hidden rounded-xl border bg-card">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-primary px-4 py-3 md:py-4 text-primary-foreground">
               <div className="min-w-0">
@@ -96,7 +94,6 @@ export default function OrderDetail() {
               </div>
             </div>
 
-            {/* Order info grid - mobile: 1 col, desktop: 2 cols */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 divide-y md:divide-y-0 md:divide-x">
               {rows.slice(0, 4).map(([k, v]) => (
                 <div key={k} className="px-4 py-3 md:py-3">
@@ -107,7 +104,6 @@ export default function OrderDetail() {
             </div>
           </div>
 
-          {/* Additional info section */}
           <div className="mb-4 md:mb-6 overflow-hidden rounded-xl border bg-card">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 divide-y md:divide-y-0 md:divide-x">
               {rows.slice(4).map(([k, v]) => (
@@ -119,7 +115,6 @@ export default function OrderDetail() {
             </div>
           </div>
 
-          {/* Main action button - full width on mobile */}
           {o.syncedAt && o.status === 'pending' && items.length > 0 && (
             <div className="mb-4 md:mb-6">
               <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
@@ -130,11 +125,9 @@ export default function OrderDetail() {
             </div>
           )}
 
-          {/* Status messages */}
           {deliveryNotice && <p role="status" data-testid="status-delivery-success" className="mb-4 p-3 rounded-lg text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950">{deliveryNotice}</p>}
           {deliveryError && !confirmOpen && <p role="alert" data-testid="error-deliver-digital" className="mb-4 p-3 rounded-lg text-sm text-destructive bg-destructive/5">{deliveryError}</p>}
 
-          {/* Items section */}
           <div className="mb-6">
             <h2 className="text-lg md:text-xl font-semibold mb-4">Item pesanan ({items.length})</h2>
             {items.length === 0 ? (
@@ -146,7 +139,6 @@ export default function OrderDetail() {
               <ul className="space-y-3 md:space-y-4">
                 {items.map((i) => (
                   <li key={i.id} data-testid={`item-${i.id}`} className="rounded-xl border bg-card overflow-hidden">
-                    {/* Item header with status */}
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 px-4 py-3 md:py-4 border-b bg-muted/30">
                       <div className="min-w-0 flex-1">
                         <p className="min-w-0 break-words font-semibold text-sm md:text-base line-clamp-2">{i.productName}</p>
@@ -157,12 +149,10 @@ export default function OrderDetail() {
                       </div>
                     </div>
 
-                    {/* Item timestamps */}
                     <div className="px-4 py-2 text-xs text-muted-foreground border-b">
                       Dibuat {i.sourceCreatedAt ?? tanggal(i.createdAt)} · Diperbarui {i.sourceUpdatedAt ?? tanggal(i.updatedAt)}
                     </div>
 
-                    {/* Item details - mobile: 1 col, desktop: 2 cols */}
                     {o.syncedAt && (
                       <div className="px-4 py-3 border-b">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 text-sm">
@@ -182,7 +172,6 @@ export default function OrderDetail() {
                       </div>
                     )}
 
-                    {/* Digital Detail section */}
                     <div className="px-4 py-4">
                       <p className="text-xs font-medium text-muted-foreground mb-3">DIGITAL DETAIL</p>
                       {o.syncedAt && (
@@ -193,7 +182,6 @@ export default function OrderDetail() {
                       <DigitalDetail id={i.id} value={i.digitalDetail} />
                     </div>
 
-                    {/* Extra attributes - collapsible */}
                     {o.syncedAt && (
                       <details className="border-t">
                         <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors">extra_attributes — Response asli</summary>
@@ -206,7 +194,6 @@ export default function OrderDetail() {
             )}
           </div>
 
-          {/* Confirmation dialog */}
           <AlertDialog open={confirmOpen} onOpenChange={open => {
             if (!delivery.isPending) {
               setConfirmOpen(open);

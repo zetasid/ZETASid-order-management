@@ -54,9 +54,25 @@ globalThis.fetch = async (input, options = {}) => {
     if (control === "orders-permission") return json({ code: "InsufficientPermissions" });
     const first = process.env.LAZADA_TEST_ORDER_ID;
     const second = String(Number(first) + 1);
-    const statusFor = id => control === "orders-delivered" || deliveredOrderIds.has(String(id)) ? "delivered" : "pending";
+    const configuredStatus = id => {
+      if (!process.env.LAZADA_TEST_STATUS_FILE) return null;
+      try {
+        const configured = JSON.parse(readFileSync(process.env.LAZADA_TEST_STATUS_FILE, "utf8"));
+        return configured[String(id)] ?? null;
+      } catch {
+        return null;
+      }
+    };
+    const statusFor = id => {
+      if (deliveredOrderIds.has(String(id)) || control === "orders-delivered") return "delivered";
+      return configuredStatus(id)?.itemStatus ?? "pending";
+    };
+    const headerStatusFor = id => {
+      if (deliveredOrderIds.has(String(id)) || control === "orders-delivered") return "delivered";
+      return configuredStatus(id)?.headerStatus ?? "pending";
+    };
     const order = id => ({ order_id: id, order_number: id, items_count: 1, price: "12000.25",
-      statuses: [statusFor(id)], created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" });
+      statuses: [headerStatusFor(id)], created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" });
     if (path === "/orders/get") return json({ code: "0", data: { count: 2, countTotal: 2,
       orders: Number(params.offset) ? [] : [order(first), order(second)] } });
     if (path === "/order/get") return json({ code: "0", data: order(params.order_id) });

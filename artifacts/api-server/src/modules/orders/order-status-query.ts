@@ -24,10 +24,24 @@ export function orderReadStatuses() {
   const header = sql`(select ${aggregateGroup(itemGroup(sql`s.value`))}
     from jsonb_array_elements_text(case when jsonb_typeof(${ordersTable.lazadaData}->'statuses') = 'array'
       then ${ordersTable.lazadaData}->'statuses' else '[]'::jsonb end) as s(value))`;
+  const paymentConfirmed = sql`case when ${ordersTable.lazadaData} is null then false else
+    (select count(*) > 0 and count(*) filter (where
+      ${itemGroup(sql`s.value`)} is null or ${itemGroup(sql`s.value`)} not in ('processing', 'completed')) = 0
+     from jsonb_array_elements_text(case when jsonb_typeof(${ordersTable.lazadaData}->'statuses') = 'array'
+       then ${ordersTable.lazadaData}->'statuses' else '[]'::jsonb end) as s(value))
+     and not exists (
+       select 1 from order_items as payment_item
+       where payment_item.order_id = ${ordersTable.id}
+         and (${itemGroup(sql`payment_item.lazada_data->>'status'`)} is null
+           or ${itemGroup(sql`payment_item.lazada_data->>'status'`)} = 'cancelled'
+           or payment_item.lazada_data->>'status' = 'unpaid')
+     )
+    end`;
   // Standalone joined query avoids Drizzle relational parent-alias substitution issues.
   return db.select({
     id: ordersTable.id,
     amount: ordersTable.amount,
+    paymentConfirmed: sql<boolean>`${paymentConfirmed}`.as("payment_confirmed"),
     status: sql<string | null>`case when ${ordersTable.lazadaData} is null then ${ordersTable.status}::text
       when ${items.orderId} is not null then ${items.group} else ${header} end`.as("effective_status"),
   }).from(ordersTable).leftJoin(items, eq(items.orderId, ordersTable.id)).as("order_read_statuses");

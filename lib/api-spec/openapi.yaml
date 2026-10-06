@@ -511,6 +511,9 @@ components:
         status:
           type: ["string", "null"]
           enum: [pending, processing, completed, cancelled, null]
+        paymentStatus:
+          type: string
+          enum: [unpaid, pending, confirmed, cancelled, unknown]
         createdAt:
           type: string
           format: date-time
@@ -529,6 +532,7 @@ components:
         - buyerName
         - amount
         - status
+        - paymentStatus
         - createdAt
         - updatedAt
         - items

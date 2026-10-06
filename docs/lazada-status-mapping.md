@@ -14,10 +14,33 @@ Diagram menempatkan `confirmed` setelah `delivered`, bukan sebelum pemrosesan.
 | `canceled` | Dibatalkan (`cancelled`) |
 | Kosong atau status lain yang belum dipetakan | Tidak diasumsikan; hanya masuk Semua (`null`) |
 
-GetOrderItems `status` adalah sumber utama untuk item dan pengelompokan order.
-Header GetOrders `statuses` hanya digunakan ketika belum ada item.
+GetOrderItems `status` adalah sumber utama untuk item dan pengelompokan tahap
+proses order. Header GetOrders `statuses` hanya digunakan untuk pengelompokan
+tahap proses ketika belum ada item.
 Order lama tanpa snapshot Lazada mempertahankan status lamanya.
 Status mentah tetap ditampilkan persis sebagaimana diterima API.
+
+## Status pembayaran dan pengiriman digital
+
+Status pembayaran dipisahkan dari tahap proses item. Nilainya berasal dari
+header Lazada `GetOrders.statuses` (atau `GetOrder.statuses` saat pengecekan
+langsung sebelum pengiriman), bukan dari enum lokal atau status item.
+
+| Status header Lazada | Status pembayaran ZETAS |
+|---|---|
+| `unpaid` | Belum dibayar |
+| `pending` | Menunggu konfirmasi |
+| `canceled` | Dibatalkan |
+| Status yang dipetakan ke `processing` atau `completed` | Dikonfirmasi/dibayar |
+| Kosong, `null`, atau nilai yang tidak dipetakan | Tidak diketahui; tidak memenuhi syarat |
+
+Pendapatan hanya menghitung status pembayaran Dikonfirmasi/dibayar. Endpoint
+pengiriman digital juga mengambil status terbaru dari Lazada dan hanya dapat
+melanjutkan ketika pembayaran dikonfirmasi serta item masih berada pada tahap
+proses yang dapat dikirim. Status pembayaran Dikonfirmasi tidak mengubah status
+item menjadi Selesai dan tidak dianggap sebagai bukti bahwa digital sudah
+dikirim. Status item yang tidak dikenal, dibatalkan, atau bukan Menunggu tetap
+tidak memenuhi syarat.
 
 Untuk beberapa item: semuanya batal → Dibatalkan; semua item selain yang batal
 sudah selesai → Selesai; ada item Diproses atau campuran selesai/menunggu →

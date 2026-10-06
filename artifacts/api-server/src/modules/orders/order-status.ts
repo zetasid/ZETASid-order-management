@@ -1,6 +1,7 @@
 import type { Order, OrderItem } from "@workspace/db";
 
 export type StatusGroup = Order["status"];
+export type PaymentStatus = "unpaid" | "pending" | "confirmed" | "cancelled" | "unknown";
 // Source: official Lazada Order Status Flow, plus GetOrders' documented aliases.
 // These are ZETAS display groups, never replacements for the original API status.
 export const LAZADA_STATUS_GROUPS: Record<StatusGroup, readonly string[]> = {
@@ -14,6 +15,22 @@ export function itemStatusGroup(value: unknown): StatusGroup | null {
   if (typeof value !== "string") return null;
   return (Object.entries(LAZADA_STATUS_GROUPS) as [StatusGroup, readonly string[]][])
     .find(([, statuses]) => statuses.includes(value))?.[0] ?? null;
+}
+
+// Payment eligibility comes from the order-header status returned by Lazada.
+// Item status remains a separate signal for digital fulfillment progress.
+export function readOrderPaymentStatus(order: Pick<Order, "lazadaData">): PaymentStatus {
+  const data = order.lazadaData;
+  const statuses = data && Array.isArray(data.statuses) ? data.statuses : null;
+  if (!statuses?.length || statuses.some(status => typeof status !== "string")) return "unknown";
+  if (statuses.includes("canceled") || statuses.includes("cancelled")) return "cancelled";
+  if (statuses.includes("unpaid")) return "unpaid";
+  if (statuses.includes("pending")) return "pending";
+  if (statuses.every(status => {
+    const group = itemStatusGroup(status);
+    return group === "processing" || group === "completed";
+  })) return "confirmed";
+  return "unknown";
 }
 
 export function groupStatuses(values: readonly unknown[]): StatusGroup | null {

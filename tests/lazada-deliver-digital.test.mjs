@@ -34,12 +34,14 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
   const port = server.address().port;
   await new Promise(resolve => server.close(resolve));
 
-  const callsFile = `${dir}/calls`, controlFile = `${dir}/control`;
+  const callsFile = `${dir}/calls`, controlFile = `${dir}/control`, statusFile = `${dir}/statuses`;
   await writeFile(callsFile, "");
   await writeFile(controlFile, "");
+  await writeFile(statusFile, "{}");
   const child = spawn(process.execPath, ["--import", "./tests/fixtures/lazada-provider.mjs", "artifacts/api-server/dist/index.mjs"], {
     env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test",
-      LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile },
+      LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile,
+      LAZADA_TEST_STATUS_FILE: statusFile },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let logs = "";
@@ -62,6 +64,11 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
   const deliveryCalls = async () => (await readFile(callsFile, "utf8")).trim().split("\n")
     .filter(Boolean).map(JSON.parse).filter(call => call.path === "/order/digital/delivered");
   const deliver = id => request(`/orders/${id}/deliver-digital`, "POST");
+  const providerStatuses = {};
+  const setProviderStatus = async (id, headerStatus, itemStatus) => {
+    providerStatuses[id] = { headerStatus, itemStatus };
+    await writeFile(statusFile, JSON.stringify(providerStatuses));
+  };
 
   try {
     let ready = false;
@@ -80,24 +87,37 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
 
     const baseOrderNumber = 9_000_000_000_000_000n + BigInt(randomInt(100_000));
     const ids = {};
-    for (const name of ["success", "nonpending", "concurrent", "failed", "retry", "lost-response"]) {
+    const seedOrder = async (name, headerStatus, itemStatus, liveHeaderStatus = headerStatus, liveItemStatus = itemStatus) => {
       const externalId = String(baseOrderNumber + BigInt(providerOrderIds.length * 10));
       const itemExternalId = String(BigInt(externalId) + 100n);
-      const rawStatus = name === "nonpending" ? "delivered" : "pending";
-      const storedStatus = rawStatus === "delivered" ? "completed" : "pending";
+      await setProviderStatus(externalId, liveHeaderStatus, liveItemStatus);
+      const storedStatus = itemStatus === "delivered" ? "completed" : "pending";
       const { rows: [order] } = await f.pool.query(`INSERT INTO orders
         (lazada_order_id, product_name, status, lazada_data, synced_at)
         VALUES ($1, 'SYNTHETIC DIGITAL FIXTURE', $2, $3, now()) RETURNING id`,
-      [externalId, storedStatus, { order_number: externalId, statuses: [rawStatus], items_count: 1, price: "12000.25" }]);
+      [externalId, storedStatus, { order_number: externalId,
+        statuses: headerStatus === null ? null : [headerStatus], items_count: 1, price: "12000.25" }]);
       await f.pool.query(`INSERT INTO order_items
         (order_id, lazada_order_item_id, product_name, status, lazada_data)
         VALUES ($1, $2, 'SYNTHETIC DIGITAL ITEM', $3, $4)`,
       [order.id, itemExternalId, storedStatus, { order_id: externalId, order_item_id: itemExternalId,
-        name: "SYNTHETIC DIGITAL ITEM", status: rawStatus }]);
+        name: "SYNTHETIC DIGITAL ITEM", status: itemStatus }]);
       ids[name] = order.id;
       orderIds.push(order.id);
       providerOrderIds.push(externalId);
+      return externalId;
+    };
+    for (const name of ["success", "nonpending", "concurrent", "failed", "retry", "lost-response"]) {
+      await seedOrder(name, "confirmed", name === "nonpending" ? "delivered" : "pending");
     }
+    for (const [name, headerStatus] of [
+      ["unpaid", "unpaid"], ["pending-payment", "pending"], ["cancelled-payment", "canceled"],
+      ["unknown-payment", "future_status"], ["null-payment", null],
+    ]) await seedOrder(name, headerStatus, "pending");
+    await seedOrder("item-unpaid", "confirmed", "unpaid");
+    await seedOrder("item-unknown", "confirmed", "future_item_status");
+    await seedOrder("item-null", "confirmed", null);
+    const staleUnpaidProviderId = await seedOrder("stale-unpaid", "confirmed", "pending", "confirmed", "pending");
 
     await t.test("Unauthenticated and invalid-CSRF requests cannot call DeliverDigital", async () => {
       assert.equal((await request(`/orders/${ids.success}/deliver-digital`, "POST", false)).status, 401);
@@ -113,6 +133,28 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
       assert.equal((await deliveryCalls()).length, before);
       const order = await (await request(`/orders/${ids.nonpending}`)).json();
       assert.equal(order.status, "completed");
+    });
+
+    await t.test("Unpaid, pending-payment, cancelled, unknown/null headers and unsafe item statuses cannot be delivered", async () => {
+      const before = (await deliveryCalls()).length;
+      for (const name of ["unpaid", "pending-payment", "cancelled-payment", "unknown-payment", "null-payment",
+        "item-unpaid", "item-unknown", "item-null"]) {
+        const response = await deliver(ids[name]);
+        assert.equal(response.status, 409, `${name} must be rejected`);
+      }
+      assert.equal((await deliveryCalls()).length, before, "No rejected payment state may call DeliverDigital");
+    });
+
+    await t.test("A stale locally confirmed snapshot is rejected when Lazada currently reports unpaid", async () => {
+      await setProviderStatus(staleUnpaidProviderId, "unpaid", "pending");
+      const before = (await deliveryCalls()).length;
+      const response = await deliver(ids["stale-unpaid"]);
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).error, /belum selesai/);
+      assert.equal((await deliveryCalls()).length, before, "Fresh Lazada status must be checked before DeliverDigital");
+      const refreshed = await (await request(`/orders/${ids["stale-unpaid"]}`)).json();
+      assert.equal(refreshed.paymentStatus, "unpaid");
+      assert.equal(refreshed.status, "pending", "Payment state does not overwrite item workflow state");
     });
 
     await t.test("Confirmed manual success updates status and is not sent again", async () => {

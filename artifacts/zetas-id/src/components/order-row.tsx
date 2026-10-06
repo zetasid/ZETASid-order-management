@@ -3,6 +3,7 @@ import { ChevronRight, PackageOpen } from 'lucide-react';
 import type { Order } from '@workspace/api-client-react';
 import { orderMoney, rupiah, tanggal, providerMoney, waktuWib } from '@/lib/format';
 import { ProviderStatus } from './provider-status';
+import { PaymentStatusBadge } from './payment-status';
 
 export function OrderRow({ order, from, variant = 'default' }: { order: Order; from?: string; variant?: 'default' | 'orders' }) {
   const items = order.items ?? [];
@@ -19,8 +20,9 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <p className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-5 text-[#0F172A] sm:text-base">{order.productName?.trim() || 'Produk tidak tersedia'}</p>
-            <div className="shrink-0 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
+            <div className="flex shrink-0 flex-col items-end gap-1 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
               <ProviderStatus status={order.status} />
+              <PaymentStatusBadge status={order.paymentStatus} />
             </div>
           </div>
           <p className="mt-1 truncate font-mono text-xs text-[#64748B]">#{order.marketplaceOrderId}</p>

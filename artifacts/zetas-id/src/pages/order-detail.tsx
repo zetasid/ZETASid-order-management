@@ -2,13 +2,14 @@ import { useParams } from 'wouter';
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { BadgeCheck, CalendarClock, CircleX, ClipboardList, Clock3, Info, Loader2, Package, PackageOpen, ReceiptText, Send, X } from 'lucide-react';
+import { BadgeCheck, CalendarClock, CircleX, ClipboardList, Clock3, CreditCard, Info, Loader2, Package, PackageOpen, ReceiptText, Send, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ApiError, useDeliverDigitalOrder, useGetOrder, getGetOrderQueryKey } from '@workspace/api-client-react';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { orderMoney, waktuWib } from '@/lib/format';
 import { ErrorState, ListSkeleton } from '@/components/states';
 import { CopyValue, DigitalDetail } from '@/components/copy-detail';
+import { paymentStatusLabel } from '@/components/payment-status';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -121,6 +122,7 @@ export default function OrderDetail() {
                 <InfoRow icon={ClipboardList} label="Order ID">
                   <CopyValue id="order-id" label="Order ID" value={o.marketplaceOrderId} />
                 </InfoRow>
+                <InfoRow icon={CreditCard} label="Pembayaran">{paymentStatusLabel(o.paymentStatus)}</InfoRow>
                 {items.map((item, index) => (
                   <InfoRow key={`info-${item.id}`} icon={Package} label={items.length > 1 ? `Item ID ${index + 1}` : 'Item ID'}>
                     <CopyValue id={`item-info-${item.id}`} label="Item ID" value={item.lazadaOrderItemId} />
@@ -129,6 +131,13 @@ export default function OrderDetail() {
                 <InfoRow icon={CalendarClock} label="Waktu order">{waktuWib(o.sourceCreatedAt ?? o.createdAt)}</InfoRow>
                 <InfoRow icon={ReceiptText} label="Nilai transaksi">{orderMoney(o.sourcePrice, o.currency, o.amount)}</InfoRow>
               </dl>
+              {(o.paymentStatus !== 'confirmed' || items.some(item => item.sourceStatus !== 'pending')) && (
+                <p role="note" className="mt-2 rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-[11px] leading-4 text-[#9A3412]">
+                  {o.paymentStatus !== 'confirmed'
+                    ? 'Pengiriman digital dinonaktifkan sampai status pembayaran dikonfirmasi oleh Lazada.'
+                    : 'Status item Lazada belum memenuhi syarat untuk pengiriman digital.'}
+                </p>
+              )}
             </section>
 
             <section aria-labelledby="order-products-heading" className="space-y-2">
@@ -179,7 +188,8 @@ export default function OrderDetail() {
                   <p>Data detail digital tidak tersedia karena pesanan dibatalkan.</p>
                 </div>
               )}
-              {o.syncedAt && o.status === 'pending' && items.length > 0 && (
+              {o.syncedAt && o.paymentStatus === 'confirmed' && o.status === 'pending' && items.length > 0
+                && items.every(item => item.sourceStatus === 'pending') && (
                 <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
                   disabled={delivery.isPending} data-testid="button-deliver-digital"
                   className="mt-3 min-h-11 w-full rounded-lg border-[#F97316] bg-[#F97316] px-5 font-semibold text-white hover:bg-[#EA580C]">

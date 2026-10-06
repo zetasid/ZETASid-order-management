@@ -143,6 +143,17 @@ export const OrderStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type OrderPaymentStatus = typeof OrderPaymentStatus[keyof typeof OrderPaymentStatus];
+
+
+export const OrderPaymentStatus = {
+  unpaid: 'unpaid',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+  unknown: 'unknown',
+} as const;
+
 /**
  * @nullable
  */
@@ -220,6 +231,7 @@ export interface Order {
   syncedAt?: string | null;
   /** @nullable */
   status: OrderStatus;
+  paymentStatus: OrderPaymentStatus;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];

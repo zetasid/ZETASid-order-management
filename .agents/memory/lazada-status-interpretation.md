@@ -21,20 +21,20 @@ Correct display/filter grouping through the read model when only display semanti
 
 **How to apply:** Keep raw Lazada snapshots intact and derive UI/filter groups from `GetOrderItems.status`. For manual and automatic refreshes, query Lazada by `update_after`/`update_before` with overlap where applicable, then persist only the fresh response. Never invoke DeliverDigital as part of a status refresh.
 
-Keep Lazada order-header payment eligibility separate from item-level digital processing. A paid/confirmed header is required for delivery; unpaid, pending, cancelled, missing, or unknown headers fail closed. Completed and cancelled workflow states cannot be processed again.
+Keep Lazada workflow status separate from payment evidence. GetOrder/GetOrders statuses and payment_method do not prove payment; confirmation requires a valid GetOrderItems payment_time for every item and no unpaid/unknown stage_pay_status.
 
-**Why:** The user explicitly requires unpaid or unclear payment states to block delivery and revenue, and completed/cancelled orders to remain non-processable.
+**Why:** Workflow states such as to_pack, to_ship, shipped, delivered, or confirmed describe order progress, not a settled payment. The official GetOrderItems contract exposes payment_time as the actual payment-time field; partial, missing, invalid, or ambiguous evidence must fail closed.
 
-**How to apply:** Re-read the order header and `GetOrderItems.status` from Lazada before delivery. Require a confirmed header and eligible pending item workflow; fail closed on unknown states and never retry completed/cancelled orders.
+**How to apply:** Preserve payment_time and stage_pay_status from GetOrderItems. A valid timestamp on every item is required; stage_pay_status `unpaid` or `unpaid final payment`, an unknown stage, or missing/invalid time blocks delivery and revenue. Re-read the provider snapshot before delivery and keep the existing pending-order, pending-item, explicit-digital, cancellation, completion, idempotency, and lock checks.
 
-Use “Belum Dibayar” only when the payment header is unpaid, pending, or unknown. When the header is confirmed but fulfillment is still workflow-pending, show “Menunggu Proses” in the detail status banner so the eligible send action is never paired with an unpaid label.
+Use raw Lazada status only for workflow labels. Progress such as packed/to_pack remains “Dikemas” and shipped/to_ship remains “Dikirim” even if payment evidence is unknown; the separate payment badge stays unknown and digital delivery remains disabled.
 
-**Why:** The user requires that no “Belum Dibayar” order show a send action, while the existing valid fulfillment flow begins with confirmed payment and pending item status.
+**Why:** Changing a workflow label must not grant payment eligibility or hide an unknown payment state.
 
-**How to apply:** Keep `paymentStatus` distinct from the item-derived workflow status. Do not relabel Dashboard, order filters, or unrelated UI as part of a security-only change.
+**How to apply:** Keep `paymentStatus` distinct from `status` and raw `sourceStatus`. Use the payment evidence gate on both frontend and backend; do not infer payment from display text.
 
 Count revenue only when payment is confirmed and the effective order workflow is processing or completed; exclude pending, cancelled, and unmapped states.
 
 **Why:** The user explicitly forbids counting unpaid, pending, cancelled, or unknown orders as revenue.
 
-**How to apply:** Keep payment confirmation and workflow state as separate requirements in the summary projection; do not infer paid status from item state alone.
+**How to apply:** Keep payment confirmation and workflow state as separate requirements in the summary projection; do not infer paid status from order workflow or payment method alone.

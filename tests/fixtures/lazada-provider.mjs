@@ -93,11 +93,14 @@ globalThis.fetch = async (input, options = {}) => {
     if (control === "orders-broken" && params.order_id === second) return json({ code: "0", data: [{
       order_id: "123", order_item_id: second, name: "Dummy", status: "pending",
     }] });
+    const configured = configuredStatus(params.order_id);
     return json({ code: "0", data: [{
       order_id: params.order_id, order_item_id: String(Number(params.order_id) + 100),
       name: "Dummy phase-eight product, not real seller data", item_price: 12000.25, paid_price: 12000.25,
       variation: "Dummy variation", sku: "test-only-sku", shop_sku: "test-only-shop-sku", currency: "IDR", status: statusFor(params.order_id),
       ...(isDigitalFor(params.order_id) === undefined ? {} : { is_digital: isDigitalFor(params.order_id) }),
+      ...(configured && Object.hasOwn(configured, "paymentTime") ? { payment_time: configured.paymentTime } : {}),
+      ...(configured && Object.hasOwn(configured, "stagePayStatus") ? { stage_pay_status: configured.stagePayStatus } : {}),
       product_main_image: "https://images.example.invalid/dummy-product.webp",
       created_at: createdAtFor(params.order_id), updated_at: "2026-09-20 10:01:00 +0700",
       extra_attributes: "{\"unmapped_test_field\":\"never invent a digital detail\"}",

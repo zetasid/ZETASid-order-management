@@ -319,7 +319,7 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM orders WHERE lazada_order_id=ANY($1)", [[id, secondId]])).rows[0].n, 2);
       const refreshed = await (await get(`/orders/${(await f.pool.query("SELECT id FROM orders WHERE lazada_order_id=$1", [id])).rows[0].id}`)).json();
       assert.equal(refreshed.status, "processing", "Existing pending status follows the newer GetOrderItems status");
-      assert.equal(refreshed.paymentStatus, "pending", "Payment confirmation remains separate from item workflow");
+      assert.equal(refreshed.paymentStatus, "unknown", "A workflow header without item payment evidence is not payment confirmation");
       assert.equal(refreshed.items[0].sourceStatus, "packed");
       const newOrder = (await f.pool.query("SELECT id FROM orders WHERE lazada_order_id=$1", [secondId])).rows[0];
       const oldOrder = await (await get(`/orders/${newOrder.id}`)).json();

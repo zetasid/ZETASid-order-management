@@ -110,7 +110,11 @@ async function seedPaymentOrders(cases) {
       await client.query(`INSERT INTO order_items
         (order_id, lazada_order_item_id, product_name, status, lazada_data, created_at, updated_at)
         VALUES ($1, $2, 'SYNTHETIC PAYMENT FIXTURE', 'pending', $3, $4, $4)`,
-      [order.id, `${externalId}-item`, { status: fixture.itemStatus === undefined ? "pending" : fixture.itemStatus }, time]);
+      [order.id, `${externalId}-item`, {
+        status: fixture.itemStatus === undefined ? "pending" : fixture.itemStatus,
+        ...(Object.hasOwn(fixture, "paymentTime") ? { payment_time: fixture.paymentTime } : {}),
+        ...(Object.hasOwn(fixture, "stagePayStatus") ? { stage_pay_status: fixture.stagePayStatus } : {}),
+      }, time]);
       fixtures.push({ id: order.id, ...fixture });
     }
     await client.query("COMMIT");
@@ -133,22 +137,45 @@ test("Documented raw Lazada status groups; unknown statuses are not guessed", ()
   assert.equal(mod.itemStatusGroup("unknown_future_status"), null);
   assert.equal(mod.itemStatusGroup("Confirmed"), null, "No case normalization invents provider values");
   assert.equal(mod.groupStatuses([]), null);
-  assert.equal(mod.groupStatuses(["confirmed", "canceled"]), "completed");
+  assert.equal(mod.groupStatuses(["confirmed", "canceled"]), "cancelled");
   assert.equal(mod.groupStatuses(["confirmed", "pending"]), "processing");
-  assert.equal(mod.groupStatuses(["pending", "canceled"]), "pending");
+  assert.equal(mod.groupStatuses(["pending", "canceled"]), "cancelled");
   assert.equal(mod.groupStatuses(["confirmed", "unknown_future_status"]), null);
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: { statuses: ["confirmed"] },
-    items: [{ lazadaData: { status: "pending" } }] }), "pending", "GetOrderItems overrides inconsistent header");
+    items: [{ lazadaData: { status: "pending" } }] }), "processing", "A progressed header cannot be hidden by pending items");
   const packedWithPendingHeader = { status: "pending", lazadaData: { statuses: ["pending"] },
     items: [{ lazadaData: { status: "packed" } }] };
   assert.equal(mod.readOrderStatus(packedWithPendingHeader), "processing", "A newer item workflow status overrides a stale pending header");
-  assert.equal(mod.readOrderPaymentStatus(packedWithPendingHeader), "pending", "Payment remains separately unconfirmed");
+  assert.equal(mod.readOrderPaymentStatus(packedWithPendingHeader), "unknown", "Workflow status cannot confirm payment");
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: null, items: [] }), "pending", "Legacy data retained");
-  for (const [statuses, expected] of [
-    [["unpaid"], "unpaid"], [["pending"], "pending"], [["canceled"], "cancelled"],
-    [["confirmed"], "confirmed"], [["delivered"], "confirmed"], [["future_status"], "unknown"],
-    [[], "unknown"], [null, "unknown"],
-  ]) assert.equal(mod.readOrderPaymentStatus({ lazadaData: statuses === null ? { statuses: null } : { statuses } }), expected);
+  const paymentTime = "1750000000000";
+  for (const statuses of [["unpaid"], ["pending"], ["canceled"], ["confirmed"], ["delivered"],
+    ["to_pack"], ["to_ship"], ["shipped"], ["future_status"], [], null]) {
+    assert.equal(mod.readOrderPaymentStatus({
+      lazadaData: statuses === null ? { statuses: null } : { statuses },
+      items: [{ lazadaData: { status: "pending" } }],
+    }), "unknown", `${JSON.stringify(statuses)} alone is not payment evidence`);
+  }
+  assert.equal(mod.readOrderPaymentStatus({
+    lazadaData: { statuses: ["to_ship"] }, items: [{ lazadaData: { status: "pending", payment_time: paymentTime } }],
+  }), "confirmed", "A valid item payment timestamp confirms payment independently of workflow");
+  assert.equal(mod.readOrderStatus({
+    status: "pending", lazadaData: { statuses: ["to_ship"] },
+    items: [{ lazadaData: { status: "pending", payment_time: paymentTime } }],
+  }), "processing", "Provider workflow progress remains a separate delivery gate");
+  assert.equal(mod.readOrderPaymentStatus({
+    lazadaData: { statuses: ["pending"] },
+    items: [{ lazadaData: { status: "pending", payment_time: paymentTime } }, { lazadaData: { status: "pending" } }],
+  }), "unknown", "Every item needs explicit payment evidence");
+  assert.equal(mod.readOrderPaymentStatus({
+    lazadaData: { statuses: ["pending"] }, items: [{ lazadaData: { stage_pay_status: "unpaid" } }],
+  }), "unpaid");
+  assert.equal(mod.readOrderPaymentStatus({
+    lazadaData: { statuses: ["pending"] }, items: [{ lazadaData: { payment_time: paymentTime, stage_pay_status: "unpaid final payment" } }],
+  }), "pending", "A paid deposit with unpaid final payment is not confirmed");
+  assert.equal(mod.readOrderPaymentStatus({
+    lazadaData: { statuses: ["pending"] }, items: [{ lazadaData: { payment_time: "9999999999999" } }],
+  }), "unknown", "Future timestamps fail closed");
   const time = "2026-09-20 10:00:00 +0700";
   const mapped = mod.mapOrder({ order_id: "123", order_number: "123", statuses: [], items_count: 1,
     price: "0.00", created_at: time, updated_at: time }, [{
@@ -196,32 +223,34 @@ test("28 self-seeded synthetic orders: 11 confirmed -> Selesai, 17 canceled -> D
   assert.deepEqual((await mod.pool.query(fingerprintSql)).rows[0], before, "All stored business rows, including timestamps, remain unchanged");
 });
 
-test("Revenue requires confirmed header payment and an eligible non-pending order status", async () => {
+test("Revenue requires explicit item payment evidence and an eligible order workflow status", async () => {
   const before = (await mod.getOrderSummary()).totalRevenue;
   const fixtures = await seedPaymentOrders([
-    { statuses: ["unpaid"], expected: "unpaid", amount: 110 },
-    { statuses: ["pending"], expected: "pending", amount: 220 },
-    { statuses: ["pending"], expected: "pending", itemStatus: "packed", amount: 225 },
-    { statuses: ["canceled"], expected: "cancelled", amount: 330 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "packed", amount: 440 },
-    { statuses: ["unknown_future_status"], expected: "unknown", itemStatus: "packed", amount: 550 },
-    { statuses: null, expected: "unknown", itemStatus: "packed", amount: 660 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "unpaid", amount: 770 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "future_item_status", amount: 880 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: null, amount: 990 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "pending", amount: 1010 },
-    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "canceled", amount: 1110 },
+    { statuses: ["unpaid"], expected: "unknown", amount: 110 },
+    { statuses: ["pending"], expected: "unknown", amount: 220 },
+    { statuses: ["to_pack"], expected: "unknown", itemStatus: "packed", amount: 225 },
+    { statuses: ["canceled"], expected: "unknown", amount: 330 },
+    { statuses: ["pending"], expected: "confirmed", paymentTime: "1750000000000", itemStatus: "packed", amount: 440 },
+    { statuses: ["unknown_future_status"], expected: "confirmed", paymentTime: "1750000000000", itemStatus: "packed", amount: 550 },
+    { statuses: null, expected: "confirmed", paymentTime: "1750000000000", itemStatus: "packed", amount: 660 },
+    { statuses: ["pending"], expected: "unpaid", paymentTime: "1750000000000", stagePayStatus: "unpaid", itemStatus: "packed", amount: 770 },
+    { statuses: ["pending"], expected: "unknown", paymentTime: "1750000000000", stagePayStatus: "unexpected", itemStatus: "packed", amount: 880 },
+    { statuses: ["pending"], expected: "confirmed", paymentTime: "1750000000000", itemStatus: "future_item_status", amount: 990 },
+    { statuses: ["pending"], expected: "confirmed", paymentTime: "1750000000000", itemStatus: "pending", amount: 1010 },
+    { statuses: ["pending"], expected: "confirmed", paymentTime: "1750000000000", itemStatus: "canceled", amount: 1110 },
   ]);
   for (const fixture of fixtures) {
-    assert.equal((await mod.findOrder(fixture.id)).paymentStatus, fixture.expected);
+    const order = await mod.findOrder(fixture.id);
+    assert.equal(order.paymentStatus, fixture.expected);
   }
   const after = await mod.getOrderSummary();
   const pendingPaid = fixtures.find(fixture => fixture.amount === 1010);
   assert.ok(pendingPaid);
   const pendingPaidOrder = await mod.findOrder(pendingPaid.id);
-  assert.equal(pendingPaidOrder.paymentStatus, "confirmed", "Header payment remains separate from item workflow");
+  assert.equal(pendingPaidOrder.paymentStatus, "confirmed", "An item payment timestamp is independent of order workflow");
   assert.equal(pendingPaidOrder.status, "pending");
-  assert.equal(after.totalRevenue, before + 440, "Pending and cancelled order states are excluded from revenue");
+  assert.equal(after.totalRevenue, before + 440 + 660,
+    "Only explicitly paid orders with an eligible workflow status contribute to revenue");
 });
 
 test("Self-seeded pending/unpaid -> Belum Dibayar and process statuses -> Diproses; no stored row changes", async () => {

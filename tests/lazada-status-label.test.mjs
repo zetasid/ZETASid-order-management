@@ -26,13 +26,16 @@ test("Lazada workflow labels follow raw item status and keep payment separate", 
   assert.equal(lazadaStatusLabel("pending", "unknown"), "Status tidak diketahui");
   assert.equal(lazadaStatusLabel("packed", "pending"), "Dikemas");
   assert.equal(lazadaStatusLabel("to_pack", "pending"), "Dikemas");
+  assert.equal(lazadaStatusLabel("to_pack", "unknown"), "Dikemas");
   assert.equal(lazadaStatusLabel("ready_to_ship", "confirmed"), "Dikemas");
   assert.equal(lazadaStatusLabel("shipped", "confirmed"), "Dikirim");
   assert.equal(lazadaStatusLabel("to_ship", "confirmed"), "Dikirim");
+  assert.equal(lazadaStatusLabel("to_ship", "unknown"), "Dikirim");
   assert.equal(lazadaStatusLabel("delivered", "confirmed"), "Selesai");
   assert.equal(lazadaStatusLabel("cancelled", "pending"), "Dibatalkan");
   assert.equal(lazadaStatusesLabel(["packed", "ready_to_ship"], "pending"), "Dikemas");
   assert.equal(lazadaStatusesLabel(["packed", "shipped"], "pending"), "Dikemas, Dikirim");
+  assert.equal(lazadaStatusesLabel(["packed", "shipped"], "unknown"), "Dikemas, Dikirim");
   assert.equal(lazadaStatusesLabel(["future_status"], "unknown"), "future_status");
   assert.equal(isKnownLazadaStatus("future_status"), false);
 });

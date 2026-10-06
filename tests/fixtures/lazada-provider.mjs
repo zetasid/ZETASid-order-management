@@ -71,6 +71,12 @@ globalThis.fetch = async (input, options = {}) => {
       if (deliveredOrderIds.has(String(id)) || control === "orders-delivered") return "delivered";
       return configuredStatus(id)?.headerStatus ?? "pending";
     };
+    const isDigitalFor = id => {
+      const configured = configuredStatus(id);
+      if (!configured) return true;
+      if (configured.includeIsDigital === false) return undefined;
+      return Object.hasOwn(configured, "isDigital") ? configured.isDigital : true;
+    };
     const order = id => ({ order_id: id, order_number: id, items_count: 1, price: "12000.25",
       statuses: [headerStatusFor(id)], created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" });
     if (path === "/orders/get") return json({ code: "0", data: { count: 2, countTotal: 2,
@@ -83,6 +89,7 @@ globalThis.fetch = async (input, options = {}) => {
       order_id: params.order_id, order_item_id: String(Number(params.order_id) + 100),
       name: "Dummy phase-eight product, not real seller data", item_price: 12000.25, paid_price: 12000.25,
       variation: "Dummy variation", sku: "test-only-sku", shop_sku: "test-only-shop-sku", currency: "IDR", status: statusFor(params.order_id),
+      ...(isDigitalFor(params.order_id) === undefined ? {} : { is_digital: isDigitalFor(params.order_id) }),
       product_main_image: "https://images.example.invalid/dummy-product.webp",
       created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700",
       extra_attributes: "{\"unmapped_test_field\":\"never invent a digital detail\"}",

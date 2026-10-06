@@ -73,38 +73,140 @@ export default function OrderDetail() {
   ];
   return (
     <>
-      <Link href={`/orders${from ? `?${from}` : ''}`} data-testid="link-back" className="mb-4 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Kembali ke pesanan
-      </Link>
-      <h1 className="mb-5 text-2xl font-bold tracking-tight">Detail pesanan</h1>
+      {/* Header dengan back button */}
+      <div className="mb-4 md:mb-6">
+        <Link href={`/orders${from ? `?${from}` : ''}`} data-testid="link-back" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="size-4" /> Kembali
+        </Link>
+      </div>
+
       {q.isLoading && <ListSkeleton rows={3} />}
       {q.isError && <ErrorState text="Pesanan tidak ditemukan atau server tidak merespons." onRetry={() => q.refetch()} />}
       {o && rows && (
         <>
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="flex items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
-              <span className="text-sm">Status</span>
-              <ProviderStatus status={o.status} source={o.lazadaStatuses} />
+          {/* Main status header card */}
+          <div className="mb-4 md:mb-6 overflow-hidden rounded-xl border bg-card">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-primary px-4 py-3 md:py-4 text-primary-foreground">
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm opacity-90">Status pesanan</p>
+                <p className="text-sm md:text-base font-semibold mt-0.5 break-all">#{o.marketplaceOrderId}</p>
+              </div>
+              <div className="shrink-0">
+                <ProviderStatus status={o.status} source={o.lazadaStatuses} />
+              </div>
             </div>
-            <dl className="divide-y">
-              {rows.map(([k, v]) => (
-                <div key={k} className="px-4 py-3">
-                  <dt className="text-xs text-muted-foreground">{k}</dt>
-                  <dd data-testid={`text-${k}`} className="mt-0.5 break-all font-mono text-sm">{v}</dd>
+
+            {/* Order info grid - mobile: 1 col, desktop: 2 cols */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 divide-y md:divide-y-0 md:divide-x">
+              {rows.slice(0, 4).map(([k, v]) => (
+                <div key={k} className="px-4 py-3 md:py-3">
+                  <dt className="text-xs text-muted-foreground font-medium">{k}</dt>
+                  <dd data-testid={`text-${k}`} className="mt-1 break-all font-mono text-sm">{v}</dd>
                 </div>
               ))}
-            </dl>
+            </div>
           </div>
+
+          {/* Additional info section */}
+          <div className="mb-4 md:mb-6 overflow-hidden rounded-xl border bg-card">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 divide-y md:divide-y-0 md:divide-x">
+              {rows.slice(4).map(([k, v]) => (
+                <div key={k} className="px-4 py-3">
+                  <dt className="text-xs text-muted-foreground font-medium">{k}</dt>
+                  <dd data-testid={`text-${k}`} className="mt-1 break-all font-mono text-sm">{v}</dd>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main action button - full width on mobile */}
           {o.syncedAt && o.status === 'pending' && items.length > 0 && (
-            <div className="mt-4">
+            <div className="mb-4 md:mb-6">
               <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
-                disabled={delivery.isPending} data-testid="button-deliver-digital">
-                <Send className="mr-2 size-4" /> Proses / Kirim Digital
+                disabled={delivery.isPending} data-testid="button-deliver-digital"
+                className="w-full md:w-auto min-h-11">
+                <Send className="mr-2 size-4" /> {delivery.isPending ? 'Mengirim…' : 'Proses / Kirim Digital'}
               </Button>
             </div>
           )}
-          {deliveryNotice && <p role="status" data-testid="status-delivery-success" className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">{deliveryNotice}</p>}
-          {deliveryError && !confirmOpen && <p role="alert" data-testid="error-deliver-digital" className="mt-3 text-sm text-destructive">{deliveryError}</p>}
+
+          {/* Status messages */}
+          {deliveryNotice && <p role="status" data-testid="status-delivery-success" className="mb-4 p-3 rounded-lg text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950">{deliveryNotice}</p>}
+          {deliveryError && !confirmOpen && <p role="alert" data-testid="error-deliver-digital" className="mb-4 p-3 rounded-lg text-sm text-destructive bg-destructive/5">{deliveryError}</p>}
+
+          {/* Items section */}
+          <div className="mb-6">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">Item pesanan ({items.length})</h2>
+            {items.length === 0 ? (
+              <div data-testid="state-no-items" className="rounded-xl border border-dashed border-input bg-card px-4 py-6 text-center">
+                <p className="break-words font-semibold text-sm md:text-base">{o.productName || 'Produk belum tersedia'}</p>
+                <p className="mt-2 text-xs md:text-sm text-muted-foreground">Item dan Digital Detail belum tersedia untuk pesanan ini.</p>
+              </div>
+            ) : (
+              <ul className="space-y-3 md:space-y-4">
+                {items.map((i) => (
+                  <li key={i.id} data-testid={`item-${i.id}`} className="rounded-xl border bg-card overflow-hidden">
+                    {/* Item header with status */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 px-4 py-3 md:py-4 border-b bg-muted/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="min-w-0 break-words font-semibold text-sm md:text-base line-clamp-2">{i.productName}</p>
+                        <p className="mt-1 break-all font-mono text-xs text-muted-foreground">Item {i.lazadaOrderItemId}</p>
+                      </div>
+                      <div className="shrink-0">
+                        <ProviderStatus status={i.status} source={i.sourceStatus} />
+                      </div>
+                    </div>
+
+                    {/* Item timestamps */}
+                    <div className="px-4 py-2 text-xs text-muted-foreground border-b">
+                      Dibuat {i.sourceCreatedAt ?? tanggal(i.createdAt)} · Diperbarui {i.sourceUpdatedAt ?? tanggal(i.updatedAt)}
+                    </div>
+
+                    {/* Item details - mobile: 1 col, desktop: 2 cols */}
+                    {o.syncedAt && (
+                      <div className="px-4 py-3 border-b">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 text-sm">
+                          {[
+                            ['Nominal/variasi', i.variation || 'Tidak tersedia'],
+                            ['Harga item', providerMoney(i.itemPrice, i.currency)],
+                            ['Harga dibayar', providerMoney(i.paidPrice, i.currency)],
+                            ['SKU', i.sku || 'Tidak tersedia'],
+                            ['Shop SKU', i.shopSku || 'Tidak tersedia'],
+                          ].map(([key, value]) => (
+                            <div key={key}>
+                              <dt className="text-xs text-muted-foreground font-medium">{key}</dt>
+                              <dd className="mt-1 break-all font-mono text-sm">{value}</dd>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Digital Detail section */}
+                    <div className="px-4 py-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-3">DIGITAL DETAIL</p>
+                      {o.syncedAt && (
+                        <p className="text-xs text-muted-foreground mb-3">
+                          {i.digitalDetailSource ? 'Sumber: digital_delivery_info dari Lazada' : 'Field digital_delivery_info tidak tersedia di response API'}
+                        </p>
+                      )}
+                      <DigitalDetail id={i.id} value={i.digitalDetail} />
+                    </div>
+
+                    {/* Extra attributes - collapsible */}
+                    {o.syncedAt && (
+                      <details className="border-t">
+                        <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors">extra_attributes — Response asli</summary>
+                        <pre className="px-4 py-3 max-h-60 overflow-auto whitespace-pre-wrap break-all text-xs bg-muted/30 font-mono text-muted-foreground">{i.extraAttributes ?? 'Field tidak tersedia atau bernilai null.'}</pre>
+                      </details>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Confirmation dialog */}
           <AlertDialog open={confirmOpen} onOpenChange={open => {
             if (!delivery.isPending) {
               setConfirmOpen(open);
@@ -122,50 +224,13 @@ export default function OrderDetail() {
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={delivery.isPending} data-testid="button-cancel-deliver-digital">Batal</AlertDialogCancel>
                 <AlertDialogAction onClick={event => { event.preventDefault(); submitDelivery(); }}
-                  disabled={delivery.isPending} data-testid="button-confirm-deliver-digital">
+                  disabled={delivery.isPending} data-testid="button-confirm-deliver-digital" className="min-h-11">
                   {delivery.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   {delivery.isPending ? 'Mengirim…' : 'Konfirmasi kirim'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <h2 className="mb-3 mt-6 font-semibold">Item pesanan ({items.length})</h2>
-          {items.length === 0 ? (
-            <div data-testid="state-no-items" className="rounded-xl border border-dashed border-input bg-card p-4">
-              <p className="break-words font-semibold">{o.productName || 'Produk belum tersedia'}</p>
-              <p className="mt-1 text-sm text-muted-foreground">Item dan Digital Detail belum tersedia untuk pesanan ini.</p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {items.map((i) => (
-                <li key={i.id} data-testid={`item-${i.id}`} className="rounded-xl border bg-card p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words font-semibold">{i.productName}</p>
-                    <ProviderStatus status={i.status} source={i.sourceStatus} />
-                  </div>
-                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">Item {i.lazadaOrderItemId}</p>
-                  <p className="mb-3 text-xs text-muted-foreground">Dibuat {i.sourceCreatedAt ?? tanggal(i.createdAt)} · Diperbarui {i.sourceUpdatedAt ?? tanggal(i.updatedAt)}</p>
-                  {o.syncedAt && <dl className="mb-3 grid gap-2 text-sm">
-                    {[
-                      ['Nominal/variasi (variation)', i.variation || 'Tidak tersedia'],
-                      ['Harga item (item_price)', providerMoney(i.itemPrice, i.currency)],
-                      ['Harga dibayar (paid_price)', providerMoney(i.paidPrice, i.currency)],
-                      ['SKU (sku)', i.sku || 'Tidak tersedia'],
-                      ['Shop SKU (shop_sku)', i.shopSku || 'Tidak tersedia'],
-                    ].map(([key, value]) => <div key={key}><dt className="text-xs text-muted-foreground">{key}</dt><dd className="break-all">{value}</dd></div>)}
-                  </dl>}
-                  <p className="mb-1 text-xs font-medium">Digital Detail</p>
-                  {o.syncedAt && <p className="mb-2 text-xs text-muted-foreground">
-                    {i.digitalDetailSource ? 'Sumber: digital_delivery_info, ditampilkan sesuai response API.' : 'Field digital_delivery_info tidak tersedia di response API.'}
-                  </p>}
-                  <DigitalDetail id={i.id} value={i.digitalDetail} />
-                  {o.syncedAt && <details className="mt-3 text-xs"><summary className="cursor-pointer">extra_attributes — response asli, bukan asumsi Digital Detail</summary>
-                    <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3">{i.extraAttributes ?? 'Field tidak tersedia atau bernilai null.'}</pre>
-                  </details>}
-                </li>
-              ))}
-            </ul>
-          )}
         </>
       )}
     </>

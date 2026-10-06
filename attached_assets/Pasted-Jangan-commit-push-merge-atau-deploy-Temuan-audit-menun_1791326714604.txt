@@ -1,0 +1,71 @@
+Jangan commit, push, merge, atau deploy.
+
+Temuan audit menunjukkan masalah penting:
+
+readOrderPaymentStatus() masih menganggap status header workflow seperti:
+to_pack
+to_ship
+shipped
+sebagai bukti payment confirmed.
+
+Ini TIDAK BOLEH.
+
+Status order/workflow Lazada dan status pembayaran harus dipisahkan.
+
+Perbaiki dengan prinsip FAIL-CLOSED:
+
+1. Status:
+   pending / to_pack / to_ship / shipped / delivered
+   digunakan untuk menentukan ALUR PESANAN dan LABEL UI.
+
+2. Status workflow TIDAK BOLEH sendirian membuktikan pembayaran.
+
+3. Kirim Digital hanya boleh dilakukan jika payment gate mempunyai bukti pembayaran yang benar-benar berasal dari data pembayaran/order Lazada yang tersedia.
+
+4. Jika bukti pembayaran tidak tersedia, ambigu, unknown, null, atau tidak dapat diverifikasi:
+   paymentStatus harus tetap pending/unknown dan DeliverDigital HARUS ditolak.
+
+5. Jangan gunakan:
+   to_pack
+   to_ship
+   shipped
+   sebagai pengganti payment confirmation.
+
+6. Pertahankan kebutuhan UI:
+   Jika Lazada sudah to_pack/packed, tampilkan "Dikemas".
+   Jika to_ship/shipped, tampilkan status alur yang sesuai.
+   Tetapi label UI tersebut TIDAK boleh mengubah payment gate.
+
+7. Tambahkan test integrasi khusus:
+   - header to_pack + item pending → payment NOT confirmed → DeliverDigital tidak dipanggil
+   - header to_ship + item pending → payment NOT confirmed → DeliverDigital tidak dipanggil
+   - header shipped + item pending → payment NOT confirmed → DeliverDigital tidak dipanggil
+   - workflow sudah processing tetapi payment evidence tidak tersedia → fail closed
+   - status UI tetap "Dikemas/Dikirim" meskipun payment gate belum confirmed
+   - payment confirmed + order/item memenuhi seluruh syarat → DeliverDigital boleh diproses
+
+8. Audit juga fungsi:
+   readOrderPaymentStatus()
+   order-status-query.ts
+   manual-delivery.ts
+   order-detail.tsx
+
+9. Jangan menghapus validasi digital item, order sync, idempotency, atau lock order.
+
+10. Setelah perubahan:
+   - typecheck
+   - test terkait
+   - seluruh test yang relevan
+   - API build
+   - frontend build bila diperlukan
+   - git diff --check
+
+Laporkan:
+A. sumber bukti payment yang digunakan
+B. kondisi payment confirmed
+C. kondisi payment pending/unknown
+D. kondisi DeliverDigital ditolak
+E. hasil semua test
+F. file yang berubah
+
+Jangan commit/push/merge/deploy.

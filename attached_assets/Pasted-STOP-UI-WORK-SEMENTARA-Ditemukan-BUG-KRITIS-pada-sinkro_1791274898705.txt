@@ -1,0 +1,130 @@
+STOP UI WORK SEMENTARA.
+
+Ditemukan BUG KRITIS pada sinkronisasi status pembayaran Lazada.
+
+JANGAN MERGE.
+JANGAN UBAH MAIN.
+
+Masalah yang ditemukan:
+- Di Seller Center Lazada, sebuah order berstatus UNPAID / BELUM DIBAYAR.
+- Order yang sama muncul di ZETAS sebagai order yang dapat diproses.
+- ZETAS bahkan menampilkan tombol "Proses / Kirim Digital".
+- Nilai order tersebut juga ikut menambah total pendapatan.
+
+Ini TIDAK BOLEH TERJADI.
+
+KEAMANAN UTAMA:
+Order yang belum dibayar TIDAK BOLEH:
+1. dianggap sebagai pendapatan,
+2. dianggap siap diproses,
+3. menampilkan tombol Kirim Digital,
+4. dapat dikirim melalui endpoint proses digital.
+
+ATURAN STATUS:
+
+1. unpaid / belum dibayar
+   - jangan dianggap pendapatan
+   - jangan bisa diproses
+   - jangan bisa Kirim Digital
+   - tampil sebagai belum dibayar/menunggu atau dikelompokkan sebagai tidak layak diproses
+   - jangan pernah masuk perhitungan pendapatan
+
+2. pending pembayaran
+   - jangan dianggap pendapatan
+   - jangan bisa diproses
+   - jangan bisa Kirim Digital
+
+3. confirmed / pembayaran sudah dikonfirmasi
+   - boleh masuk perhitungan pendapatan
+   - boleh masuk antrean order yang siap diproses
+   - boleh menampilkan tombol Proses/Kirim Digital HANYA setelah semua syarat keamanan terpenuhi
+
+4. canceled
+   - jangan dianggap pendapatan
+   - jangan bisa diproses
+   - jangan bisa Kirim Digital
+
+PENTING:
+Gunakan STATUS PEMBAYARAN/ORDER ITEM DARI LAZADA YANG SEBENARNYA, bukan hanya status lokal di frontend.
+
+Jangan membuat mapping berdasarkan tampilan UI saja.
+
+BACKEND SECURITY:
+Validasi status harus dilakukan juga di backend sebelum operasi pengiriman digital.
+Jangan hanya disable tombol frontend.
+
+Jika frontend mengirim request untuk order unpaid/pending/canceled:
+BACKEND HARUS MENOLAK REQUEST tersebut.
+
+Gunakan prinsip fail-closed:
+Jika status pembayaran tidak dikenali atau tidak dapat dipastikan,
+anggap order TIDAK LAYAK diproses.
+
+PENDAPATAN:
+Total pendapatan Dashboard hanya boleh menghitung order yang status pembayarannya sudah confirmed/paid sesuai sumber data Lazada.
+
+Order unpaid/pending/canceled harus dikeluarkan dari total pendapatan.
+
+PENTING TERKAIT LOGIC YANG SUDAH ADA:
+- Jangan mengubah API Lazada secara sembarangan.
+- Jangan mengubah database schema jika tidak diperlukan.
+- Jangan mengubah DeliverDigital.
+- Jangan menganggap confirmed berarti digital sudah terkirim.
+- Status pembayaran Lazada dan status proses digital ZETAS harus tetap dipisahkan.
+
+Prioritas:
+KEAMANAN TRANSAKSI > UI.
+
+TEST WAJIB:
+Buat/ jalankan pemeriksaan untuk minimal skenario:
+
+A. Order unpaid
+Expected:
+- tidak masuk pendapatan
+- tidak ada tombol Kirim Digital
+- backend menolak proses
+
+B. Order pending
+Expected:
+- tidak masuk pendapatan
+- tidak ada tombol Kirim Digital
+- backend menolak proses
+
+C. Order canceled
+Expected:
+- tidak masuk pendapatan
+- tidak ada tombol Kirim Digital
+- backend menolak proses
+
+D. Order confirmed
+Expected:
+- masuk pendapatan
+- dapat masuk antrean proses
+- tombol proses dapat tersedia setelah syarat lain terpenuhi
+
+E. Status tidak dikenal/null
+Expected:
+- dianggap TIDAK LAYAK diproses
+- tidak masuk pendapatan
+- backend menolak proses
+
+F. Pastikan order yang sudah dikirim tidak dapat dikirim dua kali.
+
+Setelah selesai:
+- typecheck
+- build
+- test yang tersedia
+- git diff --check
+
+LAPORKAN:
+1. sumber field status Lazada yang digunakan
+2. mapping status
+3. perubahan frontend
+4. perubahan backend
+5. aturan perhitungan pendapatan
+6. hasil test setiap skenario
+7. file yang diubah
+
+PERUBAHAN HARUS TERBATAS PADA PERBAIKAN KEAMANAN STATUS PEMBAYARAN DAN UI YANG DIPERLUKAN UNTUK MEREPRESENTASIKAN STATUS TERSEBUT.
+
+JANGAN MENGUBAH DASHBOARD YANG SUDAH ADA SELAIN LOGIC PERHITUNGAN STATUS/PENDAPATAN YANG MEMANG TERKAIT BUG INI.

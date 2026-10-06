@@ -1,0 +1,74 @@
+PERBAIKAN KEAMANAN TERPISAH — JANGAN UBAH UI LAINNYA
+
+Saya menerima laporan bahwa kondisi lama masih dapat menampilkan atau mengizinkan "Kirim Digital" pada pesanan yang secara UI berstatus "Belum Dibayar" dalam kondisi tertentu.
+
+Ini HARUS diperbaiki sebelum commit/push.
+
+ATURAN WAJIB:
+
+1. Jika status pembayaran/order adalah:
+   - unpaid
+   - pending
+   - payment pending
+   - belum dibayar
+   - status tidak dikenal/null
+
+   maka:
+   - JANGAN tampilkan tombol "Kirim Digital"
+   - JANGAN izinkan proses pengiriman digital
+   - JANGAN masukkan nilai transaksi sebagai pendapatan
+   - tampilkan status "Belum Dibayar"
+
+2. HANYA pesanan yang benar-benar memenuhi status pembayaran terkonfirmasi/confirmed/paid sesuai field API yang memang digunakan aplikasi yang boleh masuk ke workflow proses.
+
+3. Status "Selesai" tidak boleh diproses ulang.
+
+4. Status "Dibatalkan" tidak boleh diproses dan tidak dihitung sebagai pendapatan.
+
+5. Jangan hanya mengandalkan frontend.
+   Jika ada endpoint/action untuk proses atau Kirim Digital, backend/server-side juga harus menolak request yang status pembayarannya belum memenuhi syarat.
+
+6. FAIL CLOSED:
+   Jika field status pembayaran tidak jelas, null, undefined, atau tidak dikenali:
+   - jangan tampilkan Kirim Digital
+   - jangan proses
+   - jangan hitung sebagai pendapatan.
+
+BATASAN SANGAT PENTING:
+
+- Jangan redesign UI.
+- Jangan mengubah typography.
+- Jangan mengubah animasi.
+- Jangan mengubah filter.
+- Jangan mengubah dashboard.
+- Jangan mengubah Pengaturan.
+- Jangan mengubah API Lazada.
+- Jangan mengubah database schema.
+- Jangan mengubah workflow CI/Docker.
+- Jangan mengubah logic transaksi lain yang tidak berkaitan dengan validasi status pembayaran.
+- Jangan menyentuh branch main.
+- Tetap bekerja di ui-redesign-orders.
+
+Setelah perubahan:
+1. Cari seluruh kondisi yang menentukan tombol/aksi "Kirim Digital".
+2. Cari seluruh kondisi yang menentukan pendapatan.
+3. Pastikan keduanya menggunakan status pembayaran yang benar.
+4. Tambahkan/ubah test hanya jika memang diperlukan untuk memverifikasi aturan ini.
+5. Jalankan:
+   pnpm run typecheck
+   pnpm run build
+   git diff --check
+   test yang relevan.
+
+JANGAN commit.
+JANGAN push.
+
+Laporkan:
+- file yang berubah
+- aturan status yang sekarang diterapkan
+- apakah tombol Kirim Digital benar-benar tidak muncul untuk Belum Dibayar
+- apakah backend/server-side juga menolak proses yang tidak memenuhi syarat
+- hasil typecheck
+- hasil build
+- hasil test
+- hasil git diff --check.

@@ -29,12 +29,17 @@ function deliveryErrorText(error: unknown) {
 }
 
 const STATUS_VIEW = {
-  pending: { title: 'Pesanan Belum Dibayar', description: 'Pesanan siap untuk diproses.', icon: Clock3, tone: 'border-[#FED7AA] bg-[#FFF3E8] text-[#B45309]', iconTone: 'bg-[#F97316] text-white' },
+  pending: { title: 'Pesanan Belum Dibayar', description: 'Pembayaran belum terkonfirmasi. Pesanan tidak dapat diproses.', icon: Clock3, tone: 'border-[#FED7AA] bg-[#FFF3E8] text-[#B45309]', iconTone: 'bg-[#F97316] text-white' },
   processing: { title: 'Pesanan Diproses', description: 'Pesanan sedang diproses.', icon: Clock3, tone: 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]', iconTone: 'bg-[#3B82F6] text-white' },
   completed: { title: 'Pesanan Selesai', description: 'Pesanan telah selesai diproses.', icon: BadgeCheck, tone: 'border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]', iconTone: 'bg-[#22C55E] text-white' },
   cancelled: { title: 'Pesanan Dibatalkan', description: 'Pesanan ini telah dibatalkan oleh sistem Lazada.', icon: CircleX, tone: 'border-[#FECACA] bg-[#FEF0F0] text-[#B91C1C]', iconTone: 'bg-[#EF4444] text-white' },
   unknown: { title: 'Status Pesanan', description: 'Status pesanan belum tersedia.', icon: Info, tone: 'border-[#CBD5E1] bg-[#F1F5F9] text-[#475569]', iconTone: 'bg-[#64748B] text-white' },
 } as const;
+const CONFIRMED_PENDING_VIEW = {
+  ...STATUS_VIEW.pending,
+  title: 'Pesanan Menunggu Proses',
+  description: 'Pembayaran terkonfirmasi; pesanan menunggu pengiriman digital.',
+};
 
 function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
   return (
@@ -60,10 +65,16 @@ export default function OrderDetail() {
   });
   const o = q.data;
   const items = o?.items ?? [];
-  const statusView = o?.status && Object.prototype.hasOwnProperty.call(STATUS_VIEW, o.status)
-    ? STATUS_VIEW[o.status as keyof typeof STATUS_VIEW]
-    : STATUS_VIEW.unknown;
+  const statusView = !o ? STATUS_VIEW.unknown
+    : o.status === 'cancelled' || o.paymentStatus === 'cancelled' ? STATUS_VIEW.cancelled
+      : o.paymentStatus !== 'confirmed' || !o.status ? STATUS_VIEW.pending
+        : o.status === 'pending' ? CONFIRMED_PENDING_VIEW
+          : Object.prototype.hasOwnProperty.call(STATUS_VIEW, o.status)
+            ? STATUS_VIEW[o.status as keyof typeof STATUS_VIEW]
+            : STATUS_VIEW.unknown;
   const StatusIcon = statusView.icon;
+  const canDeliverDigital = !!o?.syncedAt && o.paymentStatus === 'confirmed' && o.status === 'pending'
+    && items.length > 0 && items.every(item => item.sourceStatus === 'pending');
   const submitDelivery = () => {
     if (submitLock.current || delivery.isPending) return;
     submitLock.current = true;
@@ -188,8 +199,7 @@ export default function OrderDetail() {
                   <p>Data detail digital tidak tersedia karena pesanan dibatalkan.</p>
                 </div>
               )}
-              {o.syncedAt && o.paymentStatus === 'confirmed' && o.status === 'pending' && items.length > 0
-                && items.every(item => item.sourceStatus === 'pending') && (
+              {canDeliverDigital && (
                 <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
                   disabled={delivery.isPending} data-testid="button-deliver-digital"
                   className="mt-3 min-h-11 w-full rounded-lg border-[#F97316] bg-[#F97316] px-5 font-semibold text-white hover:bg-[#EA580C]">

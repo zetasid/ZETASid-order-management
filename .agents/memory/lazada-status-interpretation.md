@@ -21,14 +21,20 @@ Correct display/filter grouping through the read model when existing order data 
 
 **How to apply:** Keep raw snapshots and existing rows intact, derive groups consistently for list/filter/detail/summary, and verify row fingerprints. Do not use a sync action as a status-correction mechanism.
 
-Keep Lazada order-header payment eligibility separate from item-level digital processing. A paid/confirmed header does not prove digital delivery; an unpaid, pending, cancelled, missing, or unknown header must not qualify for revenue or delivery.
+Keep Lazada order-header payment eligibility separate from item-level digital processing. A paid/confirmed header is required for delivery; unpaid, pending, cancelled, missing, or unknown headers fail closed. Completed and cancelled workflow states cannot be processed again.
 
-**Why:** The user identified unpaid orders incorrectly appearing processable or as revenue, and explicitly required payment confirmation not to be confused with digital fulfillment.
+**Why:** The user explicitly requires unpaid or unclear payment states to block delivery and revenue, and completed/cancelled orders to remain non-processable.
 
-**How to apply:** Use the order header's raw status for payment eligibility and revenue, use `GetOrderItems.status` for the processing stage, re-read both from Lazada immediately before delivery, and fail closed on unknown or conflicting item states.
+**How to apply:** Re-read the order header and `GetOrderItems.status` from Lazada before delivery. Require a confirmed header and eligible pending item workflow; fail closed on unknown states and never retry completed/cancelled orders.
 
-For UI labels, render order.status pending as “Belum Dibayar” while keeping paymentStatus as a separate field; its unpaid value also uses its own payment badge.
+Use “Belum Dibayar” only when the payment header is unpaid, pending, or unknown. When the header is confirmed but fulfillment is still workflow-pending, show “Menunggu Proses” in the detail status banner so the eligible send action is never paired with an unpaid label.
 
-**Why:** The user explicitly chose “Belum Dibayar” as the visible label for workflow pending. The dashboard count still comes from pendingOrders; no separate unpaid count is available from the API.
+**Why:** The user requires that no “Belum Dibayar” order show a send action, while the existing valid fulfillment flow begins with confirmed payment and pending item status.
 
-**How to apply:** Change display text only. Keep internal enums, filters, statistics, and payment logic tied to their existing fields; preserve the payment badge prefix so users can tell the two fields apart.
+**How to apply:** Keep `paymentStatus` distinct from the item-derived workflow status. Do not relabel Dashboard, order filters, or unrelated UI as part of a security-only change.
+
+Count revenue only when payment is confirmed and the effective order workflow is processing or completed; exclude pending, cancelled, and unmapped states.
+
+**Why:** The user explicitly forbids counting unpaid, pending, cancelled, or unknown orders as revenue.
+
+**How to apply:** Keep payment confirmation and workflow state as separate requirements in the summary projection; do not infer paid status from item state alone.

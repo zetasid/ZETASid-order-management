@@ -192,26 +192,31 @@ test("28 self-seeded synthetic orders: 11 confirmed -> Selesai, 17 canceled -> D
   assert.deepEqual((await mod.pool.query(fingerprintSql)).rows[0], before, "All stored business rows, including timestamps, remain unchanged");
 });
 
-test("Revenue requires a known paid Lazada order-header status, independent of item workflow status", async () => {
+test("Revenue requires confirmed header payment and an eligible non-pending order status", async () => {
   const before = (await mod.getOrderSummary()).totalRevenue;
   const fixtures = await seedPaymentOrders([
     { statuses: ["unpaid"], expected: "unpaid", amount: 110 },
     { statuses: ["pending"], expected: "pending", amount: 220 },
     { statuses: ["canceled"], expected: "cancelled", amount: 330 },
-    { statuses: ["confirmed"], expected: "confirmed", amount: 440 },
-    { statuses: ["unknown_future_status"], expected: "unknown", amount: 550 },
-    { statuses: null, expected: "unknown", amount: 660 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "packed", amount: 440 },
+    { statuses: ["unknown_future_status"], expected: "unknown", itemStatus: "packed", amount: 550 },
+    { statuses: null, expected: "unknown", itemStatus: "packed", amount: 660 },
     { statuses: ["confirmed"], expected: "confirmed", itemStatus: "unpaid", amount: 770 },
     { statuses: ["confirmed"], expected: "confirmed", itemStatus: "future_item_status", amount: 880 },
     { statuses: ["confirmed"], expected: "confirmed", itemStatus: null, amount: 990 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "pending", amount: 1010 },
+    { statuses: ["confirmed"], expected: "confirmed", itemStatus: "canceled", amount: 1110 },
   ]);
   for (const fixture of fixtures) {
     assert.equal((await mod.findOrder(fixture.id)).paymentStatus, fixture.expected);
   }
   const after = await mod.getOrderSummary();
-  assert.equal(after.totalRevenue, before + 440);
-  assert.equal((await mod.findOrder(fixtures[3].id)).status, "pending",
-    "Payment confirmation does not overwrite the item workflow status");
+  const pendingPaid = fixtures.find(fixture => fixture.amount === 1010);
+  assert.ok(pendingPaid);
+  const pendingPaidOrder = await mod.findOrder(pendingPaid.id);
+  assert.equal(pendingPaidOrder.paymentStatus, "confirmed", "Header payment remains separate from item workflow");
+  assert.equal(pendingPaidOrder.status, "pending");
+  assert.equal(after.totalRevenue, before + 440, "Pending and cancelled order states are excluded from revenue");
 });
 
 test("Self-seeded pending/unpaid -> Menunggu and all process statuses -> Diproses; no stored row changes", async () => {

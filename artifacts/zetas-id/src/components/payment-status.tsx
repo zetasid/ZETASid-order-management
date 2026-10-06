@@ -4,7 +4,7 @@ type PaymentStatus = Order['paymentStatus'];
 
 export function paymentStatusLabel(status: PaymentStatus) {
   switch (status) {
-    case 'unpaid': return 'Belum dibayar';
+    case 'unpaid': return 'Belum Dibayar';
     case 'pending': return 'Menunggu konfirmasi';
     case 'confirmed': return 'Dikonfirmasi';
     case 'cancelled': return 'Dibatalkan';
@@ -23,7 +23,7 @@ const PAYMENT_STATUS_TONE: Record<PaymentStatus, string> = {
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   return (
     <span data-testid={`payment-status-${status}`}
-      className={`inline-flex max-w-40 items-center justify-center rounded-md border px-2 py-1 text-[10px] font-medium leading-3 ${PAYMENT_STATUS_TONE[status]}`}>
+      className={`inline-flex max-w-40 items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-3 ${PAYMENT_STATUS_TONE[status]}`}>
       Pembayaran: {paymentStatusLabel(status)}
     </span>
   );

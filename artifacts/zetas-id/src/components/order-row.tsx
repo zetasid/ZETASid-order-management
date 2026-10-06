@@ -12,23 +12,23 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
   if (variant === 'orders') {
     return (
       <Link href={href} data-testid={`link-order-${order.id}`}
-        className="flex min-h-24 items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-[#CBD5E1] hover:bg-[#FCFDFE] active:scale-[0.99] sm:gap-4 sm:p-4">
+        className="surface-card flex min-h-24 items-center gap-3 rounded-2xl p-3 active:scale-[.99] sm:gap-4 sm:p-4">
         <div role="img" aria-label="Foto produk tidak tersedia dari data pesanan"
-          className="grid size-14 shrink-0 place-items-center rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] sm:size-16">
+          className="grid size-14 shrink-0 place-items-center rounded-xl border border-[#E4E8EE] bg-[#F4F6F9] text-[#738094] sm:size-16">
           <PackageOpen aria-hidden="true" className="size-6" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
-            <p className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-5 text-[#0F172A] sm:text-base">{order.productName?.trim() || 'Produk tidak tersedia'}</p>
+            <p className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-5 text-[#14213A] sm:text-base">{order.productName?.trim() || 'Produk tidak tersedia'}</p>
             <div className="flex shrink-0 flex-col items-end gap-1 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
               <ProviderStatus status={order.status} />
               <PaymentStatusBadge status={order.paymentStatus} />
             </div>
           </div>
-          <p className="mt-1 truncate font-mono text-xs text-[#64748B]">#{order.marketplaceOrderId}</p>
+          <p className="mt-1 truncate font-mono text-[11px] tracking-[.01em] text-[#778396]">#{order.marketplaceOrderId}</p>
           <div className="mt-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <span className="text-xs text-[#64748B]">{waktuWib(order.sourceCreatedAt ?? order.createdAt)}</span>
-            <span className="font-mono text-sm font-semibold text-[#0F172A]">
+            <span className="text-xs text-[#778396]">{waktuWib(order.sourceCreatedAt ?? order.createdAt)}</span>
+            <span className="font-mono text-sm font-semibold text-[#14213A]">
               {order.syncedAt ? orderMoney(order.sourcePrice, order.currency, order.amount) : rupiah(order.amount)}
             </span>
           </div>
@@ -40,11 +40,11 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
 
   return (
     <Link href={href} data-testid={`link-order-${order.id}`}
-      className="flex items-center gap-2 md:gap-3 rounded-xl border bg-card p-3 md:p-4 transition-all hover:border-accent active:scale-[0.99] min-h-16">
+      className="surface-card flex items-center gap-2 md:gap-3 rounded-2xl p-3 md:p-4 active:scale-[.99] min-h-[76px]">
       <div className="min-w-0 flex-1">
         {/* Order header: ID + Status */}
         <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-xs font-mono text-muted-foreground truncate">#{order.marketplaceOrderId}</span>
+          <span className="text-[11px] font-mono text-muted-foreground truncate">#{order.marketplaceOrderId}</span>
           <div className="shrink-0">
             <ProviderStatus status={order.status} source={order.lazadaStatuses} />
           </div>

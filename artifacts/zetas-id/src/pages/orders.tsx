@@ -59,12 +59,12 @@ export default function Orders() {
       <PageHeading title="Pesanan" sub="Kelola pesanan digital Lazada." />
       <LazadaOrderSync />
       {/* Sticky search bar */}
-      <div className="sticky top-14 md:top-0 z-20 bg-page mb-4 pb-4 -mx-4 md:mx-0 px-4 md:px-0 md:mb-3 md:pb-0">
+      <div className="sticky top-14 z-20 -mx-4 mb-4 bg-[#F4F6F9]/95 px-4 pb-3 pt-1 backdrop-blur md:top-0 md:mx-0 md:mb-5 md:px-0 md:pb-0 md:pt-0">
         <div className="relative mb-3 md:mb-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input type="search" value={text} maxLength={200} onChange={(e) => setText(e.target.value)}
             data-testid="input-search" aria-label="Cari ID pesanan atau nama produk" placeholder="Cari ID pesanan atau produk"
-            className="min-h-11 w-full rounded-lg border border-input bg-card pl-9 pr-11 text-base" />
+            className="min-h-12 w-full rounded-xl border border-[#DCE2EA] bg-white pl-10 pr-11 text-sm shadow-[0_2px_8px_rgba(24,39,75,.04)] outline-none transition focus:border-[#E96B27] focus:ring-2 focus:ring-[#F27832]/15 placeholder:text-[#98A2B1]" />
           {text && (
             <button type="button" aria-label="Hapus pencarian" data-testid="button-clear-search"
               onClick={() => { setText(''); setUrl('', status); }}
@@ -72,12 +72,12 @@ export default function Orders() {
           )}
         </div>
         {/* Horizontal scroll filters on mobile, flex wrap on desktop */}
-        <ScrollArea className="md:hidden w-[calc(100%+32px)] -mx-4">
+        <ScrollArea className="orders-filter-scroll md:hidden w-[calc(100%+32px)] -mx-4">
           <div className="flex gap-2 px-4 pb-2" role="group" aria-label="Filter status">
             {FILTERS.map(([v, l]) => (
               <button key={l} type="button" aria-pressed={status === v} data-testid={`filter-${v || 'all'}`}
                 onClick={() => setUrl(text, v)}
-                className={`min-h-10 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors ${status === v ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/50'}`}>{l}</button>
+                className={`min-h-10 rounded-full border px-4 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${status === v ? 'border-[#14213A] bg-[#14213A] text-white shadow-sm' : 'border-[#E0E5EC] bg-white text-[#647184] hover:border-[#E96B27]/50 hover:text-[#14213A]'}`}>{l}</button>
             ))}
           </div>
         </ScrollArea>
@@ -86,7 +86,7 @@ export default function Orders() {
           {FILTERS.map(([v, l]) => (
             <button key={l} type="button" aria-pressed={status === v} data-testid={`filter-${v || 'all'}`}
               onClick={() => setUrl(text, v)}
-              className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors ${status === v ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/50'}`}>{l}</button>
+              className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition-all duration-200 ${status === v ? 'border-[#14213A] bg-[#14213A] text-white shadow-sm' : 'border-[#E0E5EC] bg-white text-[#647184] hover:border-[#E96B27]/50 hover:text-[#14213A]'}`}>{l}</button>
           ))}
         </div>
       </div>
@@ -113,7 +113,7 @@ export default function Orders() {
               Urutkan <ArrowDownUp aria-hidden="true" className="size-3.5" />
             </button>
           </div>
-          <div data-testid="list-orders" className="space-y-2.5">{sortedOrders.map((o) => <OrderRow key={o.id} order={o} from={from} variant="orders" />)}</div>
+          <div key={`${status}:${urlSearch}`} data-testid="list-orders" className="page-enter space-y-3">{sortedOrders.map((o) => <OrderRow key={o.id} order={o} from={from} variant="orders" />)}</div>
         </>
       )}
     </>

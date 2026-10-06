@@ -26,3 +26,9 @@ Keep Lazada order-header payment eligibility separate from item-level digital pr
 **Why:** The user identified unpaid orders incorrectly appearing processable or as revenue, and explicitly required payment confirmation not to be confused with digital fulfillment.
 
 **How to apply:** Use the order header's raw status for payment eligibility and revenue, use `GetOrderItems.status` for the processing stage, re-read both from Lazada immediately before delivery, and fail closed on unknown or conflicting item states.
+
+For UI labels, order.status pending is the workflow state “Menunggu”; only paymentStatus unpaid may be labelled “Belum Dibayar”. Do not infer an unpaid count from recent orders.
+
+**Why:** The user explicitly confirmed that workflow status and payment status must remain distinct, and the dashboard summary does not provide an unpaid-order count.
+
+**How to apply:** Keep labels and filters tied to their own status fields. Add a payment-count metric only when the API provides a dedicated reliable field.

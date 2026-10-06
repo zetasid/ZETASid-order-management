@@ -86,14 +86,14 @@ export default function OrderDetail() {
     });
   };
   return (
-    <div className="-mx-4 -my-4 bg-[#F6F7FA] px-4 py-2 pb-[calc(6rem+env(safe-area-inset-bottom))] md:mx-0 md:my-0 md:bg-transparent md:px-0 md:py-4 md:pb-8">
-      <div className="mx-auto max-w-4xl space-y-3">
+    <div className="page-enter -mx-4 -my-4 bg-[#F4F6F9] px-4 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:mx-0 md:my-0 md:bg-transparent md:px-0 md:py-1 md:pb-8">
+      <div className="mx-auto max-w-4xl space-y-4">
 
         {q.isLoading && <ListSkeleton rows={3} />}
         {q.isError && <ErrorState text="Pesanan tidak ditemukan atau server tidak merespons." onRetry={() => q.refetch()} />}
         {o && (
           <div className="space-y-3">
-            <section aria-labelledby="order-status-heading" className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${statusView.tone}`}>
+            <section aria-labelledby="order-status-heading" className={`flex items-center gap-3 rounded-2xl border px-4 py-4 shadow-[0_2px_10px_rgba(24,39,75,.04)] ${statusView.tone}`}>
               <span className={`grid size-10 shrink-0 place-items-center rounded-full ${statusView.iconTone}`}>
                 <StatusIcon aria-hidden="true" className="size-5" />
               </span>
@@ -116,8 +116,8 @@ export default function OrderDetail() {
               </p>
             )}
 
-            <section aria-labelledby="order-info-heading" className="rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-              <h2 id="order-info-heading" className="mb-1 text-sm font-semibold text-[#0F172A]">Informasi Pesanan</h2>
+            <section aria-labelledby="order-info-heading" className="surface-card rounded-2xl px-4 py-4 sm:px-5">
+              <h2 id="order-info-heading" className="mb-2 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Informasi Pesanan</h2>
               <dl>
                 <InfoRow icon={ClipboardList} label="Order ID">
                   <CopyValue id="order-id" label="Order ID" value={o.marketplaceOrderId} />
@@ -131,7 +131,7 @@ export default function OrderDetail() {
                 <InfoRow icon={CalendarClock} label="Waktu order">{waktuWib(o.sourceCreatedAt ?? o.createdAt)}</InfoRow>
                 <InfoRow icon={ReceiptText} label="Nilai transaksi">{orderMoney(o.sourcePrice, o.currency, o.amount)}</InfoRow>
               </dl>
-              {(o.paymentStatus !== 'confirmed' || items.some(item => item.sourceStatus !== 'pending')) && (
+              {(o.paymentStatus !== 'confirmed' || (o.status !== 'completed' && items.some(item => item.sourceStatus !== 'pending'))) && (
                 <p role="note" className="mt-2 rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-[11px] leading-4 text-[#9A3412]">
                   {o.paymentStatus !== 'confirmed'
                     ? 'Pengiriman digital dinonaktifkan sampai status pembayaran dikonfirmasi oleh Lazada.'
@@ -141,7 +141,7 @@ export default function OrderDetail() {
             </section>
 
             <section aria-labelledby="order-products-heading" className="space-y-2">
-              <h2 id="order-products-heading" className="px-0.5 text-sm font-semibold text-[#0F172A]">Produk</h2>
+              <h2 id="order-products-heading" className="px-0.5 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Produk</h2>
               {items.length === 0 ? (
                 <div data-testid="state-no-items" className="rounded-xl border border-dashed border-[#CBD5E1] bg-white px-4 py-5 text-sm text-[#64748B]">
                   {o.productName?.trim() || 'Produk tidak tersedia'}
@@ -149,7 +149,7 @@ export default function OrderDetail() {
               ) : (
                 <ul className="space-y-2">
                   {items.map((i) => (
-                    <li key={i.id} data-testid={`item-${i.id}`} className="rounded-xl border border-[#E5E7EB] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+                    <li key={i.id} data-testid={`item-${i.id}`} className="surface-card rounded-2xl p-4">
                       <div className="flex min-w-0 items-center gap-3">
                         <div role="img" aria-label="Foto produk tidak tersedia dari data pesanan"
                           className="grid size-12 shrink-0 place-items-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]">
@@ -168,8 +168,8 @@ export default function OrderDetail() {
               )}
             </section>
 
-            <section aria-labelledby="digital-detail-heading" className="rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-              <h2 id="digital-detail-heading" className="mb-2 text-sm font-semibold text-[#0F172A]">Detail Digital</h2>
+            <section aria-labelledby="digital-detail-heading" className="surface-card rounded-2xl px-4 py-4 sm:px-5">
+              <h2 id="digital-detail-heading" className="mb-3 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Detail Digital</h2>
               {items.length === 0 ? (
                 <p className="py-2 text-xs text-[#64748B]">Tidak tersedia.</p>
               ) : (

@@ -10,6 +10,7 @@ import { orderMoney, waktuWib } from '@/lib/format';
 import { ErrorState, ListSkeleton } from '@/components/states';
 import { CopyValue, DigitalDetail } from '@/components/copy-detail';
 import { paymentStatusLabel } from '@/components/payment-status';
+import { ProductImage } from '@/components/product-image';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -162,10 +163,13 @@ export default function OrderDetail() {
                   {items.map((i) => (
                     <li key={i.id} data-testid={`item-${i.id}`} className="surface-card rounded-2xl p-4">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div role="img" aria-label="Foto produk tidak tersedia dari data pesanan"
-                          className="grid size-12 shrink-0 place-items-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]">
-                          <PackageOpen aria-hidden="true" className="size-5" />
-                        </div>
+                        <ProductImage
+                          src={i.productMainImage}
+                          alt={`Foto produk: ${i.productName || 'produk'}`}
+                          testId={`img-product-${i.id}`}
+                          imageClassName="size-12 shrink-0 rounded-lg border border-[#E5E7EB] object-cover"
+                          fallbackClassName="grid size-12 shrink-0 place-items-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]"
+                        />
                         <div className="min-w-0 flex-1">
                           <h3 className="break-words text-xs font-semibold leading-4 text-[#0F172A]">{i.productName}</h3>
                           <p className="mt-1 inline-flex max-w-full rounded-md bg-[#FFF4E9] px-2 py-1 text-[11px] leading-4 text-[#7C4A24]">

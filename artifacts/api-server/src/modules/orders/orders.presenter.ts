@@ -1,5 +1,5 @@
 import type { Order, OrderItem } from "@workspace/db";
-import { sourceText } from "../lazada/order-mapping";
+import { httpsProductImageUrl, sourceText } from "../lazada/order-mapping";
 import { itemStatusGroup, readOrderPaymentStatus, readOrderStatus } from "./order-status";
 
 function digitalText(value: unknown): string | null {
@@ -35,6 +35,7 @@ export function presentOrder(order: Order & { items: OrderItem[] }) {
       lazadaOrderItemId: item.lazadaOrderItemId,
       orderId: item.orderId,
       productName: item.productName,
+      productMainImage: httpsProductImageUrl(item.lazadaData?.product_main_image),
       digitalDetail: digitalText(item.digitalDetail),
       digitalDetailSource: item.lazadaData && Object.hasOwn(item.lazadaData, "digital_delivery_info") ? "digital_delivery_info" : null,
       sourceStatus: sourceText(item.lazadaData?.status),

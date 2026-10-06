@@ -83,6 +83,7 @@ globalThis.fetch = async (input, options = {}) => {
       order_id: params.order_id, order_item_id: String(Number(params.order_id) + 100),
       name: "Dummy phase-eight product, not real seller data", item_price: 12000.25, paid_price: 12000.25,
       variation: "Dummy variation", sku: "test-only-sku", shop_sku: "test-only-shop-sku", currency: "IDR", status: statusFor(params.order_id),
+      product_main_image: "https://images.example.invalid/dummy-product.webp",
       created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700",
       extra_attributes: "{\"unmapped_test_field\":\"never invent a digital detail\"}",
       ...(params.order_id === first ? { digital_delivery_info: "{\"test_only_destination\":\"not-real-data\"}" } : {}),

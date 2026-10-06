@@ -14,16 +14,24 @@ import { createAuthorizedFixture } from "./auth-helper.mjs";
 const require = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url));
 const { build } = require("esbuild");
 const dir = await mkdtemp(`${tmpdir()}/zetas-readonly-orders-`);
-await build({ entryPoints: ["artifacts/api-server/src/modules/lazada/security.ts", "artifacts/api-server/src/modules/lazada/order-mapping.ts"],
+test.after(async () => { await rm(dir, { recursive: true, force: true }); });
+await build({ entryPoints: {
+  security: "artifacts/api-server/src/modules/lazada/security.ts",
+  "order-mapping": "artifacts/api-server/src/modules/lazada/order-mapping.ts",
+  "orders.presenter": "artifacts/api-server/src/modules/orders/orders.presenter.ts",
+  "product-image": "artifacts/zetas-id/src/lib/product-image.ts",
+},
   outdir: dir, bundle: true, platform: "node", format: "esm", outExtension: { ".js": ".mjs" }, logLevel: "silent" });
 const security = await import(pathToFileURL(`${dir}/security.mjs`));
-const { mapOrder, providerId, providerMoney, providerDate } = await import(pathToFileURL(`${dir}/order-mapping.mjs`));
-test.after(async () => { await rm(dir, { recursive: true, force: true }); });
+const { mapOrder, providerId, providerMoney, providerDate, httpsProductImageUrl } = await import(pathToFileURL(`${dir}/order-mapping.mjs`));
+const { presentOrder } = await import(pathToFileURL(`${dir}/orders.presenter.mjs`));
+const { safeProductImageUrl } = await import(pathToFileURL(`${dir}/product-image.mjs`));
 
 const sample = { order_id: "1234", order_number: "1234", statuses: ["pending"], price: "1000.25", items_count: 1,
   created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" };
 const sampleItem = { order_id: "1234", order_item_id: "5678", name: "Dummy product", status: "pending",
   variation: "Dummy variation", sku: "dummy", item_price: 1000.25, currency: "IDR",
+  product_main_image: "https://images.example.invalid/dummy-product.webp",
   created_at: sample.created_at, updated_at: sample.updated_at, extra_attributes: "{\"destination\":\"not Digital Detail\"}" };
 
 test("Read-only mapping preserves decimals, source status, SKU/variation and does not invent Digital Detail", () => {
@@ -32,6 +40,7 @@ test("Read-only mapping preserves decimals, source status, SKU/variation and doe
   assert.equal(mapped.items[0].digitalDetail, null);
   assert.equal(mapped.items[0].lazadaData.extra_attributes, sampleItem.extra_attributes);
   assert.equal(mapped.items[0].lazadaData.variation, sampleItem.variation);
+  assert.equal(mapped.items[0].lazadaData.product_main_image, sampleItem.product_main_image);
   const raw = "{\"account\":\"dummy-only\"}";
   assert.equal(mapOrder(sample, [{ ...sampleItem, digital_delivery_info: raw }]).items[0].digitalDetail, raw);
   assert.equal(mapOrder({ ...sample, price: null }, [sampleItem]).header.amount, null);
@@ -40,6 +49,72 @@ test("Read-only mapping preserves decimals, source status, SKU/variation and doe
   assert.equal(providerMoney("0.25"), 0.25);
   assert.throws(() => mapOrder(sample, [{ ...sampleItem, order_id: "999" }]));
   assert.throws(() => mapOrder({ ...sample, items_count: 2 }, [sampleItem]));
+});
+
+test("Product image mapping and frontend validation accept HTTPS only", () => {
+  const valid = "https://images.example.invalid/product.webp";
+  assert.equal(httpsProductImageUrl(valid), valid);
+  assert.equal(safeProductImageUrl(valid), valid);
+  for (const value of ["http://images.example.invalid/product.webp", "//images.example.invalid/product.webp",
+    "javascript:alert(1)", "data:image/png;base64,AA==", "not a URL", "", null, 42,
+    "https://user:password@images.example.invalid/product.webp"]) {
+    assert.equal(httpsProductImageUrl(value), null, `mapper rejects ${String(value)}`);
+    assert.equal(safeProductImageUrl(value), null, `frontend rejects ${String(value)}`);
+  }
+});
+
+test("Order presenter exposes the mapped image field to the frontend", () => {
+  const image = "https://images.example.invalid/dummy-product.webp";
+  const date = new Date("2026-09-20T03:00:00.000Z");
+  const presented = presentOrder({
+    id: "00000000-0000-4000-8000-000000000001",
+    lazadaOrderId: "1234",
+    marketplaceOrderId: "1234",
+    productName: "Dummy product",
+    buyerName: null,
+    amount: 1000,
+    lazadaData: null,
+    syncedAt: null,
+    status: "pending",
+    createdAt: date,
+    updatedAt: date,
+    items: [{
+      id: "00000000-0000-4000-8000-000000000002",
+      lazadaOrderItemId: "5678",
+      orderId: "00000000-0000-4000-8000-000000000001",
+      productName: "Dummy product",
+      digitalDetail: null,
+      lazadaData: { product_main_image: image },
+      status: "pending",
+      createdAt: date,
+      updatedAt: date,
+    }],
+  });
+  assert.equal(presented.items[0].productMainImage, image);
+  assert.equal(presentOrder({
+    id: "00000000-0000-4000-8000-000000000001",
+    lazadaOrderId: "1234",
+    marketplaceOrderId: "1234",
+    productName: "Dummy product",
+    buyerName: null,
+    amount: 1000,
+    lazadaData: null,
+    syncedAt: null,
+    status: "pending",
+    createdAt: date,
+    updatedAt: date,
+    items: [{
+      id: "00000000-0000-4000-8000-000000000002",
+      lazadaOrderItemId: "5678",
+      orderId: "00000000-0000-4000-8000-000000000001",
+      productName: "Dummy product",
+      digitalDetail: null,
+      lazadaData: { product_main_image: "http://images.example.invalid/unsafe.webp" },
+      status: "pending",
+      createdAt: date,
+      updatedAt: date,
+    }],
+  }).items[0].productMainImage, null);
 });
 
 test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failures and no provider writes", async t => {
@@ -96,6 +171,7 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       assert.equal(rows.length, 2); assert.equal(Number(rows[0].amount), 12000.25);
       const order = await (await request(`/orders/${rows.find(row => row.lazada_order_id === id).id}`)).json();
       assert.equal(order.items[0].sku, "test-only-sku"); assert.equal(order.items[0].itemPrice, "12000.25");
+      assert.equal(order.items[0].productMainImage, "https://images.example.invalid/dummy-product.webp");
       assert.equal(order.items[0].sourceStatus, "pending"); assert.ok(order.items[0].digitalDetail.includes("test_only_destination"));
       const second = await (await request(`/orders/${rows.find(row => row.lazada_order_id !== id).id}`)).json();
       assert.equal(second.items[0].digitalDetail, null); assert.equal(second.items[0].digitalDetailSource, null);

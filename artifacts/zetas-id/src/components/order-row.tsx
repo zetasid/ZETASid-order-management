@@ -1,9 +1,10 @@
 import { Link } from 'wouter';
-import { ChevronRight, PackageOpen } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { Order } from '@workspace/api-client-react';
 import { orderMoney, rupiah, tanggal, providerMoney, waktuWib } from '@/lib/format';
 import { ProviderStatus } from './provider-status';
 import { PaymentStatusBadge } from './payment-status';
+import { ProductImage } from './product-image';
 
 export function OrderRow({ order, from, variant = 'default' }: { order: Order; from?: string; variant?: 'default' | 'orders' }) {
   const items = order.items ?? [];
@@ -13,10 +14,13 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
     return (
       <Link href={href} data-testid={`link-order-${order.id}`}
         className="surface-card flex min-h-24 items-center gap-3 rounded-2xl p-3 active:scale-[.99] sm:gap-4 sm:p-4">
-        <div role="img" aria-label="Foto produk tidak tersedia dari data pesanan"
-          className="grid size-14 shrink-0 place-items-center rounded-xl border border-[#E4E8EE] bg-[#F4F6F9] text-[#738094] sm:size-16">
-          <PackageOpen aria-hidden="true" className="size-6" />
-        </div>
+        <ProductImage
+          src={items[0]?.productMainImage}
+          alt={`Foto produk: ${items[0]?.productName || order.productName || 'produk'}`}
+          testId={`img-product-${order.id}`}
+          imageClassName="size-14 shrink-0 rounded-xl border border-[#E4E8EE] object-cover sm:size-16"
+          fallbackClassName="grid size-14 shrink-0 place-items-center rounded-xl border border-[#E4E8EE] bg-[#F4F6F9] text-[#738094] sm:size-16"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <p className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-5 text-[#14213A] sm:text-base">{order.productName?.trim() || 'Produk tidak tersedia'}</p>

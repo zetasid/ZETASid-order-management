@@ -181,6 +181,10 @@ export const HealthCheckResponse = zod.object({
  */
 export const getDashboardSummaryResponseRecentOrdersItemAmountMin = 0;
 
+export const getDashboardSummaryResponseRecentOrdersItemItemsItemProductMainImageMax = 4096;
+
+
+export const getDashboardSummaryResponseRecentOrdersItemItemsItemProductMainImageRegExp = new RegExp('^https:/');
 
 
 export const GetDashboardSummaryResponse = zod.object({
@@ -213,6 +217,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "lazadaOrderItemId": zod.string(),
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
+  "productMainImage": zod.string().url().max(getDashboardSummaryResponseRecentOrdersItemItemsItemProductMainImageMax).regex(getDashboardSummaryResponseRecentOrdersItemItemsItemProductMainImageRegExp).nullable().describe('Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.'),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
   "digitalDetailSource": zod.string().nullish(),
   "sourceStatus": zod.string().nullish(),
@@ -248,6 +253,10 @@ export const ListOrdersQueryParams = zod.object({
 
 export const listOrdersResponseAmountMin = 0;
 
+export const listOrdersResponseItemsItemProductMainImageMax = 4096;
+
+
+export const listOrdersResponseItemsItemProductMainImageRegExp = new RegExp('^https:/');
 
 
 export const ListOrdersResponseItem = zod.object({
@@ -272,6 +281,7 @@ export const ListOrdersResponseItem = zod.object({
   "lazadaOrderItemId": zod.string(),
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
+  "productMainImage": zod.string().url().max(listOrdersResponseItemsItemProductMainImageMax).regex(listOrdersResponseItemsItemProductMainImageRegExp).nullable().describe('Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.'),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
   "digitalDetailSource": zod.string().nullish(),
   "sourceStatus": zod.string().nullish(),
@@ -301,6 +311,10 @@ export const GetOrderParams = zod.object({
 
 export const getOrderResponseAmountMin = 0;
 
+export const getOrderResponseItemsItemProductMainImageMax = 4096;
+
+
+export const getOrderResponseItemsItemProductMainImageRegExp = new RegExp('^https:/');
 
 
 export const GetOrderResponse = zod.object({
@@ -325,6 +339,7 @@ export const GetOrderResponse = zod.object({
   "lazadaOrderItemId": zod.string(),
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
+  "productMainImage": zod.string().url().max(getOrderResponseItemsItemProductMainImageMax).regex(getOrderResponseItemsItemProductMainImageRegExp).nullable().describe('Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.'),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
   "digitalDetailSource": zod.string().nullish(),
   "sourceStatus": zod.string().nullish(),
@@ -354,6 +369,10 @@ export const DeliverDigitalOrderParams = zod.object({
 
 export const deliverDigitalOrderResponseAmountMin = 0;
 
+export const deliverDigitalOrderResponseItemsItemProductMainImageMax = 4096;
+
+
+export const deliverDigitalOrderResponseItemsItemProductMainImageRegExp = new RegExp('^https:/');
 
 
 export const DeliverDigitalOrderResponse = zod.object({
@@ -378,6 +397,7 @@ export const DeliverDigitalOrderResponse = zod.object({
   "lazadaOrderItemId": zod.string(),
   "orderId": zod.string().uuid(),
   "productName": zod.string(),
+  "productMainImage": zod.string().url().max(deliverDigitalOrderResponseItemsItemProductMainImageMax).regex(deliverDigitalOrderResponseItemsItemProductMainImageRegExp).nullable().describe('Verified HTTPS product image URL from GetOrderItems; null when missing or invalid.'),
   "digitalDetail": zod.string().nullable().describe('Original string or pretty-printed JSON for structured PostgreSQL digital_detail.'),
   "digitalDetailSource": zod.string().nullish(),
   "sourceStatus": zod.string().nullish(),

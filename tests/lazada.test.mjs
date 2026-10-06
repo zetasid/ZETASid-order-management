@@ -119,17 +119,29 @@ test("Lazada provider diagnostics contain only safe response fields and preserve
   assert.ok(!JSON.stringify(invalidCodeLog).includes("leaked"));
   assert.ok(!JSON.stringify(invalidCodeLog).includes("https://"));
 
+  const longAuthorizationCode = "test-only-long-oauth-code-".repeat(40);
+  const longCodeClient = createClient(config, async () => new Response(JSON.stringify({
+    code: "InvalidCode",
+    message: `${longAuthorizationCode} was rejected by the provider`,
+    request_id: "lazada-request-long-code",
+  })), undefined, diagnosticLogger);
+  await assert.rejects(longCodeClient.exchange(longAuthorizationCode), error => error.reason === "authorization_failed");
+  const longCodeMessage = diagnosticEntries[1].fields.providerMessage;
+  assert.ok(!longCodeMessage.includes(longAuthorizationCode));
+  assert.ok(longCodeMessage.startsWith("[redacted]"));
+  assert.ok(longCodeMessage.length <= 512);
+
   const denied = createClient(config, async () => new Response(JSON.stringify({
     code: "InsufficientPermissions", message: "Permission denied", request_id: "lazada-request-403",
   }), { status: 403 }), undefined, diagnosticLogger);
   await assert.rejects(denied.check("test-only-access-token"), error => error.reason === "api_unavailable");
-  assert.equal(diagnosticEntries[1].fields.httpStatus, 403);
-  assert.equal(diagnosticEntries[1].fields.providerCode, "InsufficientPermissions");
+  assert.equal(diagnosticEntries[2].fields.httpStatus, 403);
+  assert.equal(diagnosticEntries[2].fields.providerCode, "InsufficientPermissions");
 
   const invalidJsonBody = "response contains test-only-private-provider-detail and must not be logged";
   const invalidJson = createClient(config, async () => new Response(invalidJsonBody, { status: 502 }), undefined, diagnosticLogger);
   await assert.rejects(invalidJson.exchange("another-test-code"), error => error.reason === "api_unavailable");
-  assert.deepEqual(diagnosticEntries[2].fields, {
+  assert.deepEqual(diagnosticEntries[3].fields, {
     path: "/auth/token/create",
     httpStatus: 502,
     providerCode: null,

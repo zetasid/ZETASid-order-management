@@ -24,7 +24,7 @@ type DiagnosticLogger = Pick<typeof logger, "warn">;
 
 function safeDiagnosticValue(value: unknown, sensitiveValues: readonly string[]): string | number | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
-  let result = String(value).slice(0, 512);
+  let result = String(value);
   for (const sensitive of sensitiveValues) {
     if (sensitive) {
       const encoded = encodeURIComponent(sensitive);
@@ -37,7 +37,8 @@ function safeDiagnosticValue(value: unknown, sensitiveValues: readonly string[])
   return result
     .replace(/https?(?::|%3a)(?:\/|%2f){2}[^\s"'<>]+/gi, "[redacted-url]")
     .replace(/\b(access_token|refresh_token|app_secret|app_key|code|sign|timestamp)(?:=|%3d)[^&\s"'<>]*/gi,
-      "$1=[redacted]");
+      "$1=[redacted]")
+    .slice(0, 512);
 }
 
 function logFailedResponse(

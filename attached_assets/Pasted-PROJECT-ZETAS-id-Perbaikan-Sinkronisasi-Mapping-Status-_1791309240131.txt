@@ -1,0 +1,180 @@
+PROJECT: ZETAS.id – Perbaikan Sinkronisasi & Mapping Status Lazada
+
+TUJUAN:
+Perbaiki sinkronisasi status pesanan Lazada ke ZETAS agar status di ZETAS selalu mengikuti status terbaru dari Lazada, terutama kasus:
+
+Lazada sudah "Dikemas"
+tetapi ZETAS masih menampilkan
+"Pesanan Belum Dibayar / Menunggu konfirmasi".
+
+Jangan mengubah sistem transaksi digital, OAuth Lazada, database schema, atau alur pengiriman digital yang sudah berjalan.
+
+MASALAH YANG SUDAH TERBUKTI:
+- OAuth Lazada sudah normal.
+- Push Order sudah aktif.
+- Order berhasil masuk ke ZETAS.
+- Saat order masih pending, database menyimpan:
+  statuses = ["pending"]
+  status = pending
+- Setelah order diproses sampai selesai di Lazada, ZETAS akhirnya ikut menjadi Selesai.
+- Artinya koneksi Lazada dan penyimpanan status akhir bekerja, tetapi perubahan status intermediate/pembayaran tidak selalu tersinkron tepat waktu.
+
+TARGET STATUS:
+Status ZETAS harus mengikuti status Lazada:
+
+Belum Dibayar → Belum Dibayar
+Dikemas → Dikemas
+Dikirim → Dikirim
+Selesai → Selesai
+Dibatalkan → Dibatalkan
+
+PEKERJAAN:
+
+1. AUDIT DULU
+Periksa tanpa mengubah kode:
+- artifacts/api-server/src/modules/lazada/client.ts
+- artifacts/api-server/src/modules/lazada/order-sync.ts
+- artifacts/api-server/src/modules/lazada/order-push-worker.ts
+- artifacts/api-server/src/modules/lazada/order-mapping.ts
+- artifacts/api-server/src/modules/orders/order-status.ts
+- artifacts/api-server/src/modules/orders/orders.presenter.ts
+- artifacts/zetas-id/src/components/lazada-order-sync.tsx
+
+Pastikan bagaimana:
+- GetOrders mengambil status
+- GetOrder mengambil status
+- GetOrderItems mengambil status
+- push order diproses
+- reconciliation menggunakan updated_after/update_after
+- status disimpan ke orders.lazadaData
+- paymentStatus dihitung
+- label status ditampilkan di UI.
+
+2. PERBAIKI SUMBER DATA STATUS
+Lazada adalah source of truth untuk status pesanan.
+
+Jangan menganggap:
+statuses = ["pending"]
+sebagai status pembayaran permanen.
+
+Jika Lazada sudah mengembalikan status yang menunjukkan order sudah diproses/dikemas/dikirim/selesai, ZETAS harus memperbarui data order tersebut.
+
+Pastikan push dan reconciliation mengambil data terbaru dari Lazada.
+
+3. PERBAIKI RECONCILIATION
+Periksa mekanisme GetUpdatedOrders.
+
+Pastikan order lama yang statusnya berubah tetap dicari berdasarkan waktu updated_at/update_after, bukan hanya created_at.
+
+Jangan menghilangkan mekanisme overlap yang sudah ada.
+
+Pastikan reconciliation dapat mengambil order yang dibuat beberapa menit/jam sebelumnya tetapi statusnya baru berubah.
+
+4. PERBAIKI MANUAL SYNC
+Saat user menekan "Baca pesanan", jangan hanya mengandalkan createdAfter/createdBefore jika hal tersebut menyebabkan status order lama tidak diperbarui.
+
+Manual sync harus dapat memperbarui status order yang sudah ada.
+
+Jangan menghapus fungsi existing.
+
+5. PERBAIKI MAPPING STATUS
+Gunakan mapping yang konsisten:
+
+unpaid / pending
+→ Belum Dibayar
+
+packed / topack / to_pack
+→ Dikemas
+
+ready_to_ship / ready_to_ship_pending / toship / to_ship
+→ Dikemas atau status internal yang sesuai, tetapi label UI harus konsisten dengan Lazada.
+
+shipped / shipping
+→ Dikirim
+
+delivered / confirmed
+→ Selesai
+
+canceled / cancelled
+→ Dibatalkan
+
+PENTING:
+Jangan membuat status "Menunggu konfirmasi" untuk order yang dari data Lazada sebenarnya sudah menunjukkan status Dikemas/Dikirim/Selesai.
+
+6. PAYMENT STATUS
+Periksa fungsi readOrderPaymentStatus().
+
+Payment status boleh tetap digunakan untuk keamanan pengiriman digital, tetapi jangan sampai payment status lama menyebabkan UI menampilkan "Belum Dibayar" ketika status order Lazada sudah jelas menunjukkan order telah diproses.
+
+Pisahkan dengan jelas:
+- order status
+- payment confirmation
+- digital fulfillment eligibility
+
+Jangan melemahkan proteksi pengiriman digital.
+
+7. KEAMANAN
+Jangan:
+- mengubah OAuth
+- mengubah APP_KEY/APP_SECRET
+- mengubah callback
+- mengubah database schema
+- menghapus data order
+- menghapus validasi pembayaran
+- mengizinkan pengiriman digital hanya berdasarkan asumsi lokal
+
+Lazada tetap menjadi sumber data eksternal.
+
+8. TEST WAJIB
+Tambahkan/perbaiki test untuk minimal:
+
+Case 1:
+Lazada pending
+→ ZETAS Belum Dibayar
+
+Case 2:
+Lazada packed
+→ ZETAS Dikemas
+
+Case 3:
+Lazada shipped
+→ ZETAS Dikirim
+
+Case 4:
+Lazada delivered/confirmed
+→ ZETAS Selesai
+
+Case 5:
+Lazada canceled
+→ ZETAS Dibatalkan
+
+Case 6:
+Order awal pending lalu berubah packed
+→ database harus diperbarui
+
+Case 7:
+Order lama berubah status setelah beberapa waktu
+→ reconciliation harus mengambil perubahan
+
+Case 8:
+Payment belum benar-benar confirmed
+→ digital fulfillment tetap DILARANG
+
+9. JANGAN LANGSUNG DEPLOY.
+
+Setelah selesai:
+- jalankan typecheck
+- jalankan seluruh test terkait Lazada/order
+- jalankan API build
+- jalankan frontend build jika diperlukan
+- jalankan git diff --check
+
+Berikan laporan:
+A. file yang diubah
+B. masalah yang ditemukan
+C. perubahan yang dilakukan
+D. hasil test
+E. hasil build
+F. apakah aman dibuat PR
+
+JANGAN commit/merge/deploy sebelum saya menyetujui hasil audit.

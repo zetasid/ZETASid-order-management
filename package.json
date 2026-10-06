@@ -12,11 +12,6 @@
   },
   "private": true,
   "packageManager": "pnpm@10.26.1",
-  "pnpm": {
-    "overrides": {
-      "proxy-addr": ">=2.0.8"
-    }
-  },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.3"
   },

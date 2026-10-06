@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Download, Loader2 } from 'lucide-react';
-import { ApiError, useGetLazadaConnection, useSyncLazadaOrders } from '@workspace/api-client-react';
+import { ChevronRight, Download, Loader2, RotateCw } from 'lucide-react';
+import { ApiError, useGetLazadaConnection, useGetLazadaOrderPushStatus, useSyncLazadaOrders } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { waktuWib } from '@/lib/format';
 
 const day = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 
 export function LazadaOrderSync() {
   const client = useQueryClient();
   const connection = useGetLazadaConnection({ query: { staleTime: 0, refetchOnWindowFocus: true } });
+  const pushStatus = useGetLazadaOrderPushStatus({ query: { staleTime: 30000, refetchOnWindowFocus: true } });
   const sync = useSyncLazadaOrders();
   const [after, setAfter] = useState(() => day(new Date(Date.now() - 90 * 86400000)));
   const [before, setBefore] = useState(() => day(new Date()));
@@ -28,20 +30,21 @@ export function LazadaOrderSync() {
   const error = sync.error instanceof ApiError && typeof sync.error.data === 'object' && sync.error.data
     && 'error' in sync.error.data && typeof sync.error.data.error === 'string'
     ? sync.error.data.error : sync.isError ? 'Pembacaan gagal. Muat ulang daftar sebelum mencoba lagi untuk memastikan hasil terakhir.' : '';
+  const lastSync = sync.data?.syncedAt ?? pushStatus.data?.lastSync;
   return (
-    <section className="mb-5 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]" aria-labelledby="sync-heading">
+    <section className="mb-4 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]" aria-labelledby="sync-heading">
       <details className="group">
-        <summary className="flex min-h-16 list-none cursor-pointer items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden sm:px-5">
-          <div className="min-w-0">
-            <h2 id="sync-heading" className="font-semibold text-[#0F172A]">Ambil pesanan Lazada</h2>
-            <p className="mt-0.5 text-xs leading-5 text-[#64748B]">Baca pesanan terbaru secara manual</p>
+        <summary className="flex min-h-14 list-none cursor-pointer items-center gap-3 px-3 py-2 [&::-webkit-details-marker]:hidden sm:px-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#FFF3E8] text-[#F97316]">
+            <RotateCw aria-hidden="true" className={`size-4 ${sync.isPending ? 'animate-spin' : ''}`} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 id="sync-heading" className="text-sm font-semibold text-[#0F172A]">Sinkronkan Pesanan</h2>
+            <p className="mt-0.5 truncate text-[11px] text-[#64748B]">
+              Terakhir: {lastSync ? waktuWib(lastSync).replace(' • ', ', ') : 'Tidak tersedia'}
+            </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${available ? 'bg-[#F0FDF4] text-[#15803D]' : 'bg-[#F1F5F9] text-[#64748B]'}`}>
-              {connection.isLoading ? 'Memeriksa' : available ? 'Terhubung' : 'Perlu koneksi'}
-            </span>
-            <ChevronDown aria-hidden="true" className="size-4 text-[#64748B] transition-transform group-open:rotate-180" />
-          </div>
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[#64748B] transition-transform group-open:rotate-90" />
         </summary>
         <div className="border-t border-[#E2E8F0] px-4 py-4 sm:px-5">
           <p className="text-xs leading-5 text-[#64748B]">Maksimum 20 pesanan per halaman beserta itemnya. Pembacaan ini tidak mengirim produk digital.</p>

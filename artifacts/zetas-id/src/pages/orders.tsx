@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Search, X } from 'lucide-react';
+import { ArrowDownUp, Search, X } from 'lucide-react';
 import { useListOrders, getListOrdersQueryKey, type ListOrdersParams } from '@workspace/api-client-react';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { EmptyState, ErrorState, ListSkeleton, PageHeading } from '@/components/states';
@@ -21,6 +21,7 @@ export default function Orders() {
   const rawStatus = sp.get('status') ?? '';
   const status = VALID.includes(rawStatus) ? rawStatus : '';
   const [text, setText] = useState(urlSearch);
+  const [newestFirst, setNewestFirst] = useState(true);
 
   const setUrl = useCallback((s: string, st: string) => {
     const p = new URLSearchParams();
@@ -44,6 +45,14 @@ export default function Orders() {
   });
   const filtered = !!(params.search || params.status);
   const from = new URLSearchParams(Object.entries(params) as [string, string][]).toString();
+  const sortedOrders = [...(q.data ?? [])].sort((a, b) => {
+    const timestamp = (value: string | null | undefined) => {
+      const parsed = value ? Date.parse(value) : Number.NaN;
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const difference = timestamp(b.sourceCreatedAt ?? b.createdAt) - timestamp(a.sourceCreatedAt ?? a.createdAt);
+    return newestFirst ? difference : -difference;
+  });
 
   return (
     <>
@@ -91,12 +100,20 @@ export default function Orders() {
       ))}
       {q.data && q.data.length > 0 && (
         <>
-          <p aria-live="polite" data-testid="text-count" className="mb-2 text-xs text-muted-foreground">
-            {q.data.length >= 100
-              ? 'Menampilkan 100 pesanan terbaru yang cocok. Pesanan lebih lama tidak ditampilkan; persempit pencarian.'
-              : `${q.data.length} pesanan`}
-          </p>
-          <div data-testid="list-orders" className="space-y-3">{q.data.map((o) => <OrderRow key={o.id} order={o} from={from} variant="orders" />)}</div>
+          <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+            <p aria-live="polite" data-testid="text-count" className="text-xs text-[#64748B]">
+              {q.data.length >= 100
+                ? 'Menampilkan 100 pesanan terbaru yang cocok. Pesanan lebih lama tidak ditampilkan; persempit pencarian.'
+                : `${q.data.length} pesanan ditemukan`}
+            </p>
+            <button type="button" aria-label={`Urutkan pesanan, saat ini ${newestFirst ? 'terbaru' : 'terlama'}`}
+              title={`Urutan: ${newestFirst ? 'terbaru' : 'terlama'}`} aria-pressed={!newestFirst}
+              onClick={() => setNewestFirst(value => !value)}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-[#64748B] transition-colors hover:bg-white active:bg-[#E9EDF3]">
+              Urutkan <ArrowDownUp aria-hidden="true" className="size-3.5" />
+            </button>
+          </div>
+          <div data-testid="list-orders" className="space-y-2.5">{sortedOrders.map((o) => <OrderRow key={o.id} order={o} from={from} variant="orders" />)}</div>
         </>
       )}
     </>

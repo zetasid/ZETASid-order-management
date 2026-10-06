@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Coins, Copy, Info, Phone, Tag } from 'lucide-react';
 
 function readableFieldName(key: string) {
   const normalized = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').trim();
@@ -105,13 +105,13 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <span ref={textRef} tabIndex={available ? 0 : undefined}
-        className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-sm text-[#0F172A]">
+        className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs text-[#0F172A]">
         {available ? value : 'Tidak tersedia'}
       </span>
       {available && (
         <button type="button" onClick={copy} data-testid={`button-copy-${id}`} aria-label={`Salin ${label}`}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] active:bg-[#F1F5F9]">
-          {copied ? <Check aria-hidden="true" className="size-4 text-[#16A34A]" /> : <Copy aria-hidden="true" className="size-4" />}
+          className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md border border-[#E2E8F0] bg-white px-2 text-[11px] font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] active:bg-[#F1F5F9]">
+          {copied ? <Check aria-hidden="true" className="size-3.5 text-[#16A34A]" /> : <Copy aria-hidden="true" className="size-3.5" />}
           Salin
         </button>
       )}
@@ -124,21 +124,46 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
 
 export function DigitalDetail({ value, id }: { value: string | null; id: string }) {
   if (value === null || value.trim() === '') {
-    return <p className="text-sm text-[#64748B]" data-testid={`text-detail-empty-${id}`}>Tidak tersedia.</p>;
+    return (
+      <dl data-testid={`text-detail-empty-${id}`} className="space-y-1">
+        <div className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
+          <Phone aria-hidden="true" className="size-3.5 text-[#64748B]" />
+          <dt className="text-[11px] leading-4 text-[#64748B]">Nomor tujuan</dt>
+          <dd><CopyValue value={null} id={id} label="Nomor tujuan" /></dd>
+        </div>
+      </dl>
+    );
   }
   const fields = digitalFields(value);
   if (fields.length === 0) {
-    return <p className="text-sm text-[#64748B]" data-testid={`text-detail-empty-${id}`}>Tidak tersedia.</p>;
+    return (
+      <dl data-testid={`text-detail-empty-${id}`} className="space-y-1">
+        <div className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
+          <Phone aria-hidden="true" className="size-3.5 text-[#64748B]" />
+          <dt className="text-[11px] leading-4 text-[#64748B]">Nomor tujuan</dt>
+          <dd><CopyValue value={null} id={id} label="Nomor tujuan" /></dd>
+        </div>
+      </dl>
+    );
   }
 
   return (
-    <dl data-testid={`text-detail-${id}`} className="space-y-2">
+    <dl data-testid={`text-detail-${id}`} className="space-y-0">
       {fields.map((field, index) => {
         const fieldId = index === 0 ? id : `${id}-${index}`;
+        const normalizedLabel = field.label.toLowerCase();
+        const Icon = normalizedLabel.includes('nomor') || normalizedLabel.includes('phone')
+          ? Phone
+          : normalizedLabel.includes('nominal') || normalizedLabel.includes('amount')
+            ? Coins
+            : normalizedLabel.includes('variasi') || normalizedLabel.includes('operator')
+              ? Tag
+              : Info;
         return (
-          <div key={`${field.label}-${index}`} className="min-w-0 rounded-xl border border-[#E2E8F0] bg-white p-3">
-            <dt className="mb-1.5 text-xs font-medium text-[#64748B]">{field.label}</dt>
-            <dd><CopyValue value={field.value} id={fieldId} label={field.label} /></dd>
+          <div key={`${field.label}-${index}`} className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
+            <Icon aria-hidden="true" className="size-3.5 text-[#64748B]" />
+            <dt className="break-words text-[11px] leading-4 text-[#64748B]">{field.label}</dt>
+            <dd className="min-w-0"><CopyValue value={field.value} id={fieldId} label={field.label} /></dd>
           </div>
         );
       })}

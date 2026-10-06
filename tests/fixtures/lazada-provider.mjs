@@ -97,7 +97,7 @@ globalThis.fetch = async (input, options = {}) => {
     }] });
   }
   if (control === "network") throw new Error("test-only-access-token test-only-private-provider-detail");
-  if (control === "revoked") return json({ code: "IllegalAccessToken", message: "test-only-private-provider-detail" });
-  if (control === "permission") return json({ code: "InsufficientPermissions", message: "test-only-private-provider-detail" });
+  if (control === "revoked") return json({ code: "IllegalAccessToken", message: "Access token expired", request_id: "test-request-revoked" });
+  if (control === "permission") return json({ code: "InsufficientPermissions", message: "Permission denied", request_id: "test-request-permission" });
   return json({ code: "0", data: { seller_id: "test-only-seller", name: "Dummy fixture, not a real seller" } });
 };

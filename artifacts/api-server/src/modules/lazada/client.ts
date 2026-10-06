@@ -26,7 +26,13 @@ function safeDiagnosticValue(value: unknown, sensitiveValues: readonly string[])
   if (typeof value !== "string" && typeof value !== "number") return null;
   let result = String(value).slice(0, 512);
   for (const sensitive of sensitiveValues) {
-    if (sensitive) result = result.split(sensitive).join("[redacted]");
+    if (sensitive) {
+      const encoded = encodeURIComponent(sensitive);
+      const formEncoded = new URLSearchParams({ value: sensitive }).toString().slice("value=".length);
+      for (const variant of new Set([sensitive, encoded, formEncoded])) {
+        if (variant) result = result.split(variant).join("[redacted]");
+      }
+    }
   }
   return result
     .replace(/https?(?::|%3a)(?:\/|%2f){2}[^\s"'<>]+/gi, "[redacted-url]")
@@ -81,7 +87,7 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
         logFailure();
         throw new LazadaError("api_unavailable");
       }
-      let body: unknown;
+      let body: any;
       try {
         body = JSON.parse(text);
       } catch {
@@ -96,14 +102,13 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
         logFailure(body);
         throw new LazadaError("api_unavailable");
       }
-      const responseBody = body as Record<string, unknown>;
-      if (String(responseBody.code) !== "0") {
-        logFailure(responseBody);
-        const code = String(responseBody.code);
+      if (String(body.code) !== "0") {
+        logFailure(body);
+        const code = String(body.code);
         throw new LazadaError(/IllegalAccessToken|InvalidAccessToken|InvalidCode|TokenExpired/i.test(code)
           ? "authorization_failed" : /Permission|Forbidden|AccessDenied|Scope/i.test(code) ? "permission_denied" : "api_unavailable");
       }
-      return responseBody;
+      return body;
     } catch (error) {
       if (error instanceof LazadaError) throw error;
       if (!diagnosticLogged) logFailure();

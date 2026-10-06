@@ -6,9 +6,9 @@ export type PaymentStatus = "unpaid" | "pending" | "confirmed" | "cancelled" | "
 // These are ZETAS display groups, never replacements for the original API status.
 export const LAZADA_STATUS_GROUPS: Record<StatusGroup, readonly string[]> = {
   pending: ["unpaid", "pending"],
-  processing: ["repacked", "packed", "ready_to_ship_pending", "ready_to_ship", "shipped", "topack", "toship", "shipping"],
+  processing: ["repacked", "packed", "ready_to_ship_pending", "ready_to_ship", "shipped", "topack", "to_pack", "toship", "to_ship", "shipping"],
   completed: ["delivered", "confirmed"],
-  cancelled: ["canceled"],
+  cancelled: ["canceled", "cancelled"],
 };
 
 export function itemStatusGroup(value: unknown): StatusGroup | null {

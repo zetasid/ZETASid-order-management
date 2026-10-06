@@ -174,8 +174,18 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       assert.equal(order.items[0].productMainImage, "https://images.example.invalid/dummy-product.webp");
       assert.equal(order.items[0].sourceStatus, "pending"); assert.ok(order.items[0].digitalDetail.includes("test_only_destination"));
       const second = await (await request(`/orders/${rows.find(row => row.lazada_order_id !== id).id}`)).json();
+      assert.match(second.sourceCreatedAt, /^2020-01-15/, "An older order is included by its recent Lazada update timestamp");
       assert.equal(second.items[0].digitalDetail, null); assert.equal(second.items[0].digitalDetailSource, null);
       assert.equal((await f.pool.query("SELECT count(*)::int AS n FROM order_items WHERE order_id=ANY($1)", [rows.map(row => row.id)])).rows[0].n, 2);
+      await writeFile(controlFile, "orders-progressed");
+      const progressResponse = await request("/lazada/orders/sync", "POST"); assert.equal(progressResponse.status, 200);
+      const progressResult = await progressResponse.json(); syncTimes.push(progressResult.syncedAt);
+      assert.equal(progressResult.ordersRead, 2);
+      const progressed = await (await request(`/orders/${rows.find(row => row.lazada_order_id !== id).id}`)).json();
+      assert.equal(progressed.status, "processing", "Manual update-time sync refreshes an existing pending order to packed");
+      assert.equal(progressed.paymentStatus, "pending", "The stale/unconfirmed header payment status remains separate");
+      assert.equal(progressed.items[0].status, "processing");
+      assert.equal(progressed.items[0].sourceStatus, "packed");
     });
     await t.test("Fractional completed amounts remain valid in the existing dashboard contract", async () => {
       const before = await (await request("/dashboard/summary")).json();
@@ -195,6 +205,8 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       }
     });
     const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
+    assert.ok(calls.filter(call => call.path === "/orders/get").every(call => call.updateAfter),
+      "Manual sync uses Lazada's update_after filter instead of only created_after");
     assert.ok(calls.length >= 6);
     assert.ok(calls.every(call => call.method === "GET" && ["/orders/get", "/order/items/get"].includes(call.path)));
     for (const secret of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, "test-only-orders-token"])

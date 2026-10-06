@@ -125,10 +125,10 @@ async function seedPaymentOrders(cases) {
 
 test("Documented raw Lazada status groups; unknown statuses are not guessed", () => {
   for (const [raw, group] of [
-    ["confirmed", "completed"], ["delivered", "completed"], ["canceled", "cancelled"],
+    ["confirmed", "completed"], ["delivered", "completed"], ["canceled", "cancelled"], ["cancelled", "cancelled"],
     ["unpaid", "pending"], ["pending", "pending"], ["packed", "processing"], ["repacked", "processing"],
     ["ready_to_ship_pending", "processing"], ["ready_to_ship", "processing"], ["shipped", "processing"],
-    ["topack", "processing"], ["toship", "processing"], ["shipping", "processing"],
+    ["topack", "processing"], ["to_pack", "processing"], ["toship", "processing"], ["to_ship", "processing"], ["shipping", "processing"],
   ]) assert.equal(mod.itemStatusGroup(raw), group);
   assert.equal(mod.itemStatusGroup("unknown_future_status"), null);
   assert.equal(mod.itemStatusGroup("Confirmed"), null, "No case normalization invents provider values");
@@ -139,6 +139,10 @@ test("Documented raw Lazada status groups; unknown statuses are not guessed", ()
   assert.equal(mod.groupStatuses(["confirmed", "unknown_future_status"]), null);
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: { statuses: ["confirmed"] },
     items: [{ lazadaData: { status: "pending" } }] }), "pending", "GetOrderItems overrides inconsistent header");
+  const packedWithPendingHeader = { status: "pending", lazadaData: { statuses: ["pending"] },
+    items: [{ lazadaData: { status: "packed" } }] };
+  assert.equal(mod.readOrderStatus(packedWithPendingHeader), "processing", "A newer item workflow status overrides a stale pending header");
+  assert.equal(mod.readOrderPaymentStatus(packedWithPendingHeader), "pending", "Payment remains separately unconfirmed");
   assert.equal(mod.readOrderStatus({ status: "pending", lazadaData: null, items: [] }), "pending", "Legacy data retained");
   for (const [statuses, expected] of [
     [["unpaid"], "unpaid"], [["pending"], "pending"], [["canceled"], "cancelled"],
@@ -197,6 +201,7 @@ test("Revenue requires confirmed header payment and an eligible non-pending orde
   const fixtures = await seedPaymentOrders([
     { statuses: ["unpaid"], expected: "unpaid", amount: 110 },
     { statuses: ["pending"], expected: "pending", amount: 220 },
+    { statuses: ["pending"], expected: "pending", itemStatus: "packed", amount: 225 },
     { statuses: ["canceled"], expected: "cancelled", amount: 330 },
     { statuses: ["confirmed"], expected: "confirmed", itemStatus: "packed", amount: 440 },
     { statuses: ["unknown_future_status"], expected: "unknown", itemStatus: "packed", amount: 550 },
@@ -219,9 +224,9 @@ test("Revenue requires confirmed header payment and an eligible non-pending orde
   assert.equal(after.totalRevenue, before + 440, "Pending and cancelled order states are excluded from revenue");
 });
 
-test("Self-seeded pending/unpaid -> Menunggu and all process statuses -> Diproses; no stored row changes", async () => {
+test("Self-seeded pending/unpaid -> Belum Dibayar and process statuses -> Diproses; no stored row changes", async () => {
   const pending = ["pending", "unpaid"];
-  const processing = ["repacked", "packed", "ready_to_ship_pending", "ready_to_ship", "shipped", "topack", "toship", "shipping"];
+  const processing = ["repacked", "packed", "ready_to_ship_pending", "ready_to_ship", "shipped", "topack", "to_pack", "toship", "to_ship", "shipping"];
   // Stored enums/header deliberately disagree with item API statuses, proving
   // the read projection uses original item statuses rather than stale labels.
   const fixtures = await seedStatuses([...pending, ...processing], "cancelled");

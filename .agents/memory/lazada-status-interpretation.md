@@ -15,11 +15,11 @@ Read actual Lazada article content before treating an empty text fetch as a docu
 
 **How to apply:** If a page fetch contains only navigation, inspect the public reader's document-data request and read its article content. The public reader uses `/handler/share/doc/getDocDetail.json` with `docId`, `oeid=LZD_DOC` and `lang=en_US`; inspect `enContent`, not just the shell. No credentials are needed. Only conclude that a contract is undocumented after reading the actual article.
 
-Correct display/filter grouping through the read model when existing order data must remain unchanged.
+Correct display/filter grouping through the read model when only display semantics should change. A requested sync may persist a fresh Lazada snapshot, but must never locally rewrite or backfill status values.
 
-**Why:** The user explicitly required that correcting the status mapping must not change already-stored orders or run DeliverDigital. A backfill or re-sync would violate that requirement even if the resulting groups were correct.
+**Why:** The user previously prohibited status-only data backfills, then explicitly required manual order reading to refresh real status changes for older orders. Reinterpreting stored values is still different from persisting a newly fetched provider snapshot.
 
-**How to apply:** Keep raw snapshots and existing rows intact, derive groups consistently for list/filter/detail/summary, and verify row fingerprints. Do not use a sync action as a status-correction mechanism.
+**How to apply:** Keep raw Lazada snapshots intact and derive UI/filter groups from `GetOrderItems.status`. For manual and automatic refreshes, query Lazada by `update_after`/`update_before` with overlap where applicable, then persist only the fresh response. Never invoke DeliverDigital as part of a status refresh.
 
 Keep Lazada order-header payment eligibility separate from item-level digital processing. A paid/confirmed header is required for delivery; unpaid, pending, cancelled, missing, or unknown headers fail closed. Completed and cancelled workflow states cannot be processed again.
 

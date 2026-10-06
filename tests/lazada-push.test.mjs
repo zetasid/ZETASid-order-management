@@ -310,15 +310,21 @@ test("LPM HTTPS signature -> durable queue -> real API-shaped atomic ingestion, 
       await f.pool.query("UPDATE lazada_order_push SET next_attempt_at=now() WHERE user_id=$1 AND status='pending'", [f.id]);
       await writeFile(controlFile, "changed"); await runWorker("push"); assert.equal((await status()).pending, 0);
     });
-    await t.test("Reconciliation failure retries; update-time backup discovers an order whose webhook never arrived", async () => {
+    await t.test("Reconciliation retries, refreshes an old order's status, and discovers orders without webhooks", async () => {
       await writeFile(controlFile, "fail"); assert.equal(await runWorker("reconcile"), true);
       const state = (await f.pool.query("SELECT * FROM lazada_order_automation WHERE user_id=$1", [f.id])).rows[0];
       assert.equal(state.reconciled_through, null); assert.equal(state.last_error, "permission_denied");
       await f.pool.query("UPDATE lazada_order_automation SET next_reconcile_at=now() WHERE user_id=$1", [f.id]);
-      await writeFile(controlFile, "changed"); assert.equal(await runWorker("reconcile"), true);
+      await writeFile(controlFile, "progressed"); assert.equal(await runWorker("reconcile"), true);
       assert.equal((await f.pool.query("SELECT count(*)::int n FROM orders WHERE lazada_order_id=ANY($1)", [[id, secondId]])).rows[0].n, 2);
+      const refreshed = await (await get(`/orders/${(await f.pool.query("SELECT id FROM orders WHERE lazada_order_id=$1", [id])).rows[0].id}`)).json();
+      assert.equal(refreshed.status, "processing", "Existing pending status follows the newer GetOrderItems status");
+      assert.equal(refreshed.paymentStatus, "pending", "Payment confirmation remains separate from item workflow");
+      assert.equal(refreshed.items[0].sourceStatus, "packed");
       const newOrder = (await f.pool.query("SELECT id FROM orders WHERE lazada_order_id=$1", [secondId])).rows[0];
-      assert.equal((await (await get(`/orders/${newOrder.id}`)).json()).items[0].digitalDetail, null);
+      const oldOrder = await (await get(`/orders/${newOrder.id}`)).json();
+      assert.equal(oldOrder.items[0].digitalDetail, null);
+      assert.match(oldOrder.sourceCreatedAt, /^2020-01-15/, "Updated-time reconciliation discovers an old-created order");
       assert.equal(await runWorker("reconcile"), false, "Low frequency, not continuous provider polling");
       assert.equal((await status()).lastError, null);
     });

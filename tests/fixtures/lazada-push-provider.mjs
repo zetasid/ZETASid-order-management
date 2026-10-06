@@ -9,11 +9,12 @@ const control = () => { try { return readFileSync(process.env.LAZADA_TEST_CONTRO
 const header = (orderId, mode) => ({ order_id: orderId, order_number: orderId,
   statuses: [mode === "changed" ? "confirmed" : "pending"], price: "1000.25",
   items_count: orderId === id ? 2 : 1,
-  created_at: base.toISOString(), updated_at: new Date(base.getTime() + (mode === "changed" ? 60000 : 0)).toISOString() });
+  created_at: orderId === secondId ? "2020-01-15 10:00:00 +0700" : base.toISOString(),
+  updated_at: new Date(base.getTime() + (mode === "changed" || mode === "progressed" ? 60000 : 0)).toISOString() });
 const items = (orderId, mode) => Array.from({ length: orderId === id ? 2 : 1 }, (_, n) => ({
   order_id: orderId, order_item_id: String(BigInt(orderId) * 10n + 100n + BigInt(n)),
-  name: "PUSH TEST ONLY", status: mode === "changed" ? "confirmed" : "pending",
-  created_at: base.toISOString(), updated_at: header(orderId, mode).updated_at,
+  name: "PUSH TEST ONLY", status: mode === "changed" ? "confirmed" : mode === "progressed" ? "packed" : "pending",
+  created_at: orderId === secondId ? "2020-01-15 10:00:00 +0700" : base.toISOString(), updated_at: header(orderId, mode).updated_at,
   item_price: "500.125", paid_price: "500.125", currency: "IDR", sku: `test-${n}`, variation: "test",
   extra_attributes: '{"not_the_digital_field":"test-only"}',
   ...(orderId === id ? { digital_delivery_info: n === 0 ? `DUMMY-DEST-${mode || "initial"}` : { test_only_account: "DUMMY-JSON" } } : {}),

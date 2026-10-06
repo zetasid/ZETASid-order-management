@@ -47,7 +47,7 @@ export default function Orders() {
 
   return (
     <>
-      <PageHeading title="Pesanan" sub="Baca pesanan digital dan salin detail tujuannya." />
+      <PageHeading title="Pesanan" sub="Kelola pesanan digital Lazada." />
       <LazadaOrderSync />
       {/* Sticky search bar */}
       <div className="sticky top-14 md:top-0 z-20 bg-page mb-4 pb-4 -mx-4 md:mx-0 px-4 md:px-0 md:mb-3 md:pb-0">
@@ -94,9 +94,9 @@ export default function Orders() {
           <p aria-live="polite" data-testid="text-count" className="mb-2 text-xs text-muted-foreground">
             {q.data.length >= 100
               ? 'Menampilkan 100 pesanan terbaru yang cocok. Pesanan lebih lama tidak ditampilkan; persempit pencarian.'
-              : `${q.data.length} pesanan ditemukan.`}
+              : `${q.data.length} pesanan`}
           </p>
-          <div data-testid="list-orders" className="space-y-3">{q.data.map((o) => <OrderRow key={o.id} order={o} from={from} />)}</div>
+          <div data-testid="list-orders" className="space-y-3">{q.data.map((o) => <OrderRow key={o.id} order={o} from={from} variant="orders" />)}</div>
         </>
       )}
     </>

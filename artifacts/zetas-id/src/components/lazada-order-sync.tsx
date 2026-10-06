@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2 } from 'lucide-react';
+import { ChevronDown, Download, Loader2 } from 'lucide-react';
 import { ApiError, useGetLazadaConnection, useSyncLazadaOrders } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -29,45 +29,65 @@ export function LazadaOrderSync() {
     && 'error' in sync.error.data && typeof sync.error.data.error === 'string'
     ? sync.error.data.error : sync.isError ? 'Pembacaan gagal. Muat ulang daftar sebelum mencoba lagi untuk memastikan hasil terakhir.' : '';
   return (
-    <section className="mb-5 rounded-xl border bg-card p-4" aria-labelledby="sync-heading">
-      <h2 id="sync-heading" className="font-semibold">Baca order Lazada — READ-ONLY</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Manual, maksimum 20 order per halaman beserta semua itemnya. Tidak mengubah order di Lazada dan tidak mengirim produk digital.</p>
-      <div className="my-3 grid grid-cols-2 gap-3">
-        <label className="min-w-0 text-xs">Dari tanggal (WIB)
-          <input type="date" data-testid="sync-from" value={after} disabled={sync.isPending}
-            onChange={event => { setAfter(event.target.value); sync.reset(); setLocalError(''); }}
-            className="mt-1 min-h-11 w-full rounded-md border bg-background px-2 text-sm" />
-        </label>
-        <label className="min-w-0 text-xs">Sampai tanggal (WIB)
-          <input type="date" data-testid="sync-to" value={before} disabled={sync.isPending}
-            onChange={event => { setBefore(event.target.value); sync.reset(); setLocalError(''); }}
-            className="mt-1 min-h-11 w-full rounded-md border bg-background px-2 text-sm" />
-        </label>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => read(0)} disabled={!available || sync.isPending} data-testid="button-sync-lazada">
-          {sync.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Download className="mr-2 size-4" />}
-          {sync.isPending ? 'Membaca Lazada…' : 'Baca order Lazada'}
-        </Button>
-        {sync.data?.nextOffset !== null && sync.data?.nextOffset !== undefined && <Button variant="outline"
-          onClick={() => read(sync.data!.nextOffset!)} disabled={!available || sync.isPending} data-testid="button-sync-next">
-          Baca halaman berikutnya
-        </Button>}
-      </div>
-      {!available && !connection.isLoading && <p className="mt-2 text-sm text-muted-foreground">
-        {connection.isError ? 'Status koneksi tidak dapat diperiksa.' : 'Hubungkan akun Lazada terlebih dahulu.'}
-        {' '}<Link href="/settings" className="underline">Buka Pengaturan</Link>
-      </p>}
-      {(error || localError) && <p role="alert" className="mt-3 text-sm text-destructive">{localError || error}</p>}
-      {sync.data && <div role="status" data-testid="sync-result" className="mt-3 space-y-1 text-sm">
-        <p>{sync.data.ordersRead} order dan {sync.data.itemsRead} item dibaca dan disimpan. Total dalam rentang: {sync.data.countTotal ?? 'tidak diberikan API'}.</p>
-        <p className="text-xs text-muted-foreground">Field digital_delivery_info hadir pada {sync.data.digitalDetailPresent} item; {sync.data.digitalDetailNonempty} berisi nilai tidak kosong.
-          {sync.data.nextOffset !== null ? ' Klik halaman berikutnya untuk melanjutkan; tidak berjalan otomatis.' : ' Halaman terakhir dalam rentang ini.'}</p>
-        <details className="pt-1 text-xs"><summary className="cursor-pointer">Field response yang diterima</summary>
-          <p className="mt-2 break-all">GetOrders: {sync.data.orderFields.join(', ') || '(tidak ada order)'}</p>
-          <p className="mt-2 break-all">GetOrderItems: {sync.data.itemFields.join(', ') || '(tidak ada item)'}</p>
-        </details>
-      </div>}
+    <section className="mb-5 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]" aria-labelledby="sync-heading">
+      <details className="group">
+        <summary className="flex min-h-16 list-none cursor-pointer items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden sm:px-5">
+          <div className="min-w-0">
+            <h2 id="sync-heading" className="font-semibold text-[#0F172A]">Ambil pesanan Lazada</h2>
+            <p className="mt-0.5 text-xs leading-5 text-[#64748B]">Baca pesanan terbaru secara manual</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${available ? 'bg-[#F0FDF4] text-[#15803D]' : 'bg-[#F1F5F9] text-[#64748B]'}`}>
+              {connection.isLoading ? 'Memeriksa' : available ? 'Terhubung' : 'Perlu koneksi'}
+            </span>
+            <ChevronDown aria-hidden="true" className="size-4 text-[#64748B] transition-transform group-open:rotate-180" />
+          </div>
+        </summary>
+        <div className="border-t border-[#E2E8F0] px-4 py-4 sm:px-5">
+          <p className="text-xs leading-5 text-[#64748B]">Maksimum 20 pesanan per halaman beserta itemnya. Pembacaan ini tidak mengirim produk digital.</p>
+          <div className="my-4 grid grid-cols-2 gap-3">
+            <label className="min-w-0 text-xs font-medium text-[#475569]">Dari tanggal (WIB)
+              <input type="date" data-testid="sync-from" value={after} disabled={sync.isPending}
+                onChange={event => { setAfter(event.target.value); sync.reset(); setLocalError(''); }}
+                className="mt-1 min-h-11 w-full rounded-lg border border-[#E2E8F0] bg-white px-2 text-sm text-[#0F172A]" />
+            </label>
+            <label className="min-w-0 text-xs font-medium text-[#475569]">Sampai tanggal (WIB)
+              <input type="date" data-testid="sync-to" value={before} disabled={sync.isPending}
+                onChange={event => { setBefore(event.target.value); sync.reset(); setLocalError(''); }}
+                className="mt-1 min-h-11 w-full rounded-lg border border-[#E2E8F0] bg-white px-2 text-sm text-[#0F172A]" />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => read(0)} disabled={!available || sync.isPending} data-testid="button-sync-lazada"
+              className="min-h-11 rounded-xl border-[#F97316] bg-[#F97316] px-4 font-semibold text-[#0F172A] hover:bg-[#EA580C]">
+              {sync.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Download className="mr-2 size-4" />}
+              {sync.isPending ? 'Membaca Lazada…' : 'Baca pesanan'}
+            </Button>
+            {sync.data?.nextOffset !== null && sync.data?.nextOffset !== undefined && <Button variant="outline"
+              onClick={() => read(sync.data!.nextOffset!)} disabled={!available || sync.isPending} data-testid="button-sync-next"
+              className="min-h-11 rounded-xl border-[#E2E8F0]">
+              Baca halaman berikutnya
+            </Button>}
+          </div>
+          {!available && !connection.isLoading && <p className="mt-3 text-sm text-[#64748B]">
+            {connection.isError ? 'Status koneksi tidak dapat diperiksa.' : 'Hubungkan akun Lazada terlebih dahulu.'}
+            {' '}<Link href="/settings" className="font-medium text-[#2563EB] underline underline-offset-2">Buka Pengaturan</Link>
+          </p>}
+          {(error || localError) && <p role="alert" className="mt-3 text-sm text-[#DC2626]">{localError || error}</p>}
+          {sync.data && <div role="status" data-testid="sync-result" className="mt-4 rounded-xl bg-[#F8FAFC] p-3 text-sm text-[#1E293B]">
+            <p className="font-medium">{sync.data.ordersRead} pesanan dan {sync.data.itemsRead} item dibaca. Total dalam rentang: {sync.data.countTotal ?? 'tidak diberikan Lazada'}.</p>
+            <p className="mt-1 text-xs leading-5 text-[#64748B]">
+              {sync.data.digitalDetailPresent} item memiliki data digital; {sync.data.digitalDetailNonempty} berisi nilai.
+              {sync.data.nextOffset !== null ? ' Lanjutkan dengan membaca halaman berikutnya.' : ' Pembacaan rentang selesai.'}
+            </p>
+            <details className="mt-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-[#64748B]">Informasi teknis tambahan</summary>
+              <p className="break-all text-xs">GetOrders: {sync.data.orderFields.join(', ') || '(tidak ada pesanan)'}</p>
+              <p className="mt-2 break-all text-xs">GetOrderItems: {sync.data.itemFields.join(', ') || '(tidak ada item)'}</p>
+            </details>
+          </div>}
+        </div>
+      </details>
     </section>
   );
 }

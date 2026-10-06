@@ -1,12 +1,12 @@
 import { Link, useParams, useSearch } from 'wouter';
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, Loader2, PackageOpen, Send } from 'lucide-react';
 import { ApiError, useDeliverDigitalOrder, useGetOrder, getGetOrderQueryKey } from '@workspace/api-client-react';
 import { usePageMeta } from '@/hooks/use-page-meta';
-import { rupiah, tanggal, providerMoney } from '@/lib/format';
+import { orderMoney, waktuWib } from '@/lib/format';
 import { ErrorState, ListSkeleton } from '@/components/states';
-import { DigitalDetail } from '@/components/copy-detail';
+import { CopyValue, DigitalDetail } from '@/components/copy-detail';
 import { ProviderStatus } from '@/components/provider-status';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,13 +63,9 @@ export default function OrderDetail() {
     });
   };
   const rows = o && [
-    ['ID pesanan', o.marketplaceOrderId],
-    ['ID Lazada', o.lazadaOrderId || 'Tidak tersedia'],
-    ['Pembeli', o.buyerName ?? 'Tidak tersedia'],
-    ['Nilai pesanan', o.syncedAt ? providerMoney(o.sourcePrice, o.currency) : rupiah(o.amount)],
-    ['Waktu order', o.sourceCreatedAt ?? tanggal(o.createdAt)],
-    ['Diperbarui', o.sourceUpdatedAt ?? tanggal(o.updatedAt)],
-    ...(o.syncedAt ? [['Terakhir dibaca', tanggal(o.syncedAt)]] : []),
+    ['Waktu order', waktuWib(o.sourceCreatedAt ?? o.createdAt)],
+    ['Nilai transaksi', orderMoney(o.sourcePrice, o.currency, o.amount)],
+    ['Pembeli', o.buyerName?.trim() || 'Tidak tersedia'],
   ];
   return (
     <div className="relative left-1/2 -my-6 w-screen -translate-x-1/2 bg-[#F8FAFC]">
@@ -99,16 +95,13 @@ export default function OrderDetail() {
             <section aria-labelledby="order-status-heading" className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
               <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <div className="min-w-0">
-                  <p id="order-status-heading" className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Status pesanan</p>
-                  <p className="mt-1 break-all font-mono text-sm font-semibold text-[#0F172A]">#{o.marketplaceOrderId}</p>
+                  <h2 id="order-status-heading" className="text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">Status pesanan</h2>
+                  <p className="mt-1 text-sm leading-5 text-[#1E293B]">Status terbaru dari data Lazada.</p>
                 </div>
-                <div className="shrink-0">
-                  <ProviderStatus status={o.status} source={o.lazadaStatuses} />
+                <div className="shrink-0 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
+                  <ProviderStatus status={o.status} />
                 </div>
               </div>
-              <p className="border-t border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm leading-5 text-[#64748B] sm:px-5">
-                Status pesanan ditampilkan sesuai informasi yang diterima dari Lazada.
-              </p>
             </section>
 
             {deliveryNotice && (
@@ -129,10 +122,14 @@ export default function OrderDetail() {
                 <h2 id="order-info-heading" className="font-semibold text-[#0F172A]">Informasi pesanan</h2>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2">
+                <div className="min-w-0 border-b border-[#E2E8F0] px-4 py-3.5 sm:border-r">
+                  <dt className="text-xs font-medium text-[#64748B]">Order ID</dt>
+                  <dd className="mt-1"><CopyValue id="order-id" label="Order ID" value={o.marketplaceOrderId} /></dd>
+                </div>
                 {rows.map(([k, v]) => (
                   <div key={k} className="min-w-0 border-b border-[#E2E8F0] px-4 py-3.5 last:border-b-0 sm:odd:border-r">
                     <dt className="text-xs font-medium text-[#64748B]">{k}</dt>
-                    <dd data-testid={`text-${k}`} className="mt-1 break-all font-mono text-sm text-[#0F172A]">{v}</dd>
+                    <dd data-testid={`text-${k}`} className="mt-1 break-words font-mono text-sm text-[#0F172A]">{v}</dd>
                   </div>
                 ))}
               </dl>
@@ -148,32 +145,40 @@ export default function OrderDetail() {
               {items.length === 0 ? (
                 <div data-testid="state-no-items" className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white px-4 py-7 text-center">
                   <p className="break-words font-semibold text-sm text-[#0F172A]">{o.productName || 'Produk belum tersedia'}</p>
-                  <p className="mt-2 text-sm leading-5 text-[#64748B]">Item dan Digital Detail belum tersedia untuk pesanan ini.</p>
+                  <p className="mt-2 text-sm leading-5 text-[#64748B]">Item dan detail digital tidak tersedia dari data pesanan ini.</p>
                 </div>
               ) : (
                 <ul className="space-y-3">
                   {items.map((i) => (
                     <li key={i.id} data-testid={`item-${i.id}`} className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-col gap-3 border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="break-words text-sm font-semibold leading-5 text-[#0F172A] sm:text-base">{i.productName}</h3>
-                          <p className="mt-1 break-all font-mono text-xs text-[#64748B]">Item {i.lazadaOrderItemId}</p>
+                      <div className="flex items-start gap-3 border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 sm:gap-4 sm:px-5">
+                        <div role="img" aria-label="Foto produk tidak tersedia dari data pesanan"
+                          className="grid size-14 shrink-0 place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] sm:size-16">
+                          <PackageOpen aria-hidden="true" className="size-6" />
                         </div>
-                        <div className="shrink-0">
-                          <ProviderStatus status={i.status} source={i.sourceStatus} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F97316]">Produk</p>
+                          <h3 className="mt-1 break-words text-sm font-semibold leading-5 text-[#0F172A] sm:text-base">{i.productName}</h3>
+                          <div className="mt-2">
+                            <dt className="text-xs font-medium text-[#64748B]">Item ID</dt>
+                            <dd className="mt-1"><CopyValue id={`item-${i.id}`} label="Item ID" value={i.lazadaOrderItemId} /></dd>
+                          </div>
+                        </div>
+                        <div className="shrink-0 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
+                          <ProviderStatus status={i.status} />
                         </div>
                       </div>
 
                       <p className="border-b border-[#E2E8F0] px-4 py-2.5 text-xs leading-5 text-[#64748B] sm:px-5">
-                        Dibuat {i.sourceCreatedAt ?? tanggal(i.createdAt)} · Diperbarui {i.sourceUpdatedAt ?? tanggal(i.updatedAt)}
+                        Waktu item {waktuWib(i.sourceCreatedAt ?? i.createdAt)}
                       </p>
 
                       {o.syncedAt && (
                         <dl className="grid grid-cols-1 gap-x-5 gap-y-4 border-b border-[#E2E8F0] px-4 py-4 sm:grid-cols-2 sm:px-5">
                           {[
                             ['Nominal/variasi', i.variation || 'Tidak tersedia'],
-                            ['Harga item', providerMoney(i.itemPrice, i.currency)],
-                            ['Harga dibayar', providerMoney(i.paidPrice, i.currency)],
+                            ['Harga item', orderMoney(i.itemPrice, i.currency ?? o.currency)],
+                            ['Harga dibayar', orderMoney(i.paidPrice, i.currency ?? o.currency)],
                             ['SKU', i.sku || 'Tidak tersedia'],
                             ['Shop SKU', i.shopSku || 'Tidak tersedia'],
                           ].map(([key, value]) => (
@@ -187,10 +192,10 @@ export default function OrderDetail() {
 
                       <div className="px-4 py-4 sm:px-5">
                         <div className="mb-3">
-                          <h3 className="text-sm font-semibold text-[#0F172A]">Data tujuan digital</h3>
+                          <h3 className="text-sm font-semibold text-[#0F172A]">Detail Digital</h3>
                           {o.syncedAt && (
                             <p className="mt-1 text-xs leading-5 text-[#64748B]">
-                              {i.digitalDetailSource ? 'Sumber: digital_delivery_info dari Lazada' : 'Field digital_delivery_info tidak tersedia di response API'}
+                              {i.digitalDetailSource ? 'Data tujuan yang tersedia dari Lazada.' : 'Data tujuan tidak tersedia dari Lazada.'}
                             </p>
                           )}
                         </div>
@@ -200,7 +205,7 @@ export default function OrderDetail() {
                       {o.syncedAt && (
                         <details className="border-t border-[#E2E8F0]">
                           <summary className="flex min-h-11 cursor-pointer items-center px-4 py-3 text-xs font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] sm:px-5">
-                            extra_attributes — Response asli
+                            Informasi tambahan
                           </summary>
                           <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all bg-[#F8FAFC] px-4 py-3 font-mono text-xs text-[#64748B] sm:px-5">{i.extraAttributes ?? 'Field tidak tersedia atau bernilai null.'}</pre>
                         </details>
@@ -215,12 +220,12 @@ export default function OrderDetail() {
               <section aria-labelledby="order-action-heading" className="flex flex-col gap-4 rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <div>
                   <h2 id="order-action-heading" className="font-semibold text-[#0F172A]">Aksi pesanan</h2>
-                  <p className="mt-1 text-sm leading-5 text-[#64748B]">Periksa produk, nominal, dan data tujuan sebelum mengirim.</p>
+                  <p className="mt-1 text-sm leading-5 text-[#64748B]">Pastikan produk, tujuan, dan nominal benar sebelum diproses.</p>
                 </div>
                 <Button onClick={() => { setDeliveryError(''); setDeliveryNotice(''); setConfirmOpen(true); }}
                   disabled={delivery.isPending} data-testid="button-deliver-digital"
                   className="min-h-11 w-full shrink-0 rounded-xl border-[#F97316] bg-[#F97316] px-5 font-semibold text-[#0F172A] hover:bg-[#EA580C] sm:w-auto">
-                  <Send aria-hidden="true" className="size-4" /> {delivery.isPending ? 'Mengirim…' : 'Kirim Digital'}
+                  <Send aria-hidden="true" className="size-4" /> {delivery.isPending ? 'Mengirim…' : 'Proses / Kirim Digital'}
                 </Button>
               </section>
             )}
@@ -233,9 +238,9 @@ export default function OrderDetail() {
             }}>
               <AlertDialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] gap-5 overflow-y-auto rounded-2xl border-[#E2E8F0] bg-white p-4 sm:p-6">
                 <AlertDialogHeader className="text-left">
-                  <AlertDialogTitle className="text-[#0F172A]">Konfirmasi kirim digital</AlertDialogTitle>
+                  <AlertDialogTitle className="text-[#0F172A]">Konfirmasi Pesanan</AlertDialogTitle>
                   <AlertDialogDescription className="leading-5 text-[#64748B]">
-                    Lazada akan menandai seluruh item digital pada pesanan ini sebagai terkirim. Periksa ringkasan berikut. Tindakan ini memanggil DeliverDigital dan tidak dapat dibatalkan.
+                    Pastikan data tujuan sudah benar. Periksa juga produk dan nominal sebelum mengirim seluruh item ke Lazada; tindakan ini tidak dapat dibatalkan.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <section aria-label="Ringkasan data yang akan dikirim" className="space-y-3">
@@ -243,23 +248,16 @@ export default function OrderDetail() {
                   {items.map((i) => (
                     <article key={`confirm-${i.id}`} className="min-w-0 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3.5">
                       <h3 className="break-words text-sm font-semibold leading-5 text-[#0F172A]">{i.productName}</h3>
-                      <p className="mt-1 break-all font-mono text-[11px] text-[#64748B]">Item {i.lazadaOrderItemId}</p>
-                      <dl className="mt-3 space-y-3">
-                        <div className="min-w-0">
+                      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
                           <dt className="text-xs font-medium text-[#64748B]">Tujuan</dt>
-                          <dd className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-xs leading-5 text-[#0F172A]">
-                            {i.digitalDetail?.trim() || 'Digital Detail belum tersedia.'}
-                          </dd>
+                          <dd className="mt-1"><DigitalDetail id={`confirm-${i.id}`} value={i.digitalDetail} /></dd>
                         </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div className="min-w-0">
-                            <dt className="text-xs font-medium text-[#64748B]">Nominal/variasi</dt>
-                            <dd className="mt-1 break-words text-sm text-[#0F172A]">{i.variation?.trim() || 'Tidak tersedia'}</dd>
-                          </div>
-                          <div className="min-w-0">
-                            <dt className="text-xs font-medium text-[#64748B]">Harga dibayar</dt>
-                            <dd className="mt-1 break-all font-mono text-sm text-[#0F172A]">{providerMoney(i.paidPrice, i.currency)}</dd>
-                          </div>
+                        <div>
+                          <dt className="text-xs font-medium text-[#64748B]">Nominal/variasi</dt>
+                          <dd className="mt-1 break-words text-sm text-[#0F172A]">{i.variation?.trim() || 'Tidak tersedia'}</dd>
+                          <dt className="mt-3 text-xs font-medium text-[#64748B]">Harga dibayar</dt>
+                          <dd className="mt-1 break-all font-mono text-sm text-[#0F172A]">{orderMoney(i.paidPrice, i.currency ?? o.currency)}</dd>
                         </div>
                       </dl>
                     </article>
@@ -274,7 +272,7 @@ export default function OrderDetail() {
                     disabled={delivery.isPending} data-testid="button-confirm-deliver-digital"
                     className="min-h-11 rounded-xl border-[#F97316] bg-[#F97316] font-semibold text-[#0F172A] hover:bg-[#EA580C]">
                     {delivery.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {delivery.isPending ? 'Mengirim…' : 'Konfirmasi kirim'}
+                    {delivery.isPending ? 'Mengirim…' : 'Kirim Digital'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -34,7 +34,7 @@ function AnimatedCount({ value }: { value: number }) {
       return;
     }
 
-    const duration = 620;
+    const duration = 440;
     const startedAt = performance.now();
     let frame = 0;
     setCount(0);
@@ -102,7 +102,7 @@ export default function Dashboard() {
       <div className="space-y-7">
         <header className="space-y-1.5">
           <p className="text-[11px] font-bold uppercase tracking-[.17em] text-[#E96B27]">Ruang kendali</p>
-          <h1 className="text-[27px] font-bold tracking-[-.035em] text-[#14213A] sm:text-[32px]">Ringkasan</h1>
+          <h1 className="text-[26px] font-bold tracking-[-.035em] text-[#14213A] sm:text-[30px]">Ringkasan</h1>
           <p className="text-sm leading-6 text-[#687587]">Pantau pesanan digital Lazada hari ini.</p>
         </header>
 

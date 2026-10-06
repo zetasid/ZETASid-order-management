@@ -324,8 +324,8 @@
 }
 
 @layer utilities {
-  .page-enter { animation: page-enter 360ms cubic-bezier(.2,.7,.2,1) both; }
-  .stagger-in { animation: page-enter 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .page-enter { animation: page-enter 220ms cubic-bezier(.2,.7,.2,1) both; }
+  .stagger-in { animation: page-enter 230ms cubic-bezier(.2,.7,.2,1) both; }
   .surface-card {
     border: 1px solid hsl(216 22% 89%);
     background: hsl(0 0% 100%);
@@ -347,7 +347,12 @@
     pointer-events: none;
     animation: skeleton-sweep 1.35s ease-in-out infinite;
   }
-  .orders-filter-scroll [data-radix-scroll-area-viewport] { scroll-behavior: smooth; }
+  .orders-filter-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .orders-filter-scroll::-webkit-scrollbar { display: none; }
+  .health-dot-enter { animation: health-dot-enter 220ms ease-out both; }
 }
 
 @keyframes page-enter {
@@ -358,6 +363,12 @@
 @keyframes skeleton-sweep {
   from { transform: translateX(-100%); }
   to { transform: translateX(100%); }
+}
+
+@keyframes health-dot-enter {
+  0% { opacity: .65; transform: scale(.84); box-shadow: 0 0 0 0 rgb(34 197 94 / 0); }
+  65% { opacity: 1; transform: scale(1.08); box-shadow: 0 0 0 3px rgb(34 197 94 / 12%); }
+  100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgb(34 197 94 / 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

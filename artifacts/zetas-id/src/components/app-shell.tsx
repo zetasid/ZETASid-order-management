@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-auto mb-16 rounded-2xl border border-white/10 bg-white/[.04] p-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold"><Sparkles className="size-4 text-[#F27832]" />Operasional Lazada</div>
-          <p className="text-[11px] leading-5 text-slate-400">Pantau status pesanan digital dalam satu workspace.</p>
+          <p className="text-xs leading-5 text-slate-300">Pantau status pesanan digital dalam satu workspace.</p>
         </div>
       </aside>
       <button type="button" onClick={leave} disabled={busy} data-testid="button-logout"
@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const on = n.match(loc);
             const TabIcon = isOrderRoute && n.href === '/orders' ? Package : n.icon;
             return <li key={n.href}><Link href={n.href} data-testid={`link-tab-${n.label.toLowerCase()}`} aria-current={on ? 'page' : undefined}
-              className={`relative flex min-h-[62px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${on ? 'text-[#E96B27]' : 'text-[#7A8492]'}`}>
+              className={`relative flex min-h-[62px] flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${on ? 'text-[#E96B27]' : 'text-[#687587]'}`}>
               {on && <span aria-hidden="true" className="absolute top-0 h-[2px] w-9 rounded-b-full bg-[#F27832]" />}
               <TabIcon className="size-[19px]" />{n.label}
             </Link></li>;

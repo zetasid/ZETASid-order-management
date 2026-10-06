@@ -25,7 +25,7 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
               <PaymentStatusBadge status={order.paymentStatus} />
             </div>
           </div>
-          <p className="mt-1 truncate font-mono text-[11px] tracking-[.01em] text-[#778396]">#{order.marketplaceOrderId}</p>
+          <p className="mt-1 truncate font-mono text-xs tracking-[.01em] text-[#64748B]">#{order.marketplaceOrderId}</p>
           <div className="mt-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span className="text-xs text-[#778396]">{waktuWib(order.sourceCreatedAt ?? order.createdAt)}</span>
             <span className="font-mono text-sm font-semibold text-[#14213A]">

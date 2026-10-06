@@ -14,7 +14,7 @@ export default function Settings() {
     <div className="space-y-5">
       <PageHeading title="Pengaturan" sub="Kelola pengaturan aplikasi ZETAS.id." />
       <div className="grid gap-4 lg:grid-cols-2">
-        <section aria-labelledby="settings-account-heading" className="surface-card rounded-2xl p-4 sm:p-5">
+        <section aria-labelledby="settings-account-heading" style={{ animationDelay: '0ms' }} className="surface-card stagger-in rounded-2xl p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF2F8] text-[#14213A]">
               <UserRound aria-hidden="true" className="size-5" />
@@ -44,7 +44,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section aria-labelledby="settings-system-heading" className="surface-card rounded-2xl p-4 sm:p-5">
+        <section aria-labelledby="settings-system-heading" style={{ animationDelay: '45ms' }} className="surface-card stagger-in rounded-2xl p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF2F8] text-[#14213A]">
               <Activity aria-hidden="true" className="size-5" />
@@ -59,7 +59,7 @@ export default function Settings() {
             {q.isError && <ErrorState text="Server tidak dapat dihubungi." onRetry={() => q.refetch()} />}
             {q.data && (
               <p className="flex min-h-8 flex-wrap items-center gap-2 text-sm font-semibold text-[#17263E]" data-testid="text-health">
-                <span aria-hidden="true" className="size-2.5 rounded-full bg-emerald-500" />
+                <span aria-hidden="true" className="health-dot-enter size-2.5 rounded-full bg-emerald-500" />
                 Server aktif
                 <span className="rounded-md bg-white px-2 py-1 font-mono text-xs font-medium text-[#687587]">{q.data.status}</span>
               </p>
@@ -67,11 +67,11 @@ export default function Settings() {
           </div>
         </section>
 
-        <div className="lg:col-span-2">
+        <div style={{ animationDelay: '90ms' }} className="stagger-in lg:col-span-2">
           <LazadaConnection />
         </div>
 
-        <section aria-labelledby="settings-about-heading" className="surface-card rounded-2xl p-4 sm:p-5">
+        <section aria-labelledby="settings-about-heading" style={{ animationDelay: '135ms' }} className="surface-card stagger-in rounded-2xl p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#FFF1E8] text-[#D95D1E]">
               <Info aria-hidden="true" className="size-5" />
@@ -97,7 +97,7 @@ export default function Settings() {
           </dl>
         </section>
 
-        <section aria-labelledby="settings-help-heading" className="surface-card rounded-2xl p-4 sm:p-5">
+        <section aria-labelledby="settings-help-heading" style={{ animationDelay: '180ms' }} className="surface-card stagger-in rounded-2xl p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#EEF2F8] text-[#14213A]">
               <CircleHelp aria-hidden="true" className="size-5" />

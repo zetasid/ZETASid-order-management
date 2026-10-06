@@ -63,13 +63,20 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
   const [copied, setCopied] = useState(false);
   const [manual, setManual] = useState(false);
   const textRef = useRef<HTMLSpanElement>(null);
+  const feedbackTimer = useRef<number | null>(null);
   const available = value !== null && value.trim() !== '';
 
   useEffect(() => {
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = null;
     setMessage('');
     setCopied(false);
     setManual(false);
   }, [value]);
+
+  useEffect(() => () => {
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+  }, []);
 
   const selectText = () => {
     if (!textRef.current) return;
@@ -82,9 +89,11 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
 
   const copy = async () => {
     if (!available || value === null) return;
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = null;
+    setCopied(false);
     if (!navigator.clipboard?.writeText) {
       setManual(true);
-      setCopied(false);
       setMessage('Salin otomatis tidak tersedia. Teks dipilih untuk disalin manual.');
       selectText();
       return;
@@ -94,6 +103,11 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
       setCopied(true);
       setManual(false);
       setMessage(`${label} berhasil disalin.`);
+      feedbackTimer.current = window.setTimeout(() => {
+        setCopied(false);
+        setMessage('');
+        feedbackTimer.current = null;
+      }, 1600);
     } catch {
       setCopied(false);
       setManual(true);
@@ -110,7 +124,7 @@ export function CopyValue({ value, id, label }: { value: string | null; id: stri
       </span>
       {available && (
         <button type="button" onClick={copy} data-testid={`button-copy-${id}`} aria-label={`Salin ${label}`}
-          className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md border border-[#E2E8F0] bg-white px-2 text-[11px] font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] active:bg-[#F1F5F9]">
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md border border-[#E2E8F0] bg-white px-2 text-xs font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] active:bg-[#F1F5F9]">
           {copied ? <Check aria-hidden="true" className="size-3.5 text-[#16A34A]" /> : <Copy aria-hidden="true" className="size-3.5" />}
           Salin
         </button>
@@ -128,7 +142,7 @@ export function DigitalDetail({ value, id }: { value: string | null; id: string 
       <dl data-testid={`text-detail-empty-${id}`} className="space-y-1">
         <div className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
           <Phone aria-hidden="true" className="size-3.5 text-[#64748B]" />
-          <dt className="text-[11px] leading-4 text-[#64748B]">Nomor tujuan</dt>
+          <dt className="text-xs leading-4 text-[#64748B]">Nomor tujuan</dt>
           <dd><CopyValue value={null} id={id} label="Nomor tujuan" /></dd>
         </div>
       </dl>
@@ -140,7 +154,7 @@ export function DigitalDetail({ value, id }: { value: string | null; id: string 
       <dl data-testid={`text-detail-empty-${id}`} className="space-y-1">
         <div className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
           <Phone aria-hidden="true" className="size-3.5 text-[#64748B]" />
-          <dt className="text-[11px] leading-4 text-[#64748B]">Nomor tujuan</dt>
+          <dt className="text-xs leading-4 text-[#64748B]">Nomor tujuan</dt>
           <dd><CopyValue value={null} id={id} label="Nomor tujuan" /></dd>
         </div>
       </dl>
@@ -162,7 +176,7 @@ export function DigitalDetail({ value, id }: { value: string | null; id: string 
         return (
           <div key={`${field.label}-${index}`} className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1 last:border-b-0">
             <Icon aria-hidden="true" className="size-3.5 text-[#64748B]" />
-            <dt className="break-words text-[11px] leading-4 text-[#64748B]">{field.label}</dt>
+            <dt className="break-words text-xs leading-4 text-[#64748B]">{field.label}</dt>
             <dd className="min-w-0"><CopyValue value={field.value} id={fieldId} label={field.label} /></dd>
           </div>
         );

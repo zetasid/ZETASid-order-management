@@ -6,7 +6,6 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { EmptyState, ErrorState, ListSkeleton, PageHeading } from '@/components/states';
 import { OrderRow } from '@/components/order-row';
 import { LazadaOrderSync } from '@/components/lazada-order-sync';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const FILTERS = [
   ['', 'Semua'], ['pending', 'Belum Dibayar'], ['processing', 'Diproses'], ['completed', 'Selesai'], ['cancelled', 'Dibatalkan'],
@@ -72,15 +71,20 @@ export default function Orders() {
           )}
         </div>
         {/* Horizontal scroll filters on mobile, flex wrap on desktop */}
-        <ScrollArea className="orders-filter-scroll md:hidden w-[calc(100%+32px)] -mx-4">
-          <div className="flex gap-2 px-4 pb-2" role="group" aria-label="Filter status">
+        <div
+          className="orders-filter-scroll -mx-4 w-[calc(100%+2rem)] overflow-x-auto overscroll-x-contain scroll-smooth md:hidden"
+          role="region"
+          aria-label="Filter status pesanan; geser horizontal untuk melihat semua status"
+          tabIndex={0}
+        >
+          <div className="flex w-max min-w-full gap-1.5 px-4 pb-2" role="group" aria-label="Filter status">
             {FILTERS.map(([v, l]) => (
               <button key={l} type="button" aria-pressed={status === v} data-testid={`filter-${v || 'all'}`}
                 onClick={() => setUrl(text, v)}
-                className={`min-h-10 rounded-full border px-4 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${status === v ? 'border-[#14213A] bg-[#14213A] text-white shadow-sm' : 'border-[#E0E5EC] bg-white text-[#647184] hover:border-[#E96B27]/50 hover:text-[#14213A]'}`}>{l}</button>
+                className={`min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold whitespace-nowrap transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F27832] ${status === v ? 'border-[#14213A] bg-[#14213A] text-white shadow-sm' : 'border-[#E0E5EC] bg-white text-[#647184] hover:border-[#E96B27]/50 hover:text-[#14213A]'}`}>{l}</button>
             ))}
           </div>
-        </ScrollArea>
+        </div>
         {/* Desktop flex wrap filters */}
         <div className="hidden md:flex flex-wrap gap-2" role="group" aria-label="Filter status">
           {FILTERS.map(([v, l]) => (

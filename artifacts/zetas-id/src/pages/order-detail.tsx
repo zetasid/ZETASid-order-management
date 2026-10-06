@@ -40,8 +40,8 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
   return (
     <div className="grid min-h-11 grid-cols-[16px_72px_minmax(0,1fr)] items-center gap-2 border-b border-[#EEF0F4] py-1.5 last:border-b-0">
       <Icon aria-hidden="true" className="size-3.5 text-[#64748B]" />
-      <dt className="text-[11px] leading-4 text-[#64748B]">{label}</dt>
-      <dd className="min-w-0 text-xs font-medium text-[#0F172A]">{children}</dd>
+      <dt className="text-xs leading-4 text-[#64748B]">{label}</dt>
+      <dd className="min-w-0 text-[13px] font-medium text-[#0F172A]">{children}</dd>
     </div>
   );
 }
@@ -93,13 +93,13 @@ export default function OrderDetail() {
         {q.isError && <ErrorState text="Pesanan tidak ditemukan atau server tidak merespons." onRetry={() => q.refetch()} />}
         {o && (
           <div className="space-y-3">
-            <section aria-labelledby="order-status-heading" className={`flex items-center gap-3 rounded-2xl border px-4 py-4 shadow-[0_2px_10px_rgba(24,39,75,.04)] ${statusView.tone}`}>
+            <section aria-labelledby="order-status-heading" style={{ animationDelay: '0ms' }} className={`stagger-in flex items-center gap-3 rounded-2xl border px-4 py-4 shadow-[0_2px_10px_rgba(24,39,75,.04)] ${statusView.tone}`}>
               <span className={`grid size-10 shrink-0 place-items-center rounded-full ${statusView.iconTone}`}>
                 <StatusIcon aria-hidden="true" className="size-5" />
               </span>
               <div className="min-w-0">
                 <h2 id="order-status-heading" className="text-sm font-semibold">{statusView.title}</h2>
-                <p className="mt-0.5 text-[11px] leading-4 opacity-90">{statusView.description}</p>
+                <p className="mt-0.5 text-xs leading-4 opacity-90">{statusView.description}</p>
               </div>
             </section>
 
@@ -116,7 +116,7 @@ export default function OrderDetail() {
               </p>
             )}
 
-            <section aria-labelledby="order-info-heading" className="surface-card rounded-2xl px-4 py-4 sm:px-5">
+            <section aria-labelledby="order-info-heading" style={{ animationDelay: '45ms' }} className="surface-card stagger-in rounded-2xl px-4 py-4 sm:px-5">
               <h2 id="order-info-heading" className="mb-2 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Informasi Pesanan</h2>
               <dl>
                 <InfoRow icon={ClipboardList} label="Order ID">
@@ -132,7 +132,7 @@ export default function OrderDetail() {
                 <InfoRow icon={ReceiptText} label="Nilai transaksi">{orderMoney(o.sourcePrice, o.currency, o.amount)}</InfoRow>
               </dl>
               {(o.paymentStatus !== 'confirmed' || (o.status !== 'completed' && items.some(item => item.sourceStatus !== 'pending'))) && (
-                <p role="note" className="mt-2 rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-[11px] leading-4 text-[#9A3412]">
+                <p role="note" className="mt-2 rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-xs leading-4 text-[#9A3412]">
                   {o.paymentStatus !== 'confirmed'
                     ? 'Pengiriman digital dinonaktifkan sampai status pembayaran dikonfirmasi oleh Lazada.'
                     : 'Status item Lazada belum memenuhi syarat untuk pengiriman digital.'}
@@ -140,7 +140,7 @@ export default function OrderDetail() {
               )}
             </section>
 
-            <section aria-labelledby="order-products-heading" className="space-y-2">
+            <section aria-labelledby="order-products-heading" style={{ animationDelay: '90ms' }} className="stagger-in space-y-2">
               <h2 id="order-products-heading" className="px-0.5 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Produk</h2>
               {items.length === 0 ? (
                 <div data-testid="state-no-items" className="rounded-xl border border-dashed border-[#CBD5E1] bg-white px-4 py-5 text-sm text-[#64748B]">
@@ -157,7 +157,7 @@ export default function OrderDetail() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="break-words text-xs font-semibold leading-4 text-[#0F172A]">{i.productName}</h3>
-                          <p className="mt-1 inline-flex max-w-full rounded-md bg-[#FFF4E9] px-2 py-1 text-[10px] leading-4 text-[#7C4A24]">
+                          <p className="mt-1 inline-flex max-w-full rounded-md bg-[#FFF4E9] px-2 py-1 text-[11px] leading-4 text-[#7C4A24]">
                             <span className="truncate">Variasi: {i.variation?.trim() || 'Tidak tersedia'}</span>
                           </p>
                         </div>
@@ -168,7 +168,7 @@ export default function OrderDetail() {
               )}
             </section>
 
-            <section aria-labelledby="digital-detail-heading" className="surface-card rounded-2xl px-4 py-4 sm:px-5">
+            <section aria-labelledby="digital-detail-heading" style={{ animationDelay: '135ms' }} className="surface-card stagger-in rounded-2xl px-4 py-4 sm:px-5">
               <h2 id="digital-detail-heading" className="mb-3 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">Detail Digital</h2>
               {items.length === 0 ? (
                 <p className="py-2 text-xs text-[#64748B]">Tidak tersedia.</p>
@@ -176,14 +176,14 @@ export default function OrderDetail() {
                 <div className="space-y-2">
                   {items.map(i => (
                     <div key={`digital-${i.id}`} className="min-w-0">
-                      {items.length > 1 && <p className="mb-1 text-[11px] font-medium text-[#64748B]">{i.productName}</p>}
+                      {items.length > 1 && <p className="mb-1 text-xs font-medium text-[#64748B]">{i.productName}</p>}
                       <DigitalDetail id={i.id} value={i.digitalDetail} />
                     </div>
                   ))}
                 </div>
               )}
               {o.status === 'cancelled' && items.length > 0 && items.every(i => !i.digitalDetail?.trim()) && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg bg-[#EEF6FF] px-3 py-2.5 text-[11px] leading-4 text-[#315B85]">
+                <div className="mt-3 flex items-start gap-2 rounded-lg bg-[#EEF6FF] px-3 py-2.5 text-xs leading-4 text-[#315B85]">
                   <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[#3B82F6]" />
                   <p>Data detail digital tidak tersedia karena pesanan dibatalkan.</p>
                 </div>
@@ -199,7 +199,7 @@ export default function OrderDetail() {
             </section>
 
             {items.some(i => o.syncedAt && i.extraAttributes) && (
-              <details className="rounded-xl border border-[#E5E7EB] bg-white">
+              <details style={{ animationDelay: '180ms' }} className="stagger-in rounded-xl border border-[#E5E7EB] bg-white">
                 <summary className="flex min-h-11 cursor-pointer items-center px-3.5 text-xs font-medium text-[#64748B]">Informasi tambahan</summary>
                 <div className="space-y-3 px-3.5 pb-3.5">
                   {items.filter(i => i.extraAttributes).map(i => (
@@ -238,7 +238,7 @@ export default function OrderDetail() {
                       <div className="mt-2.5">
                         <DigitalDetail id={`confirm-${i.id}`} value={i.digitalDetail} />
                       </div>
-                      <div className="mt-2 flex items-start justify-between gap-3 border-t border-[#E5E7EB] pt-2 text-[11px]">
+                      <div className="mt-2 flex items-start justify-between gap-3 border-t border-[#E5E7EB] pt-2 text-xs">
                         <span className="shrink-0 text-[#64748B]">Variasi</span>
                         <span className="text-right font-medium text-[#0F172A]">{i.variation?.trim() || 'Tidak tersedia'}</span>
                       </div>

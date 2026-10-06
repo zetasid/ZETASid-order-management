@@ -14,3 +14,9 @@ For an explicitly requested repository push, the authenticated GitHub Git Data A
 **Why:** The connector injects credentials server-side, so uploading Git objects does not require copying credentials into Git configuration or handling secret values.
 
 **How to apply:** Preserve commit parents and canonical hashes when replaying local commits, verify uploaded blob/tree/commit hashes, and advance the branch only by a non-forced fast-forward after confirming its current head. Read the canonical root tree hash from the commit's tree field, not a tree response requested using a commit hash.
+
+When replaying a local commit through GitHub's Git Data API, include the trailing newline in the commit `message`.
+
+**Why:** The API can create a commit with the same tree, parent, identities, and timestamps but a different SHA if the final newline is omitted.
+
+**How to apply:** Compare the created commit SHA with the local SHA before updating the branch. Ref reads use `/git/ref/{ref}`, while ref updates use `/git/refs/{ref}`; update only after confirming the remote head is still the expected parent and use `force: false`.

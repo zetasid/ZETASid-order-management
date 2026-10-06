@@ -9,7 +9,7 @@ import { LazadaOrderSync } from '@/components/lazada-order-sync';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const FILTERS = [
-  ['', 'Semua'], ['pending', 'Menunggu'], ['processing', 'Diproses'], ['completed', 'Selesai'], ['cancelled', 'Dibatalkan'],
+  ['', 'Semua'], ['pending', 'Belum Dibayar'], ['processing', 'Diproses'], ['completed', 'Selesai'], ['cancelled', 'Dibatalkan'],
 ] as const;
 const VALID = ['pending', 'processing', 'completed', 'cancelled'];
 

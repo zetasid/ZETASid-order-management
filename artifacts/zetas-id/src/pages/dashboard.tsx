@@ -91,7 +91,7 @@ export default function Dashboard() {
   const d = q.data;
   const stats = d && [
     { k: 'total', l: 'Total pesanan', v: d.totalOrders, icon: PackageOpen, tone: 'bg-[#EFF6FF] text-[#2563EB]' },
-    { k: 'pending', l: 'Menunggu', v: d.pendingOrders, icon: Clock3, tone: 'bg-[#FFF7ED] text-[#F97316]' },
+    { k: 'pending', l: 'Belum Dibayar', v: d.pendingOrders, icon: Clock3, tone: 'bg-[#FFF7ED] text-[#F97316]' },
     { k: 'processing', l: 'Diproses', v: d.processingOrders, icon: RefreshCw, tone: 'bg-[#EFF6FF] text-[#1E293B]' },
     { k: 'completed', l: 'Selesai', v: d.completedOrders, icon: BadgeCheck, tone: 'bg-[#F0FDF4] text-[#16A34A]' },
     { k: 'cancelled', l: 'Dibatalkan', v: d.cancelledOrders, icon: CircleX, tone: 'bg-[#FEF2F2] text-[#DC2626]' },

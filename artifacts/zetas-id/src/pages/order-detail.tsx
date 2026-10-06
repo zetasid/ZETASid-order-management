@@ -29,7 +29,7 @@ function deliveryErrorText(error: unknown) {
 }
 
 const STATUS_VIEW = {
-  pending: { title: 'Pesanan Menunggu', description: 'Pesanan siap untuk diproses.', icon: Clock3, tone: 'border-[#FED7AA] bg-[#FFF3E8] text-[#B45309]', iconTone: 'bg-[#F97316] text-white' },
+  pending: { title: 'Pesanan Belum Dibayar', description: 'Pesanan siap untuk diproses.', icon: Clock3, tone: 'border-[#FED7AA] bg-[#FFF3E8] text-[#B45309]', iconTone: 'bg-[#F97316] text-white' },
   processing: { title: 'Pesanan Diproses', description: 'Pesanan sedang diproses.', icon: Clock3, tone: 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]', iconTone: 'bg-[#3B82F6] text-white' },
   completed: { title: 'Pesanan Selesai', description: 'Pesanan telah selesai diproses.', icon: BadgeCheck, tone: 'border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]', iconTone: 'bg-[#22C55E] text-white' },
   cancelled: { title: 'Pesanan Dibatalkan', description: 'Pesanan ini telah dibatalkan oleh sistem Lazada.', icon: CircleX, tone: 'border-[#FECACA] bg-[#FEF0F0] text-[#B91C1C]', iconTone: 'bg-[#EF4444] text-white' },

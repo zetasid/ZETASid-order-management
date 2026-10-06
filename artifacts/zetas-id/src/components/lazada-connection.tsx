@@ -67,15 +67,18 @@ export function LazadaConnection() {
   };
   const pending = authorize.isPending || check.isPending;
   return (
-    <section className="mb-4 rounded-xl border bg-card p-4" aria-labelledby="lazada-heading">
+    <section className="surface-card rounded-2xl p-4 sm:p-5" aria-labelledby="lazada-heading">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 id="lazada-heading" className="flex items-center gap-2 font-semibold"><Link2 className="size-4" />Koneksi Lazada</h2>
-        <span className="rounded-md border px-2 py-1 text-xs font-medium">Testing</span>
+        <h2 id="lazada-heading" className="flex items-center gap-2 text-[15px] font-bold tracking-[-.01em] text-[#14213A]">
+          <span className="grid size-9 place-items-center rounded-xl bg-[#EEF2F8] text-[#14213A]"><Link2 aria-hidden="true" className="size-4" /></span>
+          Koneksi Lazada
+        </h2>
+        <span className="rounded-full border border-[#F4C7A9] bg-[#FFF1E8] px-3 py-1 text-xs font-semibold text-[#B94D18]">Testing</span>
       </div>
       {q.isLoading && <Skeleton className="h-6 w-40" />}
       {q.isError && <ErrorState text="Status koneksi tidak dapat dimuat." onRetry={() => q.refetch()} />}
       {q.data && <>
-        <p className="mb-3 flex items-center gap-2 font-medium" data-testid="lazada-status">
+        <p className={`mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${q.data.connected ? 'bg-emerald-50 text-emerald-800' : 'bg-[#F3F5F8] text-[#53647B]'}`} data-testid="lazada-status">
           <span className={`size-2.5 rounded-full ${q.data.connected ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
           {q.data.connected ? 'Terhubung' : 'Tidak Terhubung'}
         </p>
@@ -105,10 +108,10 @@ export function LazadaConnection() {
           Status Aktif berarti push bertanda tangan telah berhasil dibaca dari API, bukan konfirmasi subscription dari App Console.
         </p>}
         <div className="flex flex-wrap gap-2">
-          <Button onClick={connect} disabled={!q.data.configured || pending} data-testid="lazada-connect">
+          <Button className="min-h-11 rounded-xl px-4" onClick={connect} disabled={!q.data.configured || pending} data-testid="lazada-connect">
             {authorize.isPending ? 'Menyiapkan OAuth…' : q.data.lastCheckedAt ? 'Hubungkan ulang Lazada' : 'Hubungkan Lazada'}
           </Button>
-          <Button variant="outline" onClick={verify} disabled={!q.data.configured || !q.data.lastCheckedAt || pending} data-testid="lazada-check">
+          <Button className="min-h-11 rounded-xl px-4" variant="outline" onClick={verify} disabled={!q.data.configured || !q.data.lastCheckedAt || pending} data-testid="lazada-check">
             <RefreshCw className={`mr-2 size-4 ${check.isPending ? 'animate-spin' : ''}`} />
             {check.isPending ? 'Memeriksa…' : 'Cek koneksi'}
           </Button>

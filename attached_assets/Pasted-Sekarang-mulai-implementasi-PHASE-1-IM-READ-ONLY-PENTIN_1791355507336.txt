@@ -1,0 +1,75 @@
+Sekarang mulai implementasi PHASE 1 IM READ-ONLY.
+
+PENTING:
+Credential/database Lazada Replit dan VPS SENGAJA BERBEDA.
+Jangan meminta, menyalin, atau memasukkan credential/token VPS ke Replit.
+
+Implementasikan kode berdasarkan struktur repository yang sudah ada.
+
+Scope Phase 1 hanya:
+
+1. Lazada IM client terpisah:
+   artifacts/api-server/src/modules/lazada/im-client.ts
+
+2. Module IM:
+   artifacts/api-server/src/modules/lazada/im-chat.ts
+
+3. Route:
+   artifacts/api-server/src/routes/lazada-im.ts
+
+4. Register route di routes/index.ts dengan middleware session yang sudah ada.
+
+Endpoint provider yang diperlukan:
+- /im/session/list
+- /im/session/get
+- /im/message/list
+
+Untuk tahap ini:
+- READ-ONLY saja
+- jangan SendMessage
+- jangan ReadSession
+- jangan webhook
+- jangan polling
+- jangan database/schema migration
+- jangan mengubah order/payment/delivery
+- jangan mengubah OAuth yang sudah ada
+
+Gunakan signing/configuration utility existing ZETAS jika kompatibel.
+Jangan mengasumsikan host/signature berbeda tanpa bukti dokumentasi.
+
+GetSessionList gunakan kontrak dokumentasi:
+- start_time wajib
+- page_size wajib
+- last_session_id opsional
+- halaman pertama tidak mengirim last_session_id
+- page_size maksimum sesuai dokumentasi
+- response memiliki has_more, next_start_time, last_session_id, session_list
+
+Keamanan:
+- token hanya boleh berasal dari koneksi user yang sedang login
+- jangan pernah mengembalikan token/signature ke browser
+- jangan log token, secret, raw signed URL, raw message body
+- jangan menerima provider path arbitrary dari browser
+- jangan menyimpan pesan/buyer ke database
+
+Tambahkan test untuk:
+- authentication
+- user isolation
+- parameter validation
+- signing
+- provider error
+- malformed response
+- empty session list
+- pagination
+
+PENTING:
+Jangan deploy.
+Jangan mengubah credential.
+Jangan melakukan request ke Lazada dari environment Replit jika koneksi Lazada Replit belum tersedia.
+
+Setelah selesai:
+1. tampilkan file yang dibuat/diubah
+2. tampilkan hasil test
+3. jalankan typecheck/build
+4. pastikan git diff hanya berisi perubahan Phase 1 IM
+5. BERHENTI dan tunggu review.

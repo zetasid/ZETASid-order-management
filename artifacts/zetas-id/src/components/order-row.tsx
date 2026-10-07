@@ -8,6 +8,8 @@ import { ProductImage } from './product-image';
 
 export function OrderRow({ order, from, variant = 'default' }: { order: Order; from?: string; variant?: 'default' | 'orders' }) {
   const items = order.items ?? [];
+  const itemStatuses = items.map(item => item.sourceStatus).filter((status): status is string => typeof status === 'string' && status.length > 0);
+  const statusSource = itemStatuses.length ? itemStatuses : order.lazadaStatuses;
   const href = `/orders/${order.id}${from ? `?from=${encodeURIComponent(from)}` : ''}`;
 
   if (variant === 'orders') {
@@ -25,7 +27,7 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
           <div className="flex min-w-0 items-start justify-between gap-2">
             <p className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-5 text-[#14213A] sm:text-base">{order.productName?.trim() || 'Produk tidak tersedia'}</p>
             <div className="flex shrink-0 flex-col items-end gap-1 [&_[data-testid=status-pending]]:bg-[#FFF7ED] [&_[data-testid=status-pending]]:text-[#C2410C] [&_[data-testid=status-processing]]:bg-[#EFF6FF] [&_[data-testid=status-processing]]:text-[#2563EB] [&_[data-testid=status-completed]]:bg-[#F0FDF4] [&_[data-testid=status-completed]]:text-[#15803D] [&_[data-testid=status-cancelled]]:bg-[#FEF2F2] [&_[data-testid=status-cancelled]]:text-[#DC2626]">
-              <ProviderStatus status={order.status} />
+              <ProviderStatus status={order.status} source={statusSource} paymentStatus={order.paymentStatus} />
               <PaymentStatusBadge status={order.paymentStatus} />
             </div>
           </div>
@@ -50,7 +52,7 @@ export function OrderRow({ order, from, variant = 'default' }: { order: Order; f
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-[11px] font-mono text-muted-foreground truncate">#{order.marketplaceOrderId}</span>
           <div className="shrink-0">
-            <ProviderStatus status={order.status} source={order.lazadaStatuses} />
+            <ProviderStatus status={order.status} source={statusSource} paymentStatus={order.paymentStatus} />
           </div>
         </div>
         {/* Product info */}

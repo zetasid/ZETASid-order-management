@@ -31,6 +31,7 @@ const sample = { order_id: "1234", order_number: "1234", statuses: ["pending"], 
   created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" };
 const sampleItem = { order_id: "1234", order_item_id: "5678", name: "Dummy product", status: "pending",
   variation: "Dummy variation", sku: "dummy", item_price: 1000.25, currency: "IDR",
+  payment_time: "1750000000000", stage_pay_status: null,
   product_main_image: "https://images.example.invalid/dummy-product.webp",
   created_at: sample.created_at, updated_at: sample.updated_at, extra_attributes: "{\"destination\":\"not Digital Detail\"}" };
 
@@ -41,6 +42,8 @@ test("Read-only mapping preserves decimals, source status, SKU/variation and doe
   assert.equal(mapped.items[0].lazadaData.extra_attributes, sampleItem.extra_attributes);
   assert.equal(mapped.items[0].lazadaData.variation, sampleItem.variation);
   assert.equal(mapped.items[0].lazadaData.product_main_image, sampleItem.product_main_image);
+  assert.equal(mapped.items[0].lazadaData.payment_time, sampleItem.payment_time);
+  assert.equal(mapped.items[0].lazadaData.stage_pay_status, null);
   const raw = "{\"account\":\"dummy-only\"}";
   assert.equal(mapOrder(sample, [{ ...sampleItem, digital_delivery_info: raw }]).items[0].digitalDetail, raw);
   assert.equal(mapOrder({ ...sample, price: null }, [sampleItem]).header.amount, null);
@@ -122,15 +125,20 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = server.address().port;
   await new Promise(resolve => server.close(resolve));
-  const callsFile = `${dir}/calls`, controlFile = `${dir}/control`;
+  const callsFile = `${dir}/calls`, controlFile = `${dir}/control`, statusFile = `${dir}/status`;
   await writeFile(callsFile, ""); await writeFile(controlFile, "");
   const id = String(9000000000000000 + randomInt(1000000));
+  await writeFile(statusFile, JSON.stringify({
+    [id]: { headerStatus: "pending", paymentTime: "1750000000000", stagePayStatus: null },
+    [String(Number(id) + 1)]: { headerStatus: "pending", paymentTime: "1750000000000", stagePayStatus: null },
+  }));
   const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_APP_KEY: "999000",
     LAZADA_APP_SECRET: "dummy-orders-secret-not-real", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     LAZADA_REDIRECT_URI: "https://testing.example.invalid/api/lazada/oauth/callback", APP_ORIGIN: "https://testing.example.invalid" };
   const child = spawn(process.execPath, ["--import", "./tests/fixtures/lazada-provider.mjs", "artifacts/api-server/dist/index.mjs"], {
     env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test",
-      LAZADA_TEST_ORDER_ID: id, LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile },
+      LAZADA_TEST_ORDER_ID: id, LAZADA_TEST_CALLS_FILE: callsFile, LAZADA_TEST_CONTROL_FILE: controlFile,
+      LAZADA_TEST_STATUS_FILE: statusFile },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let logs = ""; child.stdout.on("data", data => { logs += data; }); child.stderr.on("data", data => { logs += data; });
@@ -174,8 +182,18 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       assert.equal(order.items[0].productMainImage, "https://images.example.invalid/dummy-product.webp");
       assert.equal(order.items[0].sourceStatus, "pending"); assert.ok(order.items[0].digitalDetail.includes("test_only_destination"));
       const second = await (await request(`/orders/${rows.find(row => row.lazada_order_id !== id).id}`)).json();
+      assert.match(second.sourceCreatedAt, /^2020-01-15/, "An older order is included by its recent Lazada update timestamp");
       assert.equal(second.items[0].digitalDetail, null); assert.equal(second.items[0].digitalDetailSource, null);
       assert.equal((await f.pool.query("SELECT count(*)::int AS n FROM order_items WHERE order_id=ANY($1)", [rows.map(row => row.id)])).rows[0].n, 2);
+      await writeFile(controlFile, "orders-progressed");
+      const progressResponse = await request("/lazada/orders/sync", "POST"); assert.equal(progressResponse.status, 200);
+      const progressResult = await progressResponse.json(); syncTimes.push(progressResult.syncedAt);
+      assert.equal(progressResult.ordersRead, 2);
+      const progressed = await (await request(`/orders/${rows.find(row => row.lazada_order_id !== id).id}`)).json();
+      assert.equal(progressed.status, "processing", "Manual update-time sync refreshes an existing pending order to packed");
+      assert.equal(progressed.paymentStatus, "confirmed", "Payment time remains authoritative while workflow status advances");
+      assert.equal(progressed.items[0].status, "processing");
+      assert.equal(progressed.items[0].sourceStatus, "packed");
     });
     await t.test("Fractional completed amounts remain valid in the existing dashboard contract", async () => {
       const before = await (await request("/dashboard/summary")).json();
@@ -183,7 +201,8 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       const response = await request("/lazada/orders/sync", "POST"); assert.equal(response.status, 200);
       syncTimes.push((await response.json()).syncedAt);
       const summary = await request("/dashboard/summary"); assert.equal(summary.status, 200);
-      assert.equal((await summary.json()).totalRevenue, before.totalRevenue + 24000.5);
+      assert.equal((await summary.json()).totalRevenue, before.totalRevenue + 12000.25,
+        "The already-progressed paid order is in the baseline; delivery completes the remaining order");
     });
     await t.test("Bad items and permission failures leave previous order data unchanged", async () => {
       const before = (await f.pool.query("SELECT lazada_data,synced_at FROM orders WHERE lazada_order_id=$1", [id])).rows[0];
@@ -195,6 +214,8 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       }
     });
     const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
+    assert.ok(calls.filter(call => call.path === "/orders/get").every(call => call.updateAfter),
+      "Manual sync uses Lazada's update_after filter instead of only created_after");
     assert.ok(calls.length >= 6);
     assert.ok(calls.every(call => call.method === "GET" && ["/orders/get", "/order/items/get"].includes(call.path)));
     for (const secret of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, "test-only-orders-token"])

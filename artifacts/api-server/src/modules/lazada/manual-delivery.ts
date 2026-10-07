@@ -93,8 +93,10 @@ async function findOrder(tx: OrderTx, orderId: string) {
 }
 
 function allItemsExplicitlyDigital(items: readonly { lazadaData: OrderItem["lazadaData"] }[]) {
-  return items.length > 0 && items.every(item => item.lazadaData?.is_digital === true);
-}
+  return items.length > 0 && items.every(item =>
+  item.lazadaData?.is_digital === true ||
+  item.lazadaData?.is_digital === 1
+);
 
 async function refreshOrderFromLazada(tx: OrderTx, order: Awaited<ReturnType<typeof findOrder>>,
   accessToken: string, client: ReturnType<typeof createClient>): Promise<RefreshedOrder> {

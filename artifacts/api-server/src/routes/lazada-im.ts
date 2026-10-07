@@ -1,14 +1,42 @@
 import { Router } from "express";
+import { AuthorizeLazadaImResponse, GetLazadaImConnectionResponse } from "@workspace/api-zod";
 import { LazadaError } from "../modules/lazada/client";
 import { getImMessages, getImSessionDetail, getImSessionList } from "../modules/lazada/im-chat";
 import { imPageSizeLimit } from "../modules/lazada/im-client";
+import { imConfiguration } from "../modules/lazada/security";
+import {
+  imConnectionStatus,
+  imOAuthCookieName,
+  startImAuthorization,
+} from "../modules/lazada/im-connection";
 
 const router = Router();
 const SESSION_ID = /^[A-Za-z0-9._:-]{1,256}$/;
+const oauthCookieOptions = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax" as const,
+  path: "/api/lazada/oauth/callback",
+};
 
 router.use((_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
+});
+
+router.get("/lazada/im/connection", async (_req, res) => {
+  res.json(GetLazadaImConnectionResponse.parse(await imConnectionStatus(res.locals.auth.user.id)));
+});
+
+router.post("/lazada/im/oauth/authorize", async (req, res) => {
+  const config = imConfiguration();
+  if (!config) { res.status(503).json({ error: "Konfigurasi Lazada IM Chat belum lengkap atau tidak valid." }); return; }
+  if (!req.secure) { res.status(400).json({ error: "OAuth Lazada IM Chat hanya dapat dimulai melalui HTTPS." }); return; }
+  const result = await startImAuthorization(config, res.locals.auth.user.id, res.locals.auth.tokenHash);
+  res.cookie(imOAuthCookieName, result.browser, { ...oauthCookieOptions, maxAge: 10 * 60_000 });
+  res.set("Referrer-Policy", "no-referrer").json(AuthorizeLazadaImResponse.parse({
+    authorizationUrl: result.authorizationUrl,
+  }));
 });
 
 function queryString(value: unknown): string | undefined | null {

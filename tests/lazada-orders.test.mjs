@@ -133,7 +133,8 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
     [String(Number(id) + 1)]: { headerStatus: "pending", paymentTime: "1750000000000", stagePayStatus: null },
   }));
   const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_APP_KEY: "999000",
-    LAZADA_APP_SECRET: "dummy-orders-secret-not-real", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
+    LAZADA_APP_SECRET: "dummy-orders-secret-not-real", LAZADA_IM_APP_KEY: "999001",
+    LAZADA_IM_APP_SECRET: "dummy-im-orders-secret-not-real", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     LAZADA_REDIRECT_URI: "https://testing.example.invalid/api/lazada/oauth/callback", APP_ORIGIN: "https://testing.example.invalid" };
   const child = spawn(process.execPath, ["--import", "./tests/fixtures/lazada-provider.mjs", "artifacts/api-server/dist/index.mjs"], {
     env: { ...process.env, ...env, PORT: String(port), NODE_ENV: "test",
@@ -161,6 +162,12 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       (user_id, encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at, verified, checked_at)
       VALUES ($1,$2,$3,'id',now()+interval '1 hour',now()+interval '2 hour','yes',now())`, [
       f.id, security.seal(JSON.stringify({ accessToken: "test-only-orders-token" }), config, f.id), config.fingerprint,
+    ]);
+    const imConfig = security.imConfiguration(env);
+    await f.pool.query(`INSERT INTO lazada_im_connections
+      (user_id, encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at)
+      VALUES ($1,$2,$3,'id',now()+interval '1 hour',now()+interval '2 hour')`, [
+      f.id, security.seal(JSON.stringify({ accessToken: "test-only-im-access-token" }), imConfig, f.id), imConfig.fingerprint,
     ]);
     await t.test("Authentication, CSRF and invalid date range reject before provider traffic", async () => {
       assert.equal((await request("/lazada/orders/sync", "POST", {}, false)).status, 401);
@@ -216,12 +223,15 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
     const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
     const orderCalls = calls.filter(call => call.path === "/orders/get");
     assert.ok(orderCalls.length > 0);
+    assert.ok(calls.filter(call => ["/orders/get", "/order/items/get"].includes(call.path))
+      .every(call => call.tokenSource === "seller"), "Order client must not use the separate IM token");
     assert.ok(orderCalls.every(call => call.updateAfter === payload.createdAfter
       && call.updateBefore === payload.createdBefore && call.createdAfter === null),
     "Manual sync uses Lazada's update_after/update_before filters instead of created_after");
     assert.ok(calls.length >= 6);
     assert.ok(calls.every(call => call.method === "GET" && ["/orders/get", "/order/items/get"].includes(call.path)));
-    for (const secret of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, "test-only-orders-token"])
+    for (const secret of [env.LAZADA_APP_SECRET, env.LAZADA_IM_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY,
+      "test-only-orders-token", "test-only-im-access-token"])
       assert.ok(!logs.includes(secret), "No credential or token values in logs");
   } finally {
     child.kill("SIGTERM"); await exit;

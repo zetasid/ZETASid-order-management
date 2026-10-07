@@ -32,6 +32,8 @@ import type {
   HealthStatus,
   LazadaAuthorization,
   LazadaConnection,
+  LazadaImAuthorization,
+  LazadaImConnection,
   LazadaOAuthCallbackParams,
   LazadaOrderNotification,
   LazadaOrderPushStatus,
@@ -441,6 +443,175 @@ export function useGetLazadaConnection<TData = Awaited<ReturnType<typeof getLaza
 
 
 
+export const getGetLazadaImConnectionUrl = () => {
+
+
+
+
+  return `/api/lazada/im/connection`
+}
+
+/**
+ * @summary Private Lazada In-house IM Chat connection status
+ */
+export const getLazadaImConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<LazadaImConnection> => {
+
+  return customFetch<LazadaImConnection>(getGetLazadaImConnectionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLazadaImConnectionQueryKey = () => {
+    return [
+    `/api/lazada/im/connection`
+    ] as const;
+    }
+
+
+export const getGetLazadaImConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getLazadaImConnection>>, TError = ErrorType<AuthErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLazadaImConnectionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLazadaImConnection>>> = ({ signal }) => getLazadaImConnection({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLazadaImConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getLazadaImConnection>>>
+export type GetLazadaImConnectionQueryError = ErrorType<AuthErrorResponse>
+
+
+export function useGetLazadaImConnection<TData = Awaited<ReturnType<typeof getLazadaImConnection>>, TError = ErrorType<AuthErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLazadaImConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getLazadaImConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLazadaImConnection<TData = Awaited<ReturnType<typeof getLazadaImConnection>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLazadaImConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getLazadaImConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLazadaImConnection<TData = Awaited<ReturnType<typeof getLazadaImConnection>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Private Lazada In-house IM Chat connection status
+ */
+
+export function useGetLazadaImConnection<TData = Awaited<ReturnType<typeof getLazadaImConnection>>, TError = ErrorType<AuthErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLazadaImConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLazadaImConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAuthorizeLazadaImUrl = () => {
+
+
+
+
+  return `/api/lazada/im/oauth/authorize`
+}
+
+export const authorizeLazadaIm = async ( options?: Parameters<typeof customFetch>[1]): Promise<LazadaImAuthorization> => {
+
+  return customFetch<LazadaImAuthorization>(getAuthorizeLazadaImUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthorizeLazadaImMutationKey = () => ['authorizeLazadaIm'] as const;
+
+export const getAuthorizeLazadaImMutationOptions = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeLazadaIm>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeLazadaIm>>, TError,void, TContext> => {
+
+const mutationKey = getAuthorizeLazadaImMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeLazadaIm>>, void> = () => {
+
+
+          return  authorizeLazadaIm(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthorizeLazadaImMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeLazadaIm>>>
+
+    export type AuthorizeLazadaImMutationError = ErrorType<AuthErrorResponse>
+
+
+    export const useAuthorizeLazadaIm = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeLazadaIm>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof authorizeLazadaIm>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAuthorizeLazadaImMutationOptions(options), queryClient);
+    }
+
 export const getAuthorizeLazadaUrl = () => {
 
 
@@ -525,7 +696,7 @@ export const getLazadaOAuthCallbackUrl = (params?: LazadaOAuthCallbackParams,) =
 }
 
 /**
- * HTTPS only; single-use state, browser binding and initiating session required
+ * HTTPS only; single-use state, browser binding and initiating session required. The configured callback URL dispatches IM requests by their separate state format and cookie.
  */
 export const lazadaOAuthCallback = async (params?: LazadaOAuthCallbackParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 

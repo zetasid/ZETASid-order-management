@@ -8,7 +8,7 @@
 - [Negative security tests](negative-security-tests.md) — denial alone does not prove the intended guard ran; verify prerequisites and observable checkpoints.
 - [GitHub and Git authentication](github-git-authentication.md) — working API authorization does not prove native Git credentials work; check both separately.
 - [Logo pilihan pengguna](brand-logo.md) — gunakan logo ZETAS.id biru/cyan yang diberikan pengguna, bukan simbol Z pengganti.
-- [Aplikasi Lazada pengguna](lazada-app-context.md) — pengguna telah membuat Seller In-house APP dengan status Testing.
+- [Aplikasi Lazada pengguna](lazada-app-context.md) — Seller app berstatus Testing; IM Chat memakai aplikasi dan kredensial OAuth terpisah.
 - [Lazada status interpretation](lazada-status-interpretation.md) — keep payment-header eligibility separate from item workflow; exclude pending, cancelled, or unknown orders from revenue.
 - [ZETAS operator UI](mobile-operator-ui.md) — prioritize quick, thumb-friendly Android order handling; UI work must not add unsupported settings or change transaction/backend behavior.
 - [Webhook ACK lock isolation](webhook-ack-lock-isolation.md) — durable receipts must not wait on monitoring rows locked by slow provider-API workers.

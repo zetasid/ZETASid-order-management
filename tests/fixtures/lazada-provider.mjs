@@ -11,7 +11,16 @@ globalThis.fetch = async (input, options = {}) => {
     || !["/auth/token/create", "/seller/get", "/orders/get", "/order/get", "/order/items/get", "/order/digital/delivered",
       "/im/session/list", "/im/session/get", "/im/message/list"].includes(path)) throw new Error("Unexpected provider API in test");
   const params = Object.fromEntries(new URLSearchParams(options.body ?? url.search));
-  const call = { method: options.method, path, parameterNames: Object.keys(params).sort() };
+  const call = {
+    method: options.method,
+    path,
+    parameterNames: Object.keys(params).sort(),
+    appKey: params.app_key ?? null,
+    tokenSource: params.access_token
+      ? params.access_token === "test-only-im-access-token" ? "im"
+        : ["test-only-access-token", "test-only-orders-token"].includes(params.access_token) ? "seller" : "other"
+      : null,
+  };
   if (path === "/orders/get") {
     call.createdAfter = params.created_after ?? null;
     call.updateAfter = params.update_after ?? null;
@@ -23,7 +32,9 @@ globalThis.fetch = async (input, options = {}) => {
     call.cursor = params.last_session_id ?? params.last_message_id ?? null;
   }
   appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify(call)}\n`);
-  const expected = createHmac("sha256", process.env.LAZADA_APP_SECRET).update(path + Object.keys(params)
+  const appSecret = params.app_key === process.env.LAZADA_IM_APP_KEY
+    ? process.env.LAZADA_IM_APP_SECRET : process.env.LAZADA_APP_SECRET;
+  const expected = createHmac("sha256", appSecret).update(path + Object.keys(params)
     .filter(k => k !== "sign").sort().map(k => k + params[k]).join("")).digest("hex").toUpperCase();
   const json = body => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
   if (params.sign !== expected) return json({ code: "IncompleteSignature" });
@@ -67,8 +78,10 @@ globalThis.fetch = async (input, options = {}) => {
   if (path === "/auth/token/create") {
     if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });
     if (params.code === "slow") await setTimeout(250);
+    const isImApp = params.app_key === process.env.LAZADA_IM_APP_KEY;
     return json({ code: "0", country: params.code === "wrong-country" ? "sg" : "id",
-      access_token: "test-only-access-token", refresh_token: "test-only-refresh-token",
+      access_token: isImApp ? "test-only-im-access-token" : "test-only-access-token",
+      refresh_token: isImApp ? "test-only-im-refresh-token" : "test-only-refresh-token",
       expires_in: 3600, refresh_expires_in: 7200 });
   }
   const control = readFileSync(process.env.LAZADA_TEST_CONTROL_FILE, "utf8");

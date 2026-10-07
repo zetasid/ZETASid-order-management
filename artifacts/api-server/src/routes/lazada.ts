@@ -1,9 +1,14 @@
 import { Router, type CookieOptions } from "express";
 import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaOrdersBody, SyncLazadaOrdersResponse } from "@workspace/api-zod";
 import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
-import { configuration, validNonce } from "../modules/lazada/security";
+import { configuration, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
 import { syncOrders } from "../modules/lazada/order-sync";
+import {
+  finishImAuthorization,
+  imOAuthCookieName,
+  isImOAuthState,
+} from "../modules/lazada/im-connection";
 
 const BROWSER_COOKIE = "zetas_lazada_oauth";
 const options: CookieOptions = { httpOnly: true, secure: true, sameSite: "lax", path: "/api/lazada/oauth/callback" };
@@ -37,6 +42,25 @@ lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  if (isImOAuthState(req.query.state)) {
+    const browser: unknown = req.cookies?.[imOAuthCookieName];
+    let outcome = "authorization_failed";
+    try {
+      const config: LazadaConfig | null = imConfiguration();
+      if (!req.secure || !config || !validNonce(browser)) throw new LazadaError("authorization_failed");
+      const code = typeof req.query.code === "string" && req.query.code.length > 0 && req.query.code.length <= 2048
+        && !req.query.error ? req.query.code : null;
+      await finishImAuthorization(config, req.query.state, browser, code);
+      outcome = "connected";
+    } catch (error) {
+      if (error instanceof LazadaError) outcome = error.reason;
+      req.log.warn({ outcome }, "Lazada IM authorization not completed");
+    }
+    res.clearCookie(imOAuthCookieName, options);
+    res.redirect(303, `/settings?lazada_im=${outcome}`);
+    return;
+  }
+
   const config = configuration();
   const browser: unknown = req.cookies?.[BROWSER_COOKIE];
   let outcome = "authorization_failed";

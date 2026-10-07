@@ -104,13 +104,28 @@ export const GetLazadaConnectionResponse = zod.object({
 })
 
 
+/**
+ * @summary Private Lazada In-house IM Chat connection status
+ */
+export const GetLazadaImConnectionResponse = zod.object({
+  "configured": zod.boolean(),
+  "status": zod.enum(['not_configured', 'not_connected', 'connected', 'expired']),
+  "expiresAt": zod.coerce.date().nullable()
+})
+
+
+export const AuthorizeLazadaImResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
 export const AuthorizeLazadaResponse = zod.object({
   "authorizationUrl": zod.string()
 })
 
 
 /**
- * HTTPS only; single-use state, browser binding and initiating session required
+ * HTTPS only; single-use state, browser binding and initiating session required. The configured callback URL dispatches IM requests by their separate state format and cookie.
  */
 export const LazadaOAuthCallbackQueryParams = zod.object({
   "state": zod.coerce.string().optional(),

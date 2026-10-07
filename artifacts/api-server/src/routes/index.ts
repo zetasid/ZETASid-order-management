@@ -4,6 +4,7 @@ import ordersRouter from "./orders";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
 import { lazadaRouter, lazadaCallbackRouter } from "./lazada";
+import lazadaImRouter from "./lazada-im";
 import lazadaOrderStatusRouter from "./lazada-order-status";
 import { requireSession, requireSameOrigin, requireCsrf } from "../modules/auth/session";
 
@@ -18,6 +19,7 @@ router.use((req, res, next) => {
   requireSameOrigin(req, res, () => { requireCsrf(req, res, next); });
 });
 router.use(lazadaRouter);
+router.use(lazadaImRouter);
 router.use(lazadaOrderStatusRouter);
 router.use(ordersRouter);
 router.use(dashboardRouter);

@@ -16,18 +16,27 @@ function queryString(value: unknown): string | undefined | null {
   return typeof value === "string" ? value : null;
 }
 
+function validTimestamp(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{1,16}$/.test(value)
+    && Number.isSafeInteger(Number(value)) && Number(value) > 0;
+}
+
 function pageInput(query: Record<string, unknown>, cursorName: "last_session_id" | "last_message_id") {
-  const startTime = queryString(query.start_time);
+  if (Object.hasOwn(query, "start_time")) return null;
   const rawPageSize = queryString(query.page_size);
+  const nextStartTime = queryString(query.next_start_time);
   const rawCursor = queryString(query[cursorName]);
-  if (!startTime || !/^\d{1,16}$/.test(startTime) || !Number.isSafeInteger(Number(startTime))
-    || Number(startTime) <= 0 || !rawPageSize || !/^\d{1,2}$/.test(rawPageSize)) return null;
+  if (nextStartTime === null || rawCursor === null || !rawPageSize || !/^\d{1,2}$/.test(rawPageSize))
+    return null;
   const pageSize = Number(rawPageSize);
   if (pageSize < 1 || pageSize > imPageSizeLimit) return null;
-  if (rawCursor === null) return null;
   const cursor = rawCursor?.trim() || undefined;
-  if (cursor !== undefined && !SESSION_ID.test(cursor)) return null;
-  return { startTime, pageSize, ...(cursor ? { cursor } : {}) };
+  if (nextStartTime === undefined) {
+    if (cursor !== undefined) return null;
+    return { startTime: String(Date.now()), pageSize };
+  }
+  if (!validTimestamp(nextStartTime) || !cursor || !SESSION_ID.test(cursor)) return null;
+  return { startTime: nextStartTime, pageSize, cursor };
 }
 
 function validSessionId(value: unknown): value is string {

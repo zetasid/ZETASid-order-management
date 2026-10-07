@@ -11,7 +11,13 @@ globalThis.fetch = async (input, options = {}) => {
     || !["/auth/token/create", "/seller/get", "/orders/get", "/order/get", "/order/items/get", "/order/digital/delivered",
       "/im/session/list", "/im/session/get", "/im/message/list"].includes(path)) throw new Error("Unexpected provider API in test");
   const params = Object.fromEntries(new URLSearchParams(options.body ?? url.search));
-  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify({ method: options.method, path, parameterNames: Object.keys(params).sort() })}\n`);
+  const call = { method: options.method, path, parameterNames: Object.keys(params).sort() };
+  if (path.startsWith("/im/")) {
+    call.startTime = params.start_time ?? null;
+    call.pageSize = params.page_size ?? null;
+    call.cursor = params.last_session_id ?? params.last_message_id ?? null;
+  }
+  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify(call)}\n`);
   const expected = createHmac("sha256", process.env.LAZADA_APP_SECRET).update(path + Object.keys(params)
     .filter(k => k !== "sign").sort().map(k => k + params[k]).join("")).digest("hex").toUpperCase();
   const json = body => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
@@ -20,27 +26,30 @@ globalThis.fetch = async (input, options = {}) => {
     if (options.method !== "GET") throw new Error("IM read endpoints must use GET");
     const control = readFileSync(process.env.LAZADA_TEST_CONTROL_FILE, "utf8");
     if (control === "im-network") throw new Error("test-only-private-provider-detail");
-    if (control === "im-permission") return json({ code: "InsufficientPermissions", message: "test-only-permission-detail" });
+    if (control === "im-permission") return json({
+      success: false, err_code: "InsufficientPermissions", err_message: "test-only-permission-detail", data: null,
+    });
+    const success = data => ({ success: true, err_code: "0", err_message: "SUCCESS", data });
     if (path === "/im/session/list") {
-      if (control === "im-malformed") return json({ code: "0", data: { has_more: "yes", session_list: "invalid" } });
-      if (control === "im-empty") return json({ code: "0", data: {
+      if (control === "im-malformed") return json(success({ has_more: "yes", session_list: "invalid" }));
+      if (control === "im-empty") return json(success({
         has_more: false, next_start_time: null, last_session_id: null, session_list: [],
-      } });
-      return json({ code: "0", data: {
+      }));
+      return json(success({
         has_more: true, next_start_time: "1700000001000", last_session_id: "fixture-session-1",
         session_list: [{
           session_id: "fixture-session-1", summary: "synthetic test summary", title: "Synthetic test buyer",
           last_message_id: "fixture-message-1", last_message_time: 1700000000000, unread_count: 1,
           tags: ["fixture"], site_id: "ID",
         }],
-      } });
+      }));
     }
-    if (path === "/im/session/get") return json({ code: "0", data: {
+    if (path === "/im/session/get") return json(success({
       session_id: params.session_id, content: "synthetic test summary", title: "Synthetic test buyer",
       last_message_id: "fixture-message-1", last_message_time: 1700000000000, unread_count: 1,
       tags: ["fixture"], site_id: "ID",
-    } });
-    if (path === "/im/message/list") return json({ code: "0", data: {
+    }));
+    if (path === "/im/message/list") return json(success({
       has_more: true, next_start_time: "1700000001000", last_message_id: "fixture-message-1",
       message_list: [{
         message_id: "fixture-message-1", content: "{\"txt\":\"synthetic test message\"}",
@@ -48,7 +57,7 @@ globalThis.fetch = async (input, options = {}) => {
         type: 1, process_msg: "", status: 0, auto_reply: false, site_id: "ID",
         from_account_id: "private-fixture-buyer-id",
       }],
-    } });
+    }));
   }
   if (path === "/auth/token/create") {
     if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });

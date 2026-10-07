@@ -14,4 +14,4 @@
 - [Webhook ACK lock isolation](webhook-ack-lock-isolation.md) — durable receipts must not wait on monitoring rows locked by slow provider-API workers.
 - [Public webhook verification](public-webhook-verification.md) — internal requests can bypass private-app login; verify access and the public certificate independently.
 - [Lazada IM request volume](lazada-im-request-volume.md) — the official IM API docs prohibit polling session and message list endpoints; keep reads explicit and sparse.
-- [Lazada IM API contract gaps](lazada-im-api-contract.md) — the shared IM reference omits transport method, common signing, and the top-level response envelope; do not infer them from order APIs.
+- [Lazada IM API contract gaps](lazada-im-api-contract.md) — use documented pagination and IM response envelope; keep method and signing unconfirmed unless an IM-specific source verifies them.

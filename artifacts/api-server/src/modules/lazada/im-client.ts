@@ -150,6 +150,15 @@ function providerFailure(code: unknown, httpStatus?: number): LazadaError {
   return new LazadaError("api_unavailable");
 }
 
+function isSuccessCode(value: unknown): boolean {
+  return value === 0 || value === "0";
+}
+
+function responseErrorCode(body: JsonRecord): unknown {
+  if (body.err_code !== undefined && !isSuccessCode(body.err_code)) return body.err_code;
+  return body.code ?? body.err_code;
+}
+
 export function createImClient(config: LazadaConfig, transport: typeof fetch = fetch) {
   async function call(path: typeof sessionPath | typeof detailPath | typeof messagesPath,
     accessToken: string, business: Record<string, string>): Promise<JsonRecord> {
@@ -171,8 +180,11 @@ export function createImClient(config: LazadaConfig, transport: typeof fetch = f
     let body: unknown;
     try { body = JSON.parse(text); } catch { throw new LazadaError("invalid_response"); }
     if (!isRecord(body)) throw new LazadaError("invalid_response");
-    if (!response.ok) throw providerFailure(body.code, response.status);
-    if (String(body.code) !== "0") throw providerFailure(body.code);
+    if (!response.ok) throw providerFailure(responseErrorCode(body), response.status);
+    if (body.success !== true) throw providerFailure(responseErrorCode(body));
+    if (!isSuccessCode(body.err_code)) throw providerFailure(body.err_code);
+    if (body.code !== undefined && !isSuccessCode(body.code))
+      throw providerFailure(body.code);
     if (!isRecord(body.data)) throw new LazadaError("invalid_response");
     return body.data;
   }

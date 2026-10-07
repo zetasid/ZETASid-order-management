@@ -13,3 +13,4 @@
 - [ZETAS operator UI](mobile-operator-ui.md) — prioritize quick, thumb-friendly Android order handling; UI work must not add unsupported settings or change transaction/backend behavior.
 - [Webhook ACK lock isolation](webhook-ack-lock-isolation.md) — durable receipts must not wait on monitoring rows locked by slow provider-API workers.
 - [Public webhook verification](public-webhook-verification.md) — internal requests can bypass private-app login; verify access and the public certificate independently.
+- [Lazada IM request volume](lazada-im-request-volume.md) — the official IM API docs prohibit polling session and message list endpoints; keep reads explicit and sparse.

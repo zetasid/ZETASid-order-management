@@ -8,13 +8,48 @@ globalThis.fetch = async (input, options = {}) => {
   const url = new URL(String(input));
   const path = url.pathname.replace(/^\/rest/, "");
   if (!["https://auth.lazada.com", "https://api.lazada.co.id"].includes(url.origin)
-    || !["/auth/token/create", "/seller/get", "/orders/get", "/order/get", "/order/items/get", "/order/digital/delivered"].includes(path)) throw new Error("Unexpected provider API in test");
-  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify({ method: options.method, path })}\n`);
+    || !["/auth/token/create", "/seller/get", "/orders/get", "/order/get", "/order/items/get", "/order/digital/delivered",
+      "/im/session/list", "/im/session/get", "/im/message/list"].includes(path)) throw new Error("Unexpected provider API in test");
   const params = Object.fromEntries(new URLSearchParams(options.body ?? url.search));
+  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify({ method: options.method, path, parameterNames: Object.keys(params).sort() })}\n`);
   const expected = createHmac("sha256", process.env.LAZADA_APP_SECRET).update(path + Object.keys(params)
     .filter(k => k !== "sign").sort().map(k => k + params[k]).join("")).digest("hex").toUpperCase();
   const json = body => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
   if (params.sign !== expected) return json({ code: "IncompleteSignature" });
+  if (path.startsWith("/im/")) {
+    if (options.method !== "GET") throw new Error("IM read endpoints must use GET");
+    const control = readFileSync(process.env.LAZADA_TEST_CONTROL_FILE, "utf8");
+    if (control === "im-network") throw new Error("test-only-private-provider-detail");
+    if (control === "im-permission") return json({ code: "InsufficientPermissions", message: "test-only-permission-detail" });
+    if (path === "/im/session/list") {
+      if (control === "im-malformed") return json({ code: "0", data: { has_more: "yes", session_list: "invalid" } });
+      if (control === "im-empty") return json({ code: "0", data: {
+        has_more: false, next_start_time: null, last_session_id: null, session_list: [],
+      } });
+      return json({ code: "0", data: {
+        has_more: true, next_start_time: "1700000001000", last_session_id: "fixture-session-1",
+        session_list: [{
+          session_id: "fixture-session-1", summary: "synthetic test summary", title: "Synthetic test buyer",
+          last_message_id: "fixture-message-1", last_message_time: 1700000000000, unread_count: 1,
+          tags: ["fixture"], site_id: "ID",
+        }],
+      } });
+    }
+    if (path === "/im/session/get") return json({ code: "0", data: {
+      session_id: params.session_id, content: "synthetic test summary", title: "Synthetic test buyer",
+      last_message_id: "fixture-message-1", last_message_time: 1700000000000, unread_count: 1,
+      tags: ["fixture"], site_id: "ID",
+    } });
+    if (path === "/im/message/list") return json({ code: "0", data: {
+      has_more: true, next_start_time: "1700000001000", last_message_id: "fixture-message-1",
+      message_list: [{
+        message_id: "fixture-message-1", content: "{\"txt\":\"synthetic test message\"}",
+        from_account_type: 1, send_time: 1700000000000, template_id: 1, to_account_type: 2,
+        type: 1, process_msg: "", status: 0, auto_reply: false, site_id: "ID",
+        from_account_id: "private-fixture-buyer-id",
+      }],
+    } });
+  }
   if (path === "/auth/token/create") {
     if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });
     if (params.code === "slow") await setTimeout(250);

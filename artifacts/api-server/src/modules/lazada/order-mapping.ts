@@ -64,8 +64,15 @@ export function mapOrder(raw: ProviderRecord, items: ProviderRecord[]) {
     seen.add(itemId);
     // No extra_attributes guessing: use only the documented digital_delivery_info field.
     const digital = Object.hasOwn(item, "digital_delivery_info") ? item.digital_delivery_info : null;
-    const lazadaData = pick(item, itemKeys);
-    if (Object.hasOwn(lazadaData, "product_main_image"))
+const lazadaData = pick(item, itemKeys);
+
+if (Object.hasOwn(lazadaData, "is_digital")
+  && typeof lazadaData.is_digital === "number"
+  && (lazadaData.is_digital === 0 || lazadaData.is_digital === 1)) {
+  lazadaData.is_digital = lazadaData.is_digital === 1;
+}
+
+if (Object.hasOwn(lazadaData, "product_main_image"))
       lazadaData.product_main_image = httpsProductImageUrl(lazadaData.product_main_image);
     return { lazadaOrderItemId: itemId, productName: item.name, digitalDetail: digital,
       lazadaData, status: localStatus([item.status]),

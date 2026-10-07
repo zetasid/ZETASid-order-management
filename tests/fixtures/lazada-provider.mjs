@@ -12,6 +12,11 @@ globalThis.fetch = async (input, options = {}) => {
       "/im/session/list", "/im/session/get", "/im/message/list"].includes(path)) throw new Error("Unexpected provider API in test");
   const params = Object.fromEntries(new URLSearchParams(options.body ?? url.search));
   const call = { method: options.method, path, parameterNames: Object.keys(params).sort() };
+  if (path === "/orders/get") {
+    call.createdAfter = params.created_after ?? null;
+    call.updateAfter = params.update_after ?? null;
+    call.updateBefore = params.update_before ?? null;
+  }
   if (path.startsWith("/im/")) {
     call.startTime = params.start_time ?? null;
     call.pageSize = params.page_size ?? null;
@@ -109,6 +114,7 @@ globalThis.fetch = async (input, options = {}) => {
     };
     const statusFor = id => {
       if (deliveredOrderIds.has(String(id)) || control === "orders-delivered") return "delivered";
+      if (control === "orders-progressed" && String(id) === second) return "packed";
       return configuredStatus(id)?.itemStatus ?? "pending";
     };
     const headerStatusFor = id => {
@@ -121,8 +127,21 @@ globalThis.fetch = async (input, options = {}) => {
       if (configured.includeIsDigital === false) return undefined;
       return Object.hasOwn(configured, "isDigital") ? configured.isDigital : true;
     };
-    const order = id => ({ order_id: id, order_number: id, items_count: 1, price: "12000.25",
-      statuses: [headerStatusFor(id)], created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" });
+    const paymentFieldsFor = id => {
+      const configured = configuredStatus(id);
+      if (!configured) return {};
+      return {
+        ...(Object.hasOwn(configured, "paymentTime") ? { payment_time: configured.paymentTime } : {}),
+        ...(Object.hasOwn(configured, "stagePayStatus") ? { stage_pay_status: configured.stagePayStatus } : {}),
+      };
+    };
+    const order = id => {
+      const isOlderOrder = String(id) === second;
+      return { order_id: id, order_number: id, items_count: 1, price: "12000.25",
+        statuses: [headerStatusFor(id)],
+        created_at: isOlderOrder ? "2020-01-15 10:00:00 +0700" : "2026-09-20 10:00:00 +0700",
+        updated_at: "2026-09-20 10:01:00 +0700" };
+    };
     if (path === "/orders/get") return json({ code: "0", data: { count: 2, countTotal: 2,
       orders: Number(params.offset) ? [] : [order(first), order(second)] } });
     if (path === "/order/get") return json({ code: "0", data: order(params.order_id) });
@@ -133,6 +152,7 @@ globalThis.fetch = async (input, options = {}) => {
       order_id: params.order_id, order_item_id: String(Number(params.order_id) + 100),
       name: "Dummy phase-eight product, not real seller data", item_price: 12000.25, paid_price: 12000.25,
       variation: "Dummy variation", sku: "test-only-sku", shop_sku: "test-only-shop-sku", currency: "IDR", status: statusFor(params.order_id),
+      ...paymentFieldsFor(params.order_id),
       ...(isDigitalFor(params.order_id) === undefined ? {} : { is_digital: isDigitalFor(params.order_id) }),
       product_main_image: "https://images.example.invalid/dummy-product.webp",
       created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700",

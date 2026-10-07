@@ -214,8 +214,11 @@ test("Manual READ-ONLY sync — API/CSRF, PostgreSQL, idempotency, atomic failur
       }
     });
     const calls = (await readFile(callsFile, "utf8")).trim().split("\n").map(JSON.parse);
-    assert.ok(calls.filter(call => call.path === "/orders/get").every(call => call.updateAfter),
-      "Manual sync uses Lazada's update_after filter instead of only created_after");
+    const orderCalls = calls.filter(call => call.path === "/orders/get");
+    assert.ok(orderCalls.length > 0);
+    assert.ok(orderCalls.every(call => call.updateAfter === payload.createdAfter
+      && call.updateBefore === payload.createdBefore && call.createdAfter === null),
+    "Manual sync uses Lazada's update_after/update_before filters instead of created_after");
     assert.ok(calls.length >= 6);
     assert.ok(calls.every(call => call.method === "GET" && ["/orders/get", "/order/items/get"].includes(call.path)));
     for (const secret of [env.LAZADA_APP_SECRET, env.LAZADA_TOKEN_ENCRYPTION_KEY, "test-only-orders-token"])

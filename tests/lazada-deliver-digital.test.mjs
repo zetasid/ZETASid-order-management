@@ -65,9 +65,12 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
     .filter(Boolean).map(JSON.parse).filter(call => call.path === "/order/digital/delivered");
   const deliver = id => request(`/orders/${id}/deliver-digital`, "POST");
   const providerStatuses = {};
-  const setProviderStatus = async (id, headerStatus, itemStatus, isDigital = true, includeIsDigital = true) => {
+  const setProviderStatus = async (id, headerStatus, itemStatus, isDigital = true, includeIsDigital = true,
+    paymentEvidence = {}) => {
     providerStatuses[id] = { headerStatus, itemStatus, includeIsDigital,
-      ...(includeIsDigital ? { isDigital } : {}) };
+      ...(includeIsDigital ? { isDigital } : {}),
+      ...(Object.hasOwn(paymentEvidence, "paymentTime") ? { paymentTime: paymentEvidence.paymentTime } : {}),
+      ...(Object.hasOwn(paymentEvidence, "stagePayStatus") ? { stagePayStatus: paymentEvidence.stagePayStatus } : {}) };
     await writeFile(statusFile, JSON.stringify(providerStatuses));
   };
 
@@ -93,8 +96,10 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
       const externalId = String(baseOrderNumber + BigInt(providerOrderIds.length * 10));
       const itemExternalId = String(BigInt(externalId) + 100n);
       const { isDigital = true, includeIsDigital = true, liveIsDigital = isDigital,
-        includeLiveIsDigital = includeIsDigital } = digitalOptions;
-      await setProviderStatus(externalId, liveHeaderStatus, liveItemStatus, liveIsDigital, includeLiveIsDigital);
+        includeLiveIsDigital = includeIsDigital, paymentTime, stagePayStatus, livePaymentTime = paymentTime,
+        liveStagePayStatus = stagePayStatus } = digitalOptions;
+      await setProviderStatus(externalId, liveHeaderStatus, liveItemStatus, liveIsDigital, includeLiveIsDigital,
+        { paymentTime: livePaymentTime, stagePayStatus: liveStagePayStatus });
       const storedStatus = itemStatus === "delivered" ? "completed" : "pending";
       const { rows: [order] } = await f.pool.query(`INSERT INTO orders
         (lazada_order_id, product_name, status, lazada_data, synced_at)
@@ -106,34 +111,50 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
         VALUES ($1, $2, 'SYNTHETIC DIGITAL ITEM', $3, $4)`,
       [order.id, itemExternalId, storedStatus, { order_id: externalId, order_item_id: itemExternalId,
         name: "SYNTHETIC DIGITAL ITEM", status: itemStatus,
+        ...(paymentTime === undefined ? {} : { payment_time: paymentTime }),
+        ...(stagePayStatus === undefined ? {} : { stage_pay_status: stagePayStatus }),
         ...(includeIsDigital ? { is_digital: isDigital } : {}) }]);
       ids[name] = order.id;
       orderIds.push(order.id);
       providerOrderIds.push(externalId);
       return externalId;
     };
+    const paidTime = "1750000000000";
     for (const name of ["success", "nonpending", "concurrent", "failed", "retry", "lost-response"]) {
-      await seedOrder(name, "confirmed", name === "nonpending" ? "delivered" : "pending");
+      await seedOrder(name, "pending", name === "nonpending" ? "delivered" : "pending",
+        undefined, undefined, { paymentTime: paidTime });
     }
-    for (const [name, headerStatus] of [
-      ["unpaid", "unpaid"], ["pending-payment", "pending"], ["cancelled-payment", "canceled"],
-      ["unknown-payment", "future_status"], ["null-payment", null],
-    ]) await seedOrder(name, headerStatus, "pending");
-    await seedOrder("item-unpaid", "confirmed", "unpaid");
-    await seedOrder("item-unknown", "confirmed", "future_item_status");
-    await seedOrder("item-null", "confirmed", null);
-    await seedOrder("item-cancelled", "confirmed", "canceled");
-    await seedOrder("item-processing", "confirmed", "packed");
-    await seedOrder("digital-false", "confirmed", "pending", undefined, undefined, { isDigital: false });
-    await seedOrder("digital-null", "confirmed", "pending", undefined, undefined, { isDigital: null });
-    await seedOrder("digital-missing", "confirmed", "pending", undefined, undefined, { includeIsDigital: false });
-    await seedOrder("digital-invalid", "confirmed", "pending", undefined, undefined, { isDigital: "true" });
-    await seedOrder("live-digital-false", "confirmed", "pending", undefined, undefined, { liveIsDigital: false });
-    await seedOrder("live-digital-null", "confirmed", "pending", undefined, undefined, { liveIsDigital: null });
-    await seedOrder("live-digital-missing", "confirmed", "pending", undefined, undefined, { includeLiveIsDigital: false });
-    await seedOrder("stored-digital-false-live-true", "confirmed", "pending", undefined, undefined,
-      { isDigital: false, liveIsDigital: true });
-    const staleUnpaidProviderId = await seedOrder("stale-unpaid", "confirmed", "pending", "confirmed", "pending");
+    for (const status of ["to_pack", "to_ship", "shipped"])
+      await seedOrder(`header-${status}`, status, "pending");
+    await seedOrder("header-progress-paid", "to_ship", "pending", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("unpaid", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, stagePayStatus: "unpaid" });
+    await seedOrder("pending-payment", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, stagePayStatus: "unpaid final payment" });
+    await seedOrder("cancelled-payment", "canceled", "pending", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("unknown-payment", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, stagePayStatus: "future_payment_status" });
+    await seedOrder("null-payment", "pending", "pending");
+    await seedOrder("item-unpaid", "pending", "unpaid", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("item-unknown", "pending", "future_item_status", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("item-null", "pending", null, undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("item-cancelled", "pending", "canceled", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("item-processing", "pending", "packed", undefined, undefined, { paymentTime: paidTime });
+    await seedOrder("digital-false", "pending", "pending", undefined, undefined, { paymentTime: paidTime, isDigital: false });
+    await seedOrder("digital-null", "pending", "pending", undefined, undefined, { paymentTime: paidTime, isDigital: null });
+    await seedOrder("digital-missing", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, includeIsDigital: false });
+    await seedOrder("digital-invalid", "pending", "pending", undefined, undefined, { paymentTime: paidTime, isDigital: "true" });
+    await seedOrder("live-digital-false", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, liveIsDigital: false });
+    await seedOrder("live-digital-null", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, liveIsDigital: null });
+    await seedOrder("live-digital-missing", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, includeLiveIsDigital: false });
+    await seedOrder("stored-digital-false-live-true", "pending", "pending", undefined, undefined,
+      { paymentTime: paidTime, isDigital: false, liveIsDigital: true });
+    const staleUnpaidProviderId = await seedOrder("stale-unpaid", "pending", "pending", "pending", "pending",
+      { paymentTime: paidTime, livePaymentTime: null, liveStagePayStatus: "unpaid" });
 
     await t.test("Unauthenticated and invalid-CSRF requests cannot call DeliverDigital", async () => {
       assert.equal((await request(`/orders/${ids.success}/deliver-digital`, "POST", false)).status, 401);
@@ -151,14 +172,31 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
       assert.equal(order.status, "completed");
     });
 
-    await t.test("Unpaid, pending-payment, cancelled, unknown/null headers and unsafe item statuses cannot be delivered", async () => {
+    await t.test("Unpaid, pending-payment, cancelled, unknown/null and unsafe item statuses cannot be delivered", async () => {
       const before = (await deliveryCalls()).length;
       for (const name of ["unpaid", "pending-payment", "cancelled-payment", "unknown-payment", "null-payment",
-        "item-unpaid", "item-unknown", "item-null", "item-cancelled", "item-processing"]) {
+        "header-to_pack", "header-to_ship", "header-shipped", "item-unpaid", "item-unknown", "item-null",
+        "item-cancelled", "item-processing"]) {
         const response = await deliver(ids[name]);
         assert.equal(response.status, 409, `${name} must be rejected`);
       }
       assert.equal((await deliveryCalls()).length, before, "No rejected payment state may call DeliverDigital");
+    });
+
+    await t.test("Workflow progress cannot be hidden by pending items or substitute for payment evidence", async () => {
+      const before = (await deliveryCalls()).length;
+      for (const status of ["to_pack", "to_ship", "shipped"]) {
+        const unpaid = await (await request(`/orders/${ids[`header-${status}`]}`)).json();
+        assert.equal(unpaid.paymentStatus, "unknown", `${status} is not payment evidence`);
+        assert.equal(unpaid.status, "processing", `${status} remains an order-workflow state`);
+        assert.equal((await deliver(ids[`header-${status}`])).status, 409);
+      }
+      const paidButProgressed = await (await request(`/orders/${ids["header-progress-paid"]}`)).json();
+      assert.equal(paidButProgressed.paymentStatus, "confirmed", "The item payment time is the payment evidence");
+      assert.equal(paidButProgressed.status, "processing", "Provider workflow progress is a separate order gate");
+      assert.equal((await deliver(ids["header-progress-paid"])).status, 409,
+        "A progressed Lazada order cannot be delivered even when payment is confirmed");
+      assert.equal((await deliveryCalls()).length, before);
     });
 
     await t.test("Every item must be explicitly marked digital in stored and fresh Lazada data", async () => {
@@ -174,7 +212,8 @@ test("Manual DeliverDigital is authenticated, item-checked, retryable on failure
     });
 
     await t.test("A stale locally confirmed snapshot is rejected when Lazada currently reports unpaid", async () => {
-      await setProviderStatus(staleUnpaidProviderId, "unpaid", "pending");
+      await setProviderStatus(staleUnpaidProviderId, "pending", "pending", true, true,
+        { paymentTime: null, stagePayStatus: "unpaid" });
       const before = (await deliveryCalls()).length;
       const response = await deliver(ids["stale-unpaid"]);
       assert.equal(response.status, 409);

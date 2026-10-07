@@ -9,7 +9,9 @@ globalThis.fetch = async (input, options = {}) => {
   const path = url.pathname.replace(/^\/rest/, "");
   if (!["https://auth.lazada.com", "https://api.lazada.co.id"].includes(url.origin)
     || !["/auth/token/create", "/seller/get", "/orders/get", "/order/get", "/order/items/get", "/order/digital/delivered"].includes(path)) throw new Error("Unexpected provider API in test");
-  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify({ method: options.method, path })}\n`);
+  appendFileSync(process.env.LAZADA_TEST_CALLS_FILE, `${JSON.stringify({
+    method: options.method, path, updateAfter: url.searchParams.has("update_after"),
+  })}\n`);
   const params = Object.fromEntries(new URLSearchParams(options.body ?? url.search));
   const expected = createHmac("sha256", process.env.LAZADA_APP_SECRET).update(path + Object.keys(params)
     .filter(k => k !== "sign").sort().map(k => k + params[k]).join("")).digest("hex").toUpperCase();
@@ -65,6 +67,7 @@ globalThis.fetch = async (input, options = {}) => {
     };
     const statusFor = id => {
       if (deliveredOrderIds.has(String(id)) || control === "orders-delivered") return "delivered";
+      if (control === "orders-progressed" && String(id) === second) return "packed";
       return configuredStatus(id)?.itemStatus ?? "pending";
     };
     const headerStatusFor = id => {
@@ -77,21 +80,29 @@ globalThis.fetch = async (input, options = {}) => {
       if (configured.includeIsDigital === false) return undefined;
       return Object.hasOwn(configured, "isDigital") ? configured.isDigital : true;
     };
+    const createdAtFor = id => id === second ? "2020-01-15 10:00:00 +0700" : "2026-09-20 10:00:00 +0700";
     const order = id => ({ order_id: id, order_number: id, items_count: 1, price: "12000.25",
-      statuses: [headerStatusFor(id)], created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700" });
-    if (path === "/orders/get") return json({ code: "0", data: { count: 2, countTotal: 2,
-      orders: Number(params.offset) ? [] : [order(first), order(second)] } });
+      statuses: [headerStatusFor(id)], created_at: createdAtFor(id), updated_at: "2026-09-20 10:01:00 +0700" });
+    if (path === "/orders/get") {
+      const updatedQuery = Object.hasOwn(params, "update_after");
+      const orders = updatedQuery ? [order(first), order(second)] : [order(first)];
+      return json({ code: "0", data: { count: orders.length, countTotal: orders.length,
+        orders: Number(params.offset) ? [] : orders } });
+    }
     if (path === "/order/get") return json({ code: "0", data: order(params.order_id) });
     if (control === "orders-broken" && params.order_id === second) return json({ code: "0", data: [{
       order_id: "123", order_item_id: second, name: "Dummy", status: "pending",
     }] });
+    const configured = configuredStatus(params.order_id);
     return json({ code: "0", data: [{
       order_id: params.order_id, order_item_id: String(Number(params.order_id) + 100),
       name: "Dummy phase-eight product, not real seller data", item_price: 12000.25, paid_price: 12000.25,
       variation: "Dummy variation", sku: "test-only-sku", shop_sku: "test-only-shop-sku", currency: "IDR", status: statusFor(params.order_id),
       ...(isDigitalFor(params.order_id) === undefined ? {} : { is_digital: isDigitalFor(params.order_id) }),
+      ...(configured && Object.hasOwn(configured, "paymentTime") ? { payment_time: configured.paymentTime } : {}),
+      ...(configured && Object.hasOwn(configured, "stagePayStatus") ? { stage_pay_status: configured.stagePayStatus } : {}),
       product_main_image: "https://images.example.invalid/dummy-product.webp",
-      created_at: "2026-09-20 10:00:00 +0700", updated_at: "2026-09-20 10:01:00 +0700",
+      created_at: createdAtFor(params.order_id), updated_at: "2026-09-20 10:01:00 +0700",
       extra_attributes: "{\"unmapped_test_field\":\"never invent a digital detail\"}",
       ...(params.order_id === first ? { digital_delivery_info: "{\"test_only_destination\":\"not-real-data\"}" } : {}),
     }] });

@@ -47,14 +47,14 @@ export function LazadaOrderSync() {
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[#64748B] transition-transform group-open:rotate-90" />
         </summary>
         <div className="border-t border-[#E2E8F0] px-4 py-4 sm:px-5">
-          <p className="text-xs leading-5 text-[#64748B]">Maksimum 20 pesanan per halaman beserta itemnya. Pembacaan ini tidak mengirim produk digital.</p>
+          <p className="text-xs leading-5 text-[#64748B]">Maksimum 20 pesanan per halaman. Rentang memakai waktu perubahan Lazada agar status pesanan lama ikut diperbarui; pembacaan ini tidak mengirim produk digital.</p>
           <div className="my-4 grid grid-cols-2 gap-3">
-            <label className="min-w-0 text-xs font-medium text-[#475569]">Dari tanggal (WIB)
+            <label className="min-w-0 text-xs font-medium text-[#475569]">Perubahan sejak tanggal (WIB)
               <input type="date" data-testid="sync-from" value={after} disabled={sync.isPending}
                 onChange={event => { setAfter(event.target.value); sync.reset(); setLocalError(''); }}
                 className="mt-1 min-h-11 w-full rounded-lg border border-[#E2E8F0] bg-white px-2 text-sm text-[#0F172A]" />
             </label>
-            <label className="min-w-0 text-xs font-medium text-[#475569]">Sampai tanggal (WIB)
+            <label className="min-w-0 text-xs font-medium text-[#475569]">Sampai tanggal perubahan (WIB)
               <input type="date" data-testid="sync-to" value={before} disabled={sync.isPending}
                 onChange={event => { setBefore(event.target.value); sync.reset(); setLocalError(''); }}
                 className="mt-1 min-h-11 w-full rounded-lg border border-[#E2E8F0] bg-white px-2 text-sm text-[#0F172A]" />
@@ -78,14 +78,14 @@ export function LazadaOrderSync() {
           </p>}
           {(error || localError) && <p role="alert" className="mt-3 text-sm text-[#DC2626]">{localError || error}</p>}
           {sync.data && <div role="status" data-testid="sync-result" className="mt-4 rounded-xl bg-[#F8FAFC] p-3 text-sm text-[#1E293B]">
-            <p className="font-medium">{sync.data.ordersRead} pesanan dan {sync.data.itemsRead} item dibaca. Total dalam rentang: {sync.data.countTotal ?? 'tidak diberikan Lazada'}.</p>
+            <p className="font-medium">{sync.data.ordersRead} pesanan dan {sync.data.itemsRead} item dibaca. Total perubahan dalam rentang: {sync.data.countTotal ?? 'tidak diberikan Lazada'}.</p>
             <p className="mt-1 text-xs leading-5 text-[#64748B]">
               {sync.data.digitalDetailPresent} item memiliki data digital; {sync.data.digitalDetailNonempty} berisi nilai.
               {sync.data.nextOffset !== null ? ' Lanjutkan dengan membaca halaman berikutnya.' : ' Pembacaan rentang selesai.'}
             </p>
             <details className="mt-2">
               <summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-[#64748B]">Informasi teknis tambahan</summary>
-              <p className="break-all text-xs">GetOrders: {sync.data.orderFields.join(', ') || '(tidak ada pesanan)'}</p>
+              <p className="break-all text-xs">GetOrders (update_after): {sync.data.orderFields.join(', ') || '(tidak ada pesanan)'}</p>
               <p className="mt-2 break-all text-xs">GetOrderItems: {sync.data.itemFields.join(', ') || '(tidak ada item)'}</p>
             </details>
           </div>}

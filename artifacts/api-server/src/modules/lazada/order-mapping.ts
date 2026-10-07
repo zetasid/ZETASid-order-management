@@ -6,7 +6,7 @@ export type ProviderRecord = Record<string, unknown>;
 export const orderKeys = ["order_id", "order_number", "price", "statuses", "created_at", "updated_at"];
 export const itemKeys = ["order_id", "order_item_id", "name", "item_price", "paid_price", "currency",
   "variation", "sku", "shop_sku", "digital_delivery_info", "extra_attributes", "product_main_image",
-  "status", "created_at", "updated_at", "is_digital"];
+  "status", "created_at", "updated_at", "is_digital", "payment_time", "stage_pay_status"];
 export const pick = (value: ProviderRecord, keys: string[]) =>
   Object.fromEntries(keys.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
 

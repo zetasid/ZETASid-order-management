@@ -31,7 +31,15 @@ export async function syncOrders(userId: string, sessionHash: string, input: Syn
     catch { throw new LazadaError("authorization_failed"); }
     if (typeof accessToken !== "string" || !accessToken) throw new LazadaError("authorization_failed");
     const client = createClient(config, fetch, deadline);
-    const page = await client.getOrders(accessToken, { ...input, limit: PAGE_SIZE });
+    // The UI's date range is used as an update-time window so older orders
+    // whose Lazada status changed are refreshed too; new orders are updated
+    // when first created and remain discoverable through this endpoint.
+    const page = await client.getUpdatedOrders(accessToken, {
+      after: input.createdAfter,
+      before: input.createdBefore,
+      offset: input.offset,
+      limit: PAGE_SIZE,
+    });
     if (page.orders.length > PAGE_SIZE) throw new LazadaError("invalid_response");
     const fetched = [];
     const allItems: ProviderRecord[] = [];
@@ -72,8 +80,8 @@ export async function syncOrders(userId: string, sessionHash: string, input: Syn
       digitalDetailNonempty: allItems.filter(item => item.digital_delivery_info !== undefined
         && item.digital_delivery_info !== null && item.digital_delivery_info !== "").length };
     await tx.insert(syncLogsTable).values({ source: "lazada", status: "completed", recordsCount: page.orders.length,
-      startedAt: syncedAt, finishedAt: syncedAt, message: "Manual READ-ONLY GetOrders/GetOrderItems",
-      metadata: { ...result, createdAfter: input.createdAfter, createdBefore: input.createdBefore, offset: input.offset } });
+      startedAt: syncedAt, finishedAt: syncedAt, message: "Manual READ-ONLY GetOrders(update_after)/GetOrderItems",
+      metadata: { ...result, updatedAfter: input.createdAfter, updatedBefore: input.createdBefore, offset: input.offset } });
     return result;
   });
 }

@@ -11,6 +11,7 @@ import { ErrorState, ListSkeleton } from '@/components/states';
 import { CopyValue, DigitalDetail } from '@/components/copy-detail';
 import { paymentStatusLabel } from '@/components/payment-status';
 import { ProductImage } from '@/components/product-image';
+import { lazadaStatusesLabel } from '@/lib/lazada-status-label';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -66,12 +67,17 @@ export default function OrderDetail() {
   });
   const o = q.data;
   const items = o?.items ?? [];
+  const workflowLabel = lazadaStatusesLabel(items.map(item => item.sourceStatus), o?.paymentStatus);
+  const processingView = workflowLabel === 'Dikemas' || workflowLabel === 'Dikirim'
+    ? { ...STATUS_VIEW.processing, title: `Pesanan ${workflowLabel}` }
+    : STATUS_VIEW.processing;
   const statusView = !o ? STATUS_VIEW.unknown
     : o.status === 'cancelled' || o.paymentStatus === 'cancelled' ? STATUS_VIEW.cancelled
-      : o.paymentStatus !== 'confirmed' || !o.status ? STATUS_VIEW.pending
-        : o.status === 'pending' ? CONFIRMED_PENDING_VIEW
-          : Object.prototype.hasOwnProperty.call(STATUS_VIEW, o.status)
-            ? STATUS_VIEW[o.status as keyof typeof STATUS_VIEW]
+      : o.status === 'completed' ? STATUS_VIEW.completed
+        : o.status === 'processing' ? processingView
+          : o.status === 'pending'
+            ? o.paymentStatus === 'confirmed' ? CONFIRMED_PENDING_VIEW
+              : o.paymentStatus === 'unknown' ? STATUS_VIEW.unknown : STATUS_VIEW.pending
             : STATUS_VIEW.unknown;
   const StatusIcon = statusView.icon;
   const canDeliverDigital = !!o?.syncedAt && o.paymentStatus === 'confirmed' && o.status === 'pending'

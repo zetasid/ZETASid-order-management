@@ -97,6 +97,7 @@ function allItemsExplicitlyDigital(items: readonly { lazadaData: OrderItem["laza
   item.lazadaData?.is_digital === true ||
   item.lazadaData?.is_digital === 1
 );
+}
 
 async function refreshOrderFromLazada(tx: OrderTx, order: Awaited<ReturnType<typeof findOrder>>,
   accessToken: string, client: ReturnType<typeof createClient>): Promise<RefreshedOrder> {

@@ -149,6 +149,22 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       new Date(Date.now() + 3_600_000), new Date(Date.now() + 7_200_000), new Date(),
     ]);
   };
+  const getSellerConnection = async fixture => {
+    const { rows: [row] } = await fixture.pool.query(
+      `SELECT encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at, verified, checked_at
+       FROM lazada_connections WHERE user_id=$1`,
+      [fixture.id],
+    );
+    return row ?? null;
+  };
+  const getImConnection = async fixture => {
+    const { rows: [row] } = await fixture.pool.query(
+      `SELECT encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at
+       FROM lazada_im_connections WHERE user_id=$1`,
+      [fixture.id],
+    );
+    return row ?? null;
+  };
   const addImConnection = async fixture => {
     const encryptedTokens = security.seal(JSON.stringify({
       accessToken: "test-only-im-access-token",
@@ -176,54 +192,117 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
     const oauthUser = await createFixture();
     await addSellerConnection(owner);
     await addImConnection(owner);
+    await addSellerConnection(oauthUser);
     const firstPage = "/lazada/im/sessions?page_size=20";
 
     await t.test("IM OAuth uses its own App Key, state, cookie and encrypted token row", async () => {
-      const response = await request("/lazada/im/oauth/authorize", oauthUser, "POST", {
+      const sellerBefore = await getSellerConnection(oauthUser);
+      assert.ok(sellerBefore, "OAuth user already has an independent Seller connection");
+      const sellerAuthorization = await request("/lazada/oauth/authorize", oauthUser, "POST", {
         Origin: env.APP_ORIGIN,
         "X-CSRF-Token": oauthUser.csrfToken,
       });
-      assert.equal(response.status, 200);
-      const authorization = await response.json();
-      assert.ok(!JSON.stringify(authorization).includes(env.LAZADA_IM_APP_SECRET));
-      const cookieHeader = response.headers.getSetCookie()
-        .find(value => value.startsWith("zetas_lazada_im_oauth="));
-      assert.ok(cookieHeader);
-      assert.match(cookieHeader, /HttpOnly/);
-      assert.match(cookieHeader, /Secure/);
-      assert.match(cookieHeader, /SameSite=Lax/);
-      const flowCookie = cookieHeader.split(";")[0];
-      const url = new URL(authorization.authorizationUrl);
-      assert.equal(url.origin, "https://auth.lazada.com");
-      assert.equal(url.searchParams.get("client_id"), env.LAZADA_IM_APP_KEY);
-      assert.notEqual(url.searchParams.get("client_id"), env.LAZADA_APP_KEY);
-      assert.equal(url.searchParams.get("redirect_uri"), env.LAZADA_REDIRECT_URI);
-      const state = url.searchParams.get("state");
-      assert.match(state, /^im_[A-Za-z0-9_-]{43}$/);
+      assert.equal(sellerAuthorization.status, 200);
+      const sellerCookieHeader = sellerAuthorization.headers.getSetCookie()
+        .find(value => value.startsWith("zetas_lazada_oauth="));
+      assert.ok(sellerCookieHeader);
+      const sellerCookie = sellerCookieHeader.split(";")[0];
+      const startFlow = async () => {
+        const response = await request("/lazada/im/oauth/authorize", oauthUser, "POST", {
+          Origin: env.APP_ORIGIN,
+          "X-CSRF-Token": oauthUser.csrfToken,
+        });
+        assert.equal(response.status, 200);
+        const authorization = await response.json();
+        assert.ok(!JSON.stringify(authorization).includes(env.LAZADA_IM_APP_SECRET));
+        const cookies = response.headers.getSetCookie();
+        const cookieHeader = cookies.find(value => value.startsWith("zetas_lazada_im_oauth="));
+        assert.ok(cookieHeader);
+        assert.equal(cookies.some(value => value.startsWith("zetas_lazada_oauth=")), false,
+          "IM authorization must not set the Seller OAuth cookie");
+        assert.match(cookieHeader, /HttpOnly/);
+        assert.match(cookieHeader, /Secure/);
+        assert.match(cookieHeader, /SameSite=Lax/);
+        const url = new URL(authorization.authorizationUrl);
+        assert.equal(url.origin, "https://auth.lazada.com");
+        assert.equal(url.searchParams.get("client_id"), env.LAZADA_IM_APP_KEY);
+        assert.notEqual(url.searchParams.get("client_id"), env.LAZADA_APP_KEY);
+        assert.equal(url.searchParams.get("redirect_uri"), env.LAZADA_REDIRECT_URI);
+        const state = url.searchParams.get("state");
+        assert.match(state, /^im_[A-Za-z0-9_-]{43}$/);
+        return { state, flowCookie: cookieHeader.split(";")[0] };
+      };
+      const flow = await startFlow();
 
-      const callback = await request(`/lazada/oauth/callback?state=${state}&code=valid`, null, "GET", {
-        Cookie: flowCookie,
+      const sellerStatesBeforeMisroute = (await oauthUser.pool.query(
+        "SELECT count(*)::int AS n FROM lazada_oauth_states WHERE user_id=$1", [oauthUser.id],
+      )).rows[0].n;
+      const exchangesBeforeMisroute = (await calls()).filter(call => call.path === "/auth/token/create").length;
+      const sellerCookieCallback = await request(
+        `/lazada/oauth/callback?state=${flow.state}&code=valid`, null, "GET",
+        { Cookie: sellerCookie }, "manual",
+      );
+      assert.equal(sellerCookieCallback.headers.get("location"), "/settings?lazada_im=authorization_failed",
+        "IM state must dispatch to IM OAuth and reject a Seller-only cookie");
+      assert.equal((await calls()).filter(call => call.path === "/auth/token/create").length, exchangesBeforeMisroute);
+      assert.equal((await oauthUser.pool.query(
+        "SELECT count(*)::int AS n FROM lazada_oauth_states WHERE user_id=$1", [oauthUser.id],
+      )).rows[0].n, sellerStatesBeforeMisroute, "IM callback must not consume Seller OAuth state");
+
+      const invalidState = `${flow.state.slice(0, -1)}${flow.state.endsWith("A") ? "B" : "A"}`;
+      const exchangesBeforeInvalidState = (await calls()).filter(call => call.path === "/auth/token/create").length;
+      const invalidCallback = await request(`/lazada/oauth/callback?state=${invalidState}&code=valid`, null, "GET", {
+        Cookie: flow.flowCookie,
+      }, "manual");
+      assert.equal(invalidCallback.status, 303);
+      assert.equal(invalidCallback.headers.get("location"), "/settings?lazada_im=authorization_failed");
+      assert.equal((await calls()).filter(call => call.path === "/auth/token/create").length, exchangesBeforeInvalidState,
+        "unknown IM state must not exchange a code through either OAuth flow");
+      assert.equal(await getImConnection(oauthUser), null);
+      assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore);
+
+      const callback = await request(`/lazada/oauth/callback?state=${flow.state}&code=valid`, null, "GET", {
+        Cookie: flow.flowCookie,
       }, "manual");
       assert.equal(callback.status, 303);
       assert.equal(callback.headers.get("location"), "/settings?lazada_im=connected");
       assert.equal(callback.headers.get("referrer-policy"), "no-referrer");
-      const { rows: [row] } = await oauthUser.pool.query(
-        "SELECT encrypted_tokens, app_fingerprint, expires_at FROM lazada_im_connections WHERE user_id=$1",
-        [oauthUser.id],
-      );
+      const row = await getImConnection(oauthUser);
       assert.ok(row.encrypted_tokens.startsWith("v1."));
       assert.ok(!JSON.stringify(row).includes("test-only-im-access-token"));
-      assert.equal((await oauthUser.pool.query(
-        "SELECT count(*)::int AS n FROM lazada_connections WHERE user_id=$1", [oauthUser.id],
-      )).rows[0].n, 0, "IM OAuth must not create or overwrite the Seller connection");
+      assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore,
+        "IM callback must leave an existing Seller connection byte-for-byte unchanged");
       const status = await (await request("/lazada/im/connection", oauthUser)).json();
       assert.deepEqual(status, { configured: true, status: "connected", expiresAt: row.expires_at.toISOString() });
       assert.ok(!JSON.stringify(status).includes("test-only"));
       const callsBeforeReplay = (await calls()).filter(call => call.path === "/auth/token/create").length;
-      assert.equal((await request(`/lazada/oauth/callback?state=${state}&code=valid`, null, "GET", {
-        Cookie: flowCookie,
+      assert.equal((await request(`/lazada/oauth/callback?state=${flow.state}&code=valid`, null, "GET", {
+        Cookie: flow.flowCookie,
       }, "manual")).headers.get("location"), "/settings?lazada_im=authorization_failed");
       assert.equal((await calls()).filter(call => call.path === "/auth/token/create").length, callsBeforeReplay);
+      assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore);
+      assert.deepEqual(await getImConnection(oauthUser), row, "replayed IM state must not alter the stored IM token");
+
+      for (const [code, outcome] of [
+        ["wrong-country", "wrong_country"],
+        ["invalid-response", "authorization_failed"],
+      ]) {
+        const failedFlow = await startFlow();
+        const imBefore = await getImConnection(oauthUser);
+        const sellerBeforeFailure = await getSellerConnection(oauthUser);
+        const exchangesBeforeFailure = (await calls()).filter(call => call.path === "/auth/token/create").length;
+        const failed = await request(
+          `/lazada/oauth/callback?state=${failedFlow.state}&code=${code}`, null, "GET",
+          { Cookie: failedFlow.flowCookie }, "manual",
+        );
+        assert.equal(failed.status, 303);
+        assert.equal(failed.headers.get("location"), `/settings?lazada_im=${outcome}`);
+        assert.equal((await calls()).filter(call => call.path === "/auth/token/create").length, exchangesBeforeFailure + 1);
+        assert.deepEqual(await getImConnection(oauthUser), imBefore,
+          `${code} callback must not replace the existing IM connection`);
+        assert.deepEqual(await getSellerConnection(oauthUser), sellerBeforeFailure,
+          `${code} callback must not change the Seller connection`);
+      }
     });
 
     await t.test("Authentication, connection ownership and input validation", async () => {
@@ -322,6 +401,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
     });
 
     await t.test("Provider permission and malformed-response errors are safe", async () => {
+      const sellerBefore = await getSellerConnection(owner);
       await setControl("im-permission");
       const denied = await request(firstPage, owner);
       assert.equal(denied.status, 403);
@@ -330,6 +410,8 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       const malformed = await request(firstPage, owner);
       assert.equal(malformed.status, 502);
       assert.ok(!(await malformed.text()).includes("test-only"));
+      assert.deepEqual(await getSellerConnection(owner), sellerBefore,
+        "malformed IM responses must not modify the Seller connection");
     });
 
     const allCalls = await calls();

@@ -77,6 +77,9 @@ globalThis.fetch = async (input, options = {}) => {
   }
   if (path === "/auth/token/create") {
     if (params.code === "deny") return json({ code: "InvalidCode", message: "Invalid authorization code", request_id: "test-request-invalid-code" });
+    if (params.code === "invalid-response") return json({
+      code: "0", country: "id", expires_in: 3600, refresh_expires_in: 7200,
+    });
     if (params.code === "slow") await setTimeout(250);
     const isImApp = params.app_key === process.env.LAZADA_IM_APP_KEY;
     return json({ code: "0", country: params.code === "wrong-country" ? "sg" : "id",

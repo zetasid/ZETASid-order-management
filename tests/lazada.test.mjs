@@ -19,7 +19,8 @@ await build({ entryPoints: ["artifacts/api-server/src/modules/lazada/security.ts
 const security = await import(pathToFileURL(`${temporary}/security.mjs`));
 const { createClient, signature } = await import(pathToFileURL(`${temporary}/client.mjs`));
 const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_APP_KEY: "999000",
-  LAZADA_APP_SECRET: "test-only-not-a-real-app-secret", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
+  LAZADA_APP_SECRET: "test-only-not-a-real-app-secret", LAZADA_IM_APP_KEY: "999001",
+  LAZADA_IM_APP_SECRET: "test-only-im-app-secret", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
   LAZADA_REDIRECT_URI: "https://testing.example.invalid/api/lazada/oauth/callback", APP_ORIGIN: "https://testing.example.invalid" };
 test.after(async () => { await rm(temporary, { recursive: true, force: true }); });
 
@@ -179,6 +180,7 @@ test("Lazada Testing OAuth and connection API — simulated provider, real backe
     assert.match(cookie, /HttpOnly/); assert.match(cookie, /Secure/); assert.match(cookie, /SameSite=Lax/);
     const url = new URL((await response.json()).authorizationUrl);
     assert.equal(url.origin, "https://auth.lazada.com"); assert.equal(url.searchParams.get("scope"), null);
+    assert.equal(url.searchParams.get("client_id"), env.LAZADA_APP_KEY);
     assert.equal(url.searchParams.get("redirect_uri"), env.LAZADA_REDIRECT_URI);
     return { state: url.searchParams.get("state"), cookie: cookie.split(";")[0] };
   };

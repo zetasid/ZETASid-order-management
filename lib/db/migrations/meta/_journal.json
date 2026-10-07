@@ -50,6 +50,13 @@
       "when": 1791091920336,
       "tag": "0006_workable_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791367464993,
+      "tag": "0007_wild_skrulls",
+      "breakpoints": true
     }
   ]
 }

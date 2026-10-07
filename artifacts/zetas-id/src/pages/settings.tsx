@@ -4,6 +4,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { ErrorState, PageHeading } from '@/components/states';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LazadaConnection } from '@/components/lazada-connection';
+import { LazadaImConnection } from '@/components/lazada-im-connection';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function Settings() {
@@ -69,6 +70,10 @@ export default function Settings() {
 
         <div style={{ animationDelay: '90ms' }} className="stagger-in lg:col-span-2">
           <LazadaConnection />
+        </div>
+
+        <div style={{ animationDelay: '112ms' }} className="stagger-in lg:col-span-2">
+          <LazadaImConnection />
         </div>
 
         <section aria-labelledby="settings-about-heading" style={{ animationDelay: '135ms' }} className="surface-card stagger-in rounded-2xl p-4 sm:p-5">

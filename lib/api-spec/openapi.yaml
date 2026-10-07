@@ -100,6 +100,42 @@ paths:
                 $ref: "#/components/schemas/LazadaConnection"
         "401":
           $ref: "#/components/responses/AuthError"
+  /lazada/im/connection:
+    get:
+      operationId: getLazadaImConnection
+      tags: [lazada]
+      summary: Private Lazada In-house IM Chat connection status
+      responses:
+        "200":
+          description: Safe metadata only; never includes credentials or tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaImConnection"
+        "401":
+          $ref: "#/components/responses/AuthError"
+  /lazada/im/oauth/authorize:
+    post:
+      operationId: authorizeLazadaIm
+      tags: [lazada]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      responses:
+        "200":
+          description: IM app authorization URL and separate HTTP-only browser binding cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaImAuthorization"
+        "400":
+          $ref: "#/components/responses/AuthError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "403":
+          $ref: "#/components/responses/AuthError"
+        "503":
+          $ref: "#/components/responses/AuthError"
   /lazada/oauth/authorize:
     post:
       operationId: authorizeLazada
@@ -127,7 +163,7 @@ paths:
       operationId: lazadaOAuthCallback
       tags: [lazada]
       security: []
-      description: HTTPS only; single-use state, browser binding and initiating session required
+      description: HTTPS only; single-use state, browser binding and initiating session required. The configured callback URL dispatches IM requests by their separate state format and cookie.
       parameters:
         - name: state
           in: query
@@ -442,6 +478,18 @@ components:
         lastCheckedAt: { type: [string, "null"] }
         callbackUri: { type: [string, "null"] }
     LazadaAuthorization:
+      type: object
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl: { type: string }
+    LazadaImConnection:
+      type: object
+      required: [configured, status, expiresAt]
+      properties:
+        configured: { type: boolean }
+        status: { type: string, enum: [not_configured, not_connected, connected, expired] }
+        expiresAt: { type: [string, "null"], format: date-time }
+    LazadaImAuthorization:
       type: object
       required: [authorizationUrl]
       properties:

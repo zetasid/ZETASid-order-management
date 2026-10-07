@@ -38,6 +38,23 @@ export function configuration(env: NodeJS.ProcessEnv = process.env): LazadaConfi
   } catch { return null; }
 }
 
+export function imConfiguration(env: NodeJS.ProcessEnv = process.env): LazadaConfig | null {
+  const { LAZADA_IM_APP_KEY: appKey, LAZADA_IM_APP_SECRET: appSecret,
+    LAZADA_TOKEN_ENCRYPTION_KEY: key, LAZADA_REDIRECT_URI: callback, LAZADA_MODE: mode } = env;
+  const country = env.LAZADA_COUNTRY ?? "id";
+  if (mode !== "testing" || !appKey || !/^\d{1,30}$/.test(appKey) || !appSecret
+    || !key || !/^[a-fA-F0-9]{64}$/.test(key) || !callback || !Object.hasOwn(endpoints, country)) return null;
+  try {
+    const url = new URL(callback);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash
+      || url.pathname !== "/api/lazada/oauth/callback") return null;
+    if (env.APP_ORIGIN && url.origin !== new URL(env.APP_ORIGIN).origin) return null;
+    return { appKey, appSecret, key: Buffer.from(key, "hex"), callback: url,
+      country: country as LazadaConfig["country"], site: `lazada_${country}` as LazadaConfig["site"],
+      fingerprint: hash(`lazada-im:${appKey}:${country}`) };
+  } catch { return null; }
+}
+
 export function seal(value: string, config: LazadaConfig, userId: string): string {
   const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", config.key, iv);
   cipher.setAAD(Buffer.from(`lazada:v1:${userId}:${config.fingerprint}`));

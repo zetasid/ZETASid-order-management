@@ -8,3 +8,5 @@ export * from "./auth";
 export * from "./lazada-connections";
 export * from "./lazada-oauth-states";
 export * from "./lazada-order-push";
+export * from "./lazada-im-connections";
+export * from "./lazada-im-oauth-states";

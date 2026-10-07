@@ -101,6 +101,27 @@ export interface LazadaAuthorization {
   authorizationUrl: string;
 }
 
+export type LazadaImConnectionStatus = typeof LazadaImConnectionStatus[keyof typeof LazadaImConnectionStatus];
+
+
+export const LazadaImConnectionStatus = {
+  not_configured: 'not_configured',
+  not_connected: 'not_connected',
+  connected: 'connected',
+  expired: 'expired',
+} as const;
+
+export interface LazadaImConnection {
+  configured: boolean;
+  status: LazadaImConnectionStatus;
+  /** @nullable */
+  expiresAt: string | null;
+}
+
+export interface LazadaImAuthorization {
+  authorizationUrl: string;
+}
+
 export interface LoginCredentials {
   /**
      * @minLength 3

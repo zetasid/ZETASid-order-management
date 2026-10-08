@@ -1,0 +1,157 @@
+ZETAS — IMPLEMENTASI IM WEBHOOK HMAC + PARSER
+JANGAN DEPLOY / JANGAN MERGE
+
+Konteks:
+Kita sudah melakukan audit Lazada IM Webhook.
+Sekarang implementasikan hanya dua gap yang sudah terbukti:
+
+1. Verifikasi Authorization HMAC-SHA256 untuk IM Webhook.
+2. Perbaikan parser payload IM Session Update resmi Lazada.
+
+SUMBER KONTRAK LAZADA:
+Lazada Push Mechanism:
+Base = {your_app_key} + "{message_body_you_received}"
+Secret = {your_app_secret}
+Authorization = HEX_ENCODE(HMAC-SHA256(Base, Secret))
+
+Header:
+Authorization
+
+Lazada IM Session Update:
+message_type = 19
+retry = 12
+retry interval = 30 minutes
+auth required = true
+
+Contoh struktur payload resmi:
+
+{
+  "data": [
+    {
+      "sync_type": "SESSION_UPDATE",
+      "user_account_id": "100094063",
+      "user_account_type": 2,
+      "session_id": "100094063_2_1011822749_1_103",
+      "unread_count": 0,
+      "to_position": 1596550789323,
+      "self_position": 1596550789323,
+      "site_id": "SG"
+    }
+  ],
+  "seller_id": "20240305",
+  "message_type": 19
+}
+
+ATURAN KEAMANAN:
+- Jangan pernah mencetak atau menampilkan App Secret.
+- Jangan log Authorization asli.
+- Jangan log access token.
+- Jangan menyimpan raw webhook payload secara permanen.
+- Jangan mengubah Order Push verifier.
+- Jangan mengubah OAuth.
+- Jangan mengubah transaksi/order processing.
+- Jangan membuat migration/database schema baru pada tahap ini.
+- Jangan mengubah UI.
+- Jangan deploy.
+- Jangan mengubah endpoint API IM selain yang benar-benar diperlukan untuk verifier/parser.
+
+IMPLEMENTASI HMAC:
+
+Webhook harus mendapatkan raw HTTP body SEBELUM JSON parsing.
+
+Signature harus dihitung berdasarkan:
+
+AppKey + EXACT RAW MESSAGE BODY
+
+kemudian:
+
+HMAC-SHA256 menggunakan AppSecret
+
+dan hasilnya:
+
+lowercase hexadecimal.
+
+Jangan parse JSON lalu stringify ulang body sebelum menghitung signature.
+
+Gunakan constant-time comparison untuk membandingkan hasil signature dengan header Authorization.
+
+Jika:
+- Authorization tidak ada → reject
+- verifier belum dikonfigurasi → tetap fail-closed
+- signature salah → reject
+- signature benar → baru lanjut parse payload
+
+Pertahankan behavior fail-closed yang sudah ada.
+
+PARSER:
+
+Parser harus membaca struktur root:
+
+seller_id
+message_type
+data[]
+
+Untuk message_type = 19:
+
+validasi:
+- seller_id ada
+- data adalah array
+- setiap item memiliki sync_type
+- session_id tersedia untuk Session Update
+
+Hanya dukung:
+
+sync_type = SESSION_UPDATE
+
+Jangan menganggap sync_type/session_id berada langsung di root.
+
+Jika payload malformed → HTTP 400.
+
+Jika message_type tidak didukung → pertahankan behavior existing yang aman.
+
+ROUTING:
+
+Pertahankan seller lookup yang sudah ada:
+seller_id + app fingerprint + country.
+
+Jangan menggunakan:
+- session_id sebagai user_id ZETAS
+- user_account_id sebagai user_id ZETAS
+- site_id sebagai identitas seller
+
+TEST WAJIB:
+
+Tambahkan/update unit tests untuk:
+
+1. valid Lazada IM signature
+2. invalid signature
+3. missing Authorization
+4. verifier unavailable → fail closed
+5. exact raw body digunakan
+6. payload resmi message_type=19
+7. payload resmi dengan data[]
+8. malformed data
+9. missing seller_id
+10. missing session_id
+11. unsupported sync_type
+12. seller routing tetap scoped
+
+Untuk signature test:
+gunakan AppKey/AppSecret TEST FIXTURE saja.
+Jangan gunakan credential production.
+
+PENTING:
+Jangan mengklaim kompatibel dengan Lazada sebelum test signature membuktikannya.
+
+Setelah selesai JANGAN commit/deploy.
+
+Tampilkan laporan:
+- file yang berubah
+- perubahan fungsi
+- test yang dijalankan
+- hasil test
+- apakah ada migration
+- apakah ada perubahan Order Push
+- apakah ada perubahan production config
+
+STOP setelah laporan.

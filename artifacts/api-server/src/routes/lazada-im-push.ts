@@ -4,7 +4,7 @@ import {
   enqueueImSessionUpdate,
   parseImSessionUpdate,
   scheduleImSessionSyncDrain,
-  unavailableImPushVerifier,
+  verifyImPushSignature,
   type ImPushAuthenticationResult,
   type ImPushSignatureVerifier,
   type ImSessionUpdateEvent,
@@ -25,7 +25,7 @@ export type LazadaImPushRouterDependencies = {
 
 export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDependencies = {}) {
   const getConfig = dependencies.getConfig ?? imConfiguration;
-  const verifySignature = dependencies.verifySignature ?? unavailableImPushVerifier;
+  const verifySignature = dependencies.verifySignature ?? verifyImPushSignature;
   const enqueueSessionUpdate = dependencies.enqueueSessionUpdate ?? enqueueImSessionUpdate;
   const scheduleProcessing = dependencies.scheduleProcessing ?? scheduleImSessionSyncDrain;
   const router = Router();
@@ -75,10 +75,12 @@ export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDepende
     }
 
     try {
-      const result = await enqueueSessionUpdate(config, parsed.event);
-      if (result.kind === "unmapped") {
-        res.status(404).json({ error: "Event IM tidak dapat diproses." });
-        return;
+      for (const event of parsed.events) {
+        const result = await enqueueSessionUpdate(config, event);
+        if (result.kind === "unmapped") {
+          res.status(404).json({ error: "Event IM tidak dapat diproses." });
+          return;
+        }
       }
       scheduleProcessing();
       res.status(200).end();

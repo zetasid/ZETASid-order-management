@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
@@ -31,7 +31,8 @@ await build({
   stdin: {
     contents: `export { resolveImSessionUpdateUserId } from "./artifacts/api-server/src/modules/lazada/im-connection.ts";
       export { createLazadaImPushRouter } from "./artifacts/api-server/src/routes/lazada-im-push.ts";
-      export { enqueueImSessionUpdate, processNextImSessionSync } from "./artifacts/api-server/src/modules/lazada/im-push.ts";
+      export { enqueueImSessionUpdate, parseImSessionUpdate, processNextImSessionSync,
+        unavailableImPushVerifier, verifyImPushSignature } from "./artifacts/api-server/src/modules/lazada/im-push.ts";
       export { pool } from "./lib/db/src/index.ts";`,
     resolveDir: process.cwd(),
     sourcefile: "lazada-im-identity-test-loader.ts",
@@ -49,7 +50,10 @@ const {
   resolveImSessionUpdateUserId,
   createLazadaImPushRouter,
   enqueueImSessionUpdate,
+  parseImSessionUpdate,
   processNextImSessionSync,
+  unavailableImPushVerifier,
+  verifyImPushSignature,
   pool: identityTestPool,
 } =
   await import(pathToFileURL(`${temporary}/im-connection-test.mjs`));
@@ -66,9 +70,148 @@ const env = {
 };
 const sellerConfig = security.configuration(env);
 const config = security.imConfiguration(env);
+const imPushSignature = raw => createHmac("sha256", env.LAZADA_IM_APP_SECRET)
+  .update(env.LAZADA_IM_APP_KEY, "utf8")
+  .update(Buffer.from(raw))
+  .digest("hex");
 test.after(async () => {
   await identityTestPool.end();
   await rm(temporary, { recursive: true, force: true });
+});
+
+test("IM push HMAC verifies exact raw bytes and requires lowercase hex Authorization", async () => {
+  const raw = `{\n  "data":[{"sync_type":"SESSION_UPDATE","session_id":"100094063_2_1011822749_1_103"}],\n  "seller_id":"20240305",\n  "message_type":19\n}`;
+  const authorization = imPushSignature(raw);
+  assert.match(authorization, /^[0-9a-f]{64}$/);
+  assert.equal(await verifyImPushSignature(Buffer.from(raw), { authorization }, config), "valid");
+  assert.equal(await verifyImPushSignature(Buffer.from(`${raw} `), { authorization }, config), "invalid",
+    "a signature for reserialized/different bytes must not validate");
+  assert.equal(await verifyImPushSignature(Buffer.from(raw), {}, config), "invalid",
+    "missing Authorization must fail closed");
+  assert.equal(await verifyImPushSignature(Buffer.from(raw), {
+    authorization: authorization.toUpperCase(),
+  }, config), "invalid", "uppercase hex is outside the documented lowercase representation");
+  assert.equal(await verifyImPushSignature(Buffer.from(raw), {
+    authorization: "0".repeat(64),
+  }, config), "invalid");
+});
+
+test("IM Session Update parser accepts the documented root plus data[] shape only", () => {
+  const body = {
+    data: [
+      {
+        sync_type: "SESSION_UPDATE",
+        user_account_id: "100094063",
+        user_account_type: 2,
+        session_id: "100094063_2_1011822749_1_103",
+        unread_count: 0,
+        to_position: 1596550789323,
+        self_position: 1596550789323,
+        site_id: "SG",
+      },
+      {
+        sync_type: "SESSION_UPDATE",
+        session_id: "second-session",
+      },
+    ],
+    seller_id: "20240305",
+    message_type: 19,
+  };
+  assert.deepEqual(parseImSessionUpdate(Buffer.from(JSON.stringify(body))), {
+    kind: "session_updates",
+    events: [
+      {
+        message_type: 19,
+        sync_type: "SESSION_UPDATE",
+        seller_id: "20240305",
+        session_id: "100094063_2_1011822749_1_103",
+        unread_count: 0,
+        site_id: "SG",
+      },
+      {
+        message_type: 19,
+        sync_type: "SESSION_UPDATE",
+        seller_id: "20240305",
+        session_id: "second-session",
+      },
+    ],
+  });
+  assert.equal(parseImSessionUpdate(Buffer.from("{ malformed")).kind, "invalid");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body, seller_id: undefined,
+  }))).kind, "invalid");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body, data: [{ sync_type: "SESSION_UPDATE" }],
+  }))).kind, "invalid");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body, data: {},
+  }))).kind, "invalid");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body, message_type: 2,
+  }))).kind, "unsupported");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body, data: [{ sync_type: "OTHER", session_id: "ignored" }],
+  }))).kind, "unsupported");
+  const mixed = parseImSessionUpdate(Buffer.from(JSON.stringify({
+    ...body,
+    data: [
+      { sync_type: "OTHER" },
+      { sync_type: "SESSION_UPDATE", session_id: "supported-session" },
+    ],
+  })));
+  assert.equal(mixed.kind, "session_updates");
+  assert.deepEqual(mixed.events.map(event => event.session_id), ["supported-session"],
+    "an unsupported item must not suppress a supported Session Update in the same data array");
+  assert.equal(parseImSessionUpdate(Buffer.from(JSON.stringify({
+    message_type: 19,
+    seller_id: "20240305",
+    sync_type: "SESSION_UPDATE",
+    session_id: "root-only-session",
+  }))).kind, "invalid", "root-only event fields are not the documented envelope");
+});
+
+test("default IM push router applies HMAC before parsing and queues the documented event", async () => {
+  const raw = `{\n  "data":[{"sync_type":"SESSION_UPDATE","session_id":"fixture-session-1","unread_count":1}],\n  "seller_id":"20240305",\n  "message_type":19\n}`;
+  const queued = [];
+  let scheduleCount = 0;
+  const app = express();
+  app.set("trust proxy", 1);
+  app.use("/api/lazada/im/push", createLazadaImPushRouter({
+    getConfig: () => config,
+    enqueueSessionUpdate: async (_config, event) => {
+      queued.push(event);
+      return { kind: "queued", userId: "fixture-user", sessionId: event.session_id };
+    },
+    scheduleProcessing: () => { scheduleCount += 1; },
+  }));
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}/api/lazada/im/push`;
+  const send = authorization => fetch(url, {
+    method: "POST",
+    headers: {
+      "X-Forwarded-Proto": "https",
+      "Content-Type": "application/json",
+      ...(authorization === undefined ? {} : { Authorization: authorization }),
+    },
+    body: raw,
+  });
+  try {
+    assert.equal((await send(undefined)).status, 401);
+    assert.equal((await send("0".repeat(64))).status, 401);
+    assert.equal(queued.length, 0);
+    assert.equal((await send(imPushSignature(raw))).status, 200);
+    assert.deepEqual(queued, [{
+      message_type: 19,
+      sync_type: "SESSION_UPDATE",
+      seller_id: "20240305",
+      session_id: "fixture-session-1",
+      unread_count: 1,
+    }]);
+    assert.equal(scheduleCount, 1);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test("IM client accepts the IM success envelope without requiring code and signs one HTTPS Indonesia GET", async () => {
@@ -590,6 +733,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       }));
       pushApp.use("/api/lazada/im/push-unconfigured", createLazadaImPushRouter({
         getConfig: () => config,
+        verifySignature: unavailableImPushVerifier,
       }));
       const pushServer = http.createServer(pushApp);
       await new Promise(resolve => pushServer.listen(0, "127.0.0.1", resolve));
@@ -605,16 +749,18 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       const sharedSessionId = "fixture-session-shared-across-sellers";
       const sellerOneEvent = {
         message_type: 19,
-        sync_type: "SESSION_UPDATE",
         seller_id: "fixture-im-seller-1",
-        session_id: sharedSessionId,
-        unread_count: 2,
-        site_id: "lazada_id",
-        user_account_id: differentSellerUser.id,
+        data: [{
+          sync_type: "SESSION_UPDATE",
+          session_id: sharedSessionId,
+          unread_count: 2,
+          site_id: "lazada_id",
+          user_account_id: differentSellerUser.id,
+        }],
       };
 
       try {
-        const rawFirstEvent = `{\n  "message_type":19, "sync_type":"SESSION_UPDATE", "seller_id":"fixture-im-seller-1", "session_id":"${sharedSessionId}", "unread_count":2, "site_id":"lazada_id", "user_account_id":"${differentSellerUser.id}"\n}`;
+        const rawFirstEvent = `{\n  "message_type":19,\n  "seller_id":"fixture-im-seller-1",\n  "data":[{"sync_type":"SESSION_UPDATE","session_id":"${sharedSessionId}","unread_count":2,"site_id":"lazada_id","user_account_id":"${differentSellerUser.id}"}]\n}`;
         const firstResponse = await pushRequest(rawFirstEvent, true);
         assert.equal(firstResponse.status, 200);
         assert.equal(await firstResponse.text(), "", "webhook response must not return chat data");
@@ -638,7 +784,10 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         const sellerTwoResponse = await pushRequest({
           ...sellerOneEvent,
           seller_id: "fixture-im-push-seller-2",
-          user_account_id: oauthUser.id,
+          data: [{
+            ...sellerOneEvent.data[0],
+            user_account_id: oauthUser.id,
+          }],
         });
         assert.equal(sellerTwoResponse.status, 200);
         const secondSellerSession = await differentSellerUser.pool.query(
@@ -694,7 +843,10 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         assert.equal((await pushRequest(sellerOneEvent)).status, 503);
         authentication = "valid";
         assert.equal((await pushRequest({ ...sellerOneEvent, message_type: 2 })).status, 200);
-        assert.equal((await pushRequest({ ...sellerOneEvent, sync_type: "OTHER" })).status, 200);
+        assert.equal((await pushRequest({
+          ...sellerOneEvent,
+          data: [{ ...sellerOneEvent.data[0], sync_type: "OTHER" }],
+        })).status, 200);
         assert.equal((await pushRequest("{ malformed", true)).status, 400);
         const failClosed = await fetch(`${pushUrl}-unconfigured`, {
           method: "POST",
@@ -702,7 +854,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
           body: JSON.stringify(sellerOneEvent),
         });
         assert.equal(failClosed.status, 503,
-          "production-default verifier must fail closed until IM auth contract is established");
+          "an unavailable verifier must fail closed");
         assert.equal(messageFetches.length, fetchesBeforeRejects,
           "invalid, unmapped and unsupported callbacks must not call GetMessages");
         assert.ok(verifiedBodies.length >= 10);

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, isNotNull, isNull, lte, lt, or, sql } from "drizzle-orm";
 import {
   db,
@@ -36,7 +36,7 @@ export type ImPushSignatureVerifier = (
 export type ImPushPayloadResult =
   | { kind: "invalid" }
   | { kind: "unsupported" }
-  | { kind: "session_update"; event: ImSessionUpdateEvent };
+  | { kind: "session_updates"; events: ImSessionUpdateEvent[] };
 
 export type ImMessagePageFetcher = (
   userId: string,
@@ -82,33 +82,55 @@ export function parseImSessionUpdate(rawBody: Buffer): ImPushPayloadResult {
   try { value = JSON.parse(rawBody.toString("utf8")); }
   catch { return { kind: "invalid" }; }
   if (!isRecord(value)) return { kind: "invalid" };
-  if (value.message_type !== 19 || value.sync_type !== "SESSION_UPDATE")
-    return { kind: "unsupported" };
-
+  if (value.message_type !== 19) return { kind: "unsupported" };
   const sellerId = normalizeSellerId(value.seller_id);
-  const sessionId = value.session_id;
-  const unreadCount = value.unread_count;
-  const siteId = value.site_id;
-  if (!sellerId || typeof sessionId !== "string" || !sessionIdPattern.test(sessionId))
+  if (!sellerId || !Array.isArray(value.data) || value.data.length === 0)
     return { kind: "invalid" };
-  if (unreadCount !== undefined && (!Number.isSafeInteger(unreadCount) || (unreadCount as number) < 0))
-    return { kind: "invalid" };
-  if (siteId !== undefined && siteId !== null
-    && (typeof siteId !== "string" || siteId.length > 128 || /[\u0000-\u001f\u007f]/.test(siteId)))
-    return { kind: "invalid" };
-
-  return {
-    kind: "session_update",
-    event: {
+  const events: ImSessionUpdateEvent[] = [];
+  for (const item of value.data) {
+    if (!isRecord(item) || typeof item.sync_type !== "string" || item.sync_type.length === 0)
+      return { kind: "invalid" };
+    if (item.sync_type !== "SESSION_UPDATE") continue;
+    const sessionId = item.session_id;
+    const unreadCount = item.unread_count;
+    const siteId = item.site_id;
+    if (typeof sessionId !== "string" || !sessionIdPattern.test(sessionId))
+      return { kind: "invalid" };
+    if (unreadCount !== undefined && (!Number.isSafeInteger(unreadCount) || (unreadCount as number) < 0))
+      return { kind: "invalid" };
+    if (siteId !== undefined && siteId !== null
+      && (typeof siteId !== "string" || siteId.length > 128 || /[\u0000-\u001f\u007f]/.test(siteId)))
+      return { kind: "invalid" };
+    events.push({
       message_type: 19,
       sync_type: "SESSION_UPDATE",
       seller_id: sellerId,
       session_id: sessionId,
       ...(unreadCount === undefined ? {} : { unread_count: unreadCount as number }),
       ...(typeof siteId === "string" ? { site_id: siteId } : {}),
-    },
+    });
+  }
+  if (events.length === 0) return { kind: "unsupported" };
+  return {
+    kind: "session_updates",
+    events,
   };
 }
+
+export const verifyImPushSignature: ImPushSignatureVerifier = async (rawBody, headers, config) => {
+  if (!Buffer.isBuffer(rawBody) || rawBody.byteLength === 0 || rawBody.byteLength > MAX_BODY_BYTES)
+    return "invalid";
+  const authorization = headers.authorization;
+  if (typeof authorization !== "string" || !/^[0-9a-f]{64}$/.test(authorization))
+    return "invalid";
+
+  const expected = createHmac("sha256", config.appSecret)
+    .update(config.appKey, "utf8")
+    .update(rawBody)
+    .digest();
+  const provided = Buffer.from(authorization, "hex");
+  return timingSafeEqual(expected, provided) ? "valid" : "invalid";
+};
 
 export async function enqueueImSessionUpdate(
   config: LazadaConfig,
@@ -327,7 +349,7 @@ export function scheduleImSessionSyncDrain(
   });
 }
 
-// Lazada's IM-specific signature/header contract is not present in the supplied
-// reference. Keep the public handler closed until an audited verifier is wired in.
+// Keep an explicit closed verifier available for environments/tests that have
+// not configured the documented IM credentials.
 export const unavailableImPushVerifier: ImPushSignatureVerifier =
   async () => "unavailable";

@@ -154,16 +154,19 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         body: raw ? payload : JSON.stringify(payload),
       });
       const sessionId = "synthetic-shared-session";
-      const eventA = {
+      const makeEvent = (sellerId, eventSessionId, userAccountId) => ({
         message_type: 19,
-        sync_type: "SESSION_UPDATE",
-        seller_id: "push-seller-a",
-        session_id: sessionId,
-        unread_count: 2,
-        site_id: "lazada_id",
-        user_account_id: ownerB.id,
-      };
-      const eventB = { ...eventA, seller_id: "push-seller-b", user_account_id: ownerA.id };
+        seller_id: sellerId,
+        data: [{
+          sync_type: "SESSION_UPDATE",
+          session_id: eventSessionId,
+          unread_count: 2,
+          site_id: "lazada_id",
+          user_account_id: userAccountId,
+        }],
+      });
+      const eventA = makeEvent("push-seller-a", sessionId, ownerB.id);
+      const eventB = makeEvent("push-seller-b", sessionId, ownerA.id);
       const fetchCalls = [];
       const mockFetchMessages = async (userId, requestedSessionId, input) => {
         fetchCalls.push({ userId, sessionId: requestedSessionId, input });
@@ -189,7 +192,7 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
       };
 
       try {
-        const raw = `{\n "message_type":19,"sync_type":"SESSION_UPDATE","seller_id":"push-seller-a","session_id":"${sessionId}","unread_count":2,"user_account_id":"${ownerB.id}"\n}`;
+        const raw = `{\n "message_type":19,"seller_id":"push-seller-a","data":[{"sync_type":"SESSION_UPDATE","session_id":"${sessionId}","unread_count":2,"site_id":"lazada_id","user_account_id":"${ownerB.id}"}]\n}`;
         const first = await post(raw, true);
         assert.equal(first.status, 200);
         assert.equal(await first.text(), "");
@@ -235,7 +238,8 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         }
         assert.equal((await loaded.processNextImSessionSync(mockFetchMessages)).kind, "empty");
 
-        const failedEvent = { ...eventA, session_id: "synthetic-failed-session" };
+        const failedSessionId = "synthetic-failed-session";
+        const failedEvent = makeEvent("push-seller-a", failedSessionId, ownerB.id);
         assert.equal((await post(failedEvent)).status, 200);
         let failedFetchCount = 0;
         const failedJob = await loaded.processNextImSessionSync(async () => {
@@ -249,7 +253,7 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         const failedQueue = await ownerA.pool.query(
           `SELECT sync_requested_at, sync_attempts FROM lazada_im_sessions
            WHERE user_id=$1 AND lazada_session_id=$2`,
-          [ownerA.id, failedEvent.session_id],
+          [ownerA.id, failedSessionId],
         );
         assert.ok(failedQueue.rows[0].sync_requested_at, "failure remains visible as pending work");
         assert.equal(failedQueue.rows[0].sync_attempts, 1);
@@ -263,7 +267,10 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         assert.equal((await post(eventA)).status, 503);
         authentication = "valid";
         assert.equal((await post({ ...eventA, message_type: 2 })).status, 200);
-        assert.equal((await post({ ...eventA, sync_type: "OTHER" })).status, 200);
+        assert.equal((await post({
+          ...eventA,
+          data: [{ ...eventA.data[0], sync_type: "OTHER" }],
+        })).status, 200);
         assert.equal((await post("{ malformed", true)).status, 400);
         assert.ok(!receivedRawBodies.some(body => body.toString("utf8").includes(env.LAZADA_IM_APP_SECRET)));
       } finally {

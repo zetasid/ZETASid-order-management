@@ -201,7 +201,7 @@ const sessionDiagnosticValidators: {
   { field: "tags", validator: "optionalTags", validate: source => optionalTags(source) },
 ];
 
-function logSessionProjectFieldDiagnostics(value: unknown) {
+function logSessionProjectFieldDiagnostics(value: unknown, itemIndex: number) {
   const source = isRecord(value) ? value : null;
   const fields = sessionDiagnosticFieldNames.map(field => {
     const fieldValue = source?.[field];
@@ -222,7 +222,7 @@ function logSessionProjectFieldDiagnostics(value: unknown) {
       }
     })
     : [{ field: "item", validator: "projectSession" }];
-  logger.warn({ fields, failedValidators }, "Lazada IM session item validation diagnostic");
+  logger.warn({ itemIndex, fields, failedValidators }, "Lazada IM session item validation diagnostic");
 }
 
 function projectSession(value: unknown, detail = false): ImSession {
@@ -249,8 +249,8 @@ function projectSessionListEntry(value: unknown, index: number): ImSession {
   try {
     return projectSession(value);
   } catch (error) {
-    if (index === 0 && error instanceof LazadaError && error.reason === "invalid_response")
-      logSessionProjectFieldDiagnostics(value);
+    if (error instanceof LazadaError && error.reason === "invalid_response")
+      logSessionProjectFieldDiagnostics(value, index);
     throw error;
   }
 }

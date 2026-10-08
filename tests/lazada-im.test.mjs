@@ -410,6 +410,24 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       const malformed = await request(firstPage, owner);
       assert.equal(malformed.status, 502);
       assert.ok(!(await malformed.text()).includes("test-only"));
+      await setControl("im-invalid-session-item");
+      const invalidSession = await request(firstPage, owner);
+      assert.equal(invalidSession.status, 502);
+      const diagnosticLine = logs.split("\n")
+        .find(line => line.includes("Lazada IM session item validation diagnostic"));
+      assert.ok(diagnosticLine, "an invalid session item must emit field-level diagnostics");
+      const diagnostic = JSON.parse(diagnosticLine);
+      assert.equal(diagnostic.itemIndex, 1, "diagnostics must identify a failing item beyond the first");
+      assert.deepEqual(diagnostic.failedValidators, [{ field: "unread_count", validator: "optionalNumber" }]);
+      const unreadCountDiagnostic = diagnostic.fields.find(field => field.field === "unread_count");
+      assert.deepEqual(unreadCountDiagnostic, {
+        field: "unread_count", valueType: "string", isNull: false, isUndefined: false,
+      });
+      for (const sensitive of [
+        "fixture-session-id-must-not-be-logged",
+        "fixture-summary-must-not-be-logged",
+        "fixture-private-value-must-not-be-logged",
+      ]) assert.ok(!logs.includes(sensitive), "field-level diagnostics must not include field values");
       assert.deepEqual(await getSellerConnection(owner), sellerBefore,
         "malformed IM responses must not modify the Seller connection");
     });

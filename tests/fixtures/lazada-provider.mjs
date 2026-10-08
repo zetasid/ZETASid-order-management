@@ -51,6 +51,16 @@ globalThis.fetch = async (input, options = {}) => {
       if (control === "im-empty") return json(success({
         has_more: false, next_start_time: null, last_session_id: null, session_list: [],
       }));
+      if (control === "im-invalid-session-item") return json(success({
+        has_more: false, next_start_time: null, last_session_id: null, session_list: [
+          { session_id: "fixture-valid-session", unread_count: 0 },
+          {
+            session_id: "fixture-session-id-must-not-be-logged",
+            summary: "fixture-summary-must-not-be-logged",
+            unread_count: "fixture-private-value-must-not-be-logged",
+          },
+        ],
+      }));
       return json(success({
         has_more: true, next_start_time: "1700000001000", last_session_id: "fixture-session-1",
         session_list: [{

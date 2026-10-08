@@ -201,6 +201,19 @@ test("Production migration runner: install, data-preserving update, repeat/concu
           [schema, ["lazada_im_sessions", "lazada_im_messages"]],
         );
         assert.ok(newTableColumns.rows.length > 0);
+        const imSessionColumns = new Set(newTableColumns.rows
+          .filter(({ table_name }) => table_name === "lazada_im_sessions")
+          .map(({ column_name }) => column_name));
+        for (const column of [
+          "sync_requested_at",
+          "sync_request_version",
+          "sync_next_attempt_at",
+          "sync_attempts",
+          "sync_lease_until",
+          "sync_lease_token",
+        ]) {
+          assert.ok(imSessionColumns.has(column), `IM session sync queue requires ${column}`);
+        }
         assert.ok(
           newTableColumns.rows.every(({ column_name }) => !/(access|refresh)_token|app_secret|credential|encrypted_tokens|encryption_key/i.test(column_name)),
           "IM chat tables must not contain credential columns",

@@ -12,6 +12,7 @@ import { createAuthorizedFixture } from "./auth-helper.mjs";
 
 const require = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url));
 const { build } = require("esbuild");
+const express = require("express");
 const temporary = await mkdtemp(`${tmpdir()}/zetas-lazada-im-`);
 await build({
   entryPoints: [
@@ -29,6 +30,8 @@ await build({
 await build({
   stdin: {
     contents: `export { resolveImSessionUpdateUserId } from "./artifacts/api-server/src/modules/lazada/im-connection.ts";
+      export { createLazadaImPushRouter } from "./artifacts/api-server/src/routes/lazada-im-push.ts";
+      export { enqueueImSessionUpdate, processNextImSessionSync } from "./artifacts/api-server/src/modules/lazada/im-push.ts";
       export { pool } from "./lib/db/src/index.ts";`,
     resolveDir: process.cwd(),
     sourcefile: "lazada-im-identity-test-loader.ts",
@@ -42,7 +45,13 @@ await build({
 const security = await import(pathToFileURL(`${temporary}/security.mjs`));
 const { createImClient } = await import(pathToFileURL(`${temporary}/im-client.mjs`));
 const { signature } = await import(pathToFileURL(`${temporary}/client.mjs`));
-const { resolveImSessionUpdateUserId, pool: identityTestPool } =
+const {
+  resolveImSessionUpdateUserId,
+  createLazadaImPushRouter,
+  enqueueImSessionUpdate,
+  processNextImSessionSync,
+  pool: identityTestPool,
+} =
   await import(pathToFileURL(`${temporary}/im-connection-test.mjs`));
 const env = {
   LAZADA_MODE: "testing",
@@ -532,6 +541,175 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         sync_type: "OTHER",
       }), null);
       assert.ok(!JSON.stringify(sellerTwoEvent).includes(env.LAZADA_IM_APP_SECRET));
+    });
+
+    await t.test("Public IM Session Update receiver verifies raw bytes and stores seller-scoped messages idempotently", async subtest => {
+      const syncColumns = await identityTestPool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema=current_schema() AND table_name='lazada_im_sessions'
+           AND column_name IN ('sync_requested_at','sync_request_version','sync_next_attempt_at',
+                               'sync_attempts','sync_lease_until','sync_lease_token')`,
+      );
+      if (syncColumns.rows.length !== 6) {
+        subtest.skip("the workspace development database has not yet received the additive IM sync migration");
+        return;
+      }
+      const differentSellerUser = await createFixture();
+      await addImConnection(differentSellerUser, { sellerId: "fixture-im-push-seller-2" });
+
+      let authentication = "valid";
+      const verifiedBodies = [];
+      const messageFetches = [];
+      const mockMessagePage = userId => ({
+        has_more: false,
+        next_start_time: null,
+        last_message_id: `fixture-message-${userId}`,
+        message_list: [{
+          message_id: `fixture-message-${userId}`,
+          content: "synthetic-only message",
+          from_account_type: 1,
+          to_account_type: 2,
+          template_id: null,
+          type: 1,
+          status: "sent",
+          auto_reply: false,
+        }],
+      });
+      const pushApp = express();
+      pushApp.set("trust proxy", 1);
+      pushApp.use("/api/lazada/im/push", createLazadaImPushRouter({
+        getConfig: () => config,
+        verifySignature: async (rawBody, _headers, verifierConfig) => {
+          assert.equal(Buffer.isBuffer(rawBody), true);
+          assert.equal(verifierConfig.appKey, env.LAZADA_IM_APP_KEY);
+          verifiedBodies.push(Buffer.from(rawBody));
+          return authentication;
+        },
+        enqueueSessionUpdate: enqueueImSessionUpdate,
+        scheduleProcessing: () => {},
+      }));
+      pushApp.use("/api/lazada/im/push-unconfigured", createLazadaImPushRouter({
+        getConfig: () => config,
+      }));
+      const pushServer = http.createServer(pushApp);
+      await new Promise(resolve => pushServer.listen(0, "127.0.0.1", resolve));
+      const pushUrl = `http://127.0.0.1:${pushServer.address().port}/api/lazada/im/push`;
+      const pushRequest = (body, raw = false) => fetch(pushUrl, {
+        method: "POST",
+        headers: {
+          "X-Forwarded-Proto": "https",
+          "Content-Type": "application/json",
+        },
+        body: raw ? body : JSON.stringify(body),
+      });
+      const sharedSessionId = "fixture-session-shared-across-sellers";
+      const sellerOneEvent = {
+        message_type: 19,
+        sync_type: "SESSION_UPDATE",
+        seller_id: "fixture-im-seller-1",
+        session_id: sharedSessionId,
+        unread_count: 2,
+        site_id: "lazada_id",
+        user_account_id: differentSellerUser.id,
+      };
+
+      try {
+        const rawFirstEvent = `{\n  "message_type":19, "sync_type":"SESSION_UPDATE", "seller_id":"fixture-im-seller-1", "session_id":"${sharedSessionId}", "unread_count":2, "site_id":"lazada_id", "user_account_id":"${differentSellerUser.id}"\n}`;
+        const firstResponse = await pushRequest(rawFirstEvent, true);
+        assert.equal(firstResponse.status, 200);
+        assert.equal(await firstResponse.text(), "", "webhook response must not return chat data");
+        assert.equal(verifiedBodies.at(-1).toString("utf8"), rawFirstEvent,
+          "signature adapter must receive the original raw bytes, not reserialized JSON");
+        assert.equal(messageFetches.length, 0, "ACK must not wait for the Lazada message API");
+
+        const duplicateResponse = await pushRequest(sellerOneEvent);
+        assert.equal(duplicateResponse.status, 200);
+        const firstSellerSession = await oauthUser.pool.query(
+          `SELECT id, unread_count, site_id, sync_requested_at, sync_request_version
+           FROM lazada_im_sessions WHERE user_id=$1 AND lazada_session_id=$2`,
+          [oauthUser.id, sharedSessionId],
+        );
+        assert.equal(firstSellerSession.rows.length, 1, "duplicate event must not duplicate the session");
+        assert.equal(firstSellerSession.rows[0].unread_count, 2);
+        assert.ok(firstSellerSession.rows[0].sync_requested_at, "event must be durably queued before ACK");
+        assert.equal(firstSellerSession.rows[0].sync_request_version, 2,
+          "duplicate events coalesce into the existing session row");
+
+        const sellerTwoResponse = await pushRequest({
+          ...sellerOneEvent,
+          seller_id: "fixture-im-push-seller-2",
+          user_account_id: oauthUser.id,
+        });
+        assert.equal(sellerTwoResponse.status, 200);
+        const secondSellerSession = await differentSellerUser.pool.query(
+          "SELECT id, sync_requested_at FROM lazada_im_sessions WHERE user_id=$1 AND lazada_session_id=$2",
+          [differentSellerUser.id, sharedSessionId],
+        );
+        assert.equal(secondSellerSession.rows.length, 1);
+
+        const mockFetchMessages = async (userId, sessionId, input) => {
+          messageFetches.push({ userId, sessionId, input });
+          assert.match(input.startTime, /^\d+$/);
+          assert.equal(input.pageSize, 20);
+          assert.equal(input.cursor, undefined);
+          return mockMessagePage(userId);
+        };
+        const workerResults = [
+          await processNextImSessionSync(mockFetchMessages),
+          await processNextImSessionSync(mockFetchMessages),
+        ];
+        const processedResults = workerResults.filter(result => result.kind === "processed");
+        assert.equal(processedResults.length, 2);
+        assert.deepEqual(new Set(processedResults.map(result => result.userId)),
+          new Set([oauthUser.id, differentSellerUser.id]),
+          "each queued job must use only its seller-mapped ZETAS connection");
+        assert.equal(messageFetches.length, 2);
+        assert.ok(messageFetches.every(call => call.sessionId === sharedSessionId));
+
+        const firstSellerMessages = await oauthUser.pool.query(
+          "SELECT count(*)::int AS count FROM lazada_im_messages WHERE session_id=$1",
+          [firstSellerSession.rows[0].id],
+        );
+        assert.equal(firstSellerMessages.rows[0].count, 1,
+          "existing session/message unique keys make message persistence idempotent");
+        const secondSellerMessages = await differentSellerUser.pool.query(
+          "SELECT count(*)::int AS count FROM lazada_im_messages WHERE session_id=$1",
+          [secondSellerSession.rows[0].id],
+        );
+        assert.equal(secondSellerMessages.rows[0].count, 1);
+        const pendingRows = await oauthUser.pool.query(
+          `SELECT count(*)::int AS count FROM lazada_im_sessions
+           WHERE user_id=$1 AND lazada_session_id=$2 AND sync_requested_at IS NOT NULL`,
+          [oauthUser.id, sharedSessionId],
+        );
+        assert.equal(pendingRows.rows[0].count, 0, "successful processing clears only the completed request");
+        assert.equal((await processNextImSessionSync()).kind, "empty");
+
+        const fetchesBeforeRejects = messageFetches.length;
+        assert.equal((await pushRequest({ ...sellerOneEvent, seller_id: "unconnected-seller" })).status, 404);
+        assert.equal((await pushRequest({ ...sellerOneEvent, seller_id: undefined })).status, 400);
+        authentication = "invalid";
+        assert.equal((await pushRequest(sellerOneEvent)).status, 401);
+        authentication = "unavailable";
+        assert.equal((await pushRequest(sellerOneEvent)).status, 503);
+        authentication = "valid";
+        assert.equal((await pushRequest({ ...sellerOneEvent, message_type: 2 })).status, 200);
+        assert.equal((await pushRequest({ ...sellerOneEvent, sync_type: "OTHER" })).status, 200);
+        assert.equal((await pushRequest("{ malformed", true)).status, 400);
+        const failClosed = await fetch(`${pushUrl}-unconfigured`, {
+          method: "POST",
+          headers: { "X-Forwarded-Proto": "https", "Content-Type": "application/json" },
+          body: JSON.stringify(sellerOneEvent),
+        });
+        assert.equal(failClosed.status, 503,
+          "production-default verifier must fail closed until IM auth contract is established");
+        assert.equal(messageFetches.length, fetchesBeforeRejects,
+          "invalid, unmapped and unsupported callbacks must not call GetMessages");
+        assert.ok(verifiedBodies.length >= 10);
+        assert.ok(!verifiedBodies.some(body => body.toString("utf8").includes(env.LAZADA_IM_APP_SECRET)));
+      } finally {
+        await new Promise(resolve => pushServer.close(resolve));
+      }
     });
 
     await t.test("Authentication, connection ownership and input validation", async () => {

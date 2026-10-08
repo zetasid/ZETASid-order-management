@@ -71,6 +71,20 @@
       "when": 1791448589581,
       "tag": "0009_broad_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791452822197,
+      "tag": "0010_yummy_power_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791452930537,
+      "tag": "0011_daily_sebastian_shaw",
+      "breakpoints": true
     }
   ]
 }

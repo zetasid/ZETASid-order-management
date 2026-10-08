@@ -13,13 +13,24 @@ export const lazadaImSessionsTable = pgTable("lazada_im_sessions", {
   lastMessageId: text("last_message_id"),
   lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
   siteId: text("site_id"),
+  syncRequestedAt: timestamp("sync_requested_at", { withTimezone: true }),
+  syncRequestVersion: integer("sync_request_version").notNull().default(0),
+  syncNextAttemptAt: timestamp("sync_next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  syncAttempts: integer("sync_attempts").notNull().default(0),
+  syncLeaseUntil: timestamp("sync_lease_until", { withTimezone: true }),
+  syncLeaseToken: uuid("sync_lease_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
   unique("lazada_im_sessions_user_provider_uq").on(table.userId, table.lazadaSessionId),
   check("lazada_im_sessions_provider_id_not_blank", sql`length(btrim(${table.lazadaSessionId})) > 0`),
   check("lazada_im_sessions_unread_nonnegative", sql`${table.unreadCount} >= 0`),
+  check("lazada_im_sessions_sync_request_version_nonnegative", sql`${table.syncRequestVersion} >= 0`),
+  check("lazada_im_sessions_sync_attempts_nonnegative", sql`${table.syncAttempts} >= 0`),
   index("lazada_im_sessions_user_last_message_idx").on(table.userId, table.lastMessageAt),
+  index("lazada_im_sessions_sync_due_idx")
+    .on(table.syncNextAttemptAt, table.syncRequestedAt)
+    .where(sql`${table.syncRequestedAt} is not null`),
 ]);
 
 export const insertLazadaImSessionSchema = createInsertSchema(lazadaImSessionsTable).omit({

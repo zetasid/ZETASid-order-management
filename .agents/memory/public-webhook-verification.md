@@ -63,3 +63,17 @@ timestamp or queue validation, and does not establish the live Verify format.
 **How to apply:** Check the trusted proxy boundary before investigating a
 payload rejection. Forwarded HTTPS is meaningful only from a trusted proxy
 that overwrites client-supplied forwarding headers.
+
+The Lazada Open Platform IM webhook reference may render as a JavaScript shell
+without exposing the article text to a noninteractive fetch. In this workspace,
+the official page returned a shell only, while the documentation fetch/search
+tools failed; the user-provided IM PDF was a summary and omitted signature,
+header, and ACK details.
+
+**Why:** Webhook authentication and seller-account mapping cannot be inferred
+from a summary or from the unrelated Lazada Order Push contract.
+
+**How to apply:** Before implementing IM Push, obtain the official article text
+or export that specifies signature construction, headers, account identity,
+and ACK/retry behavior. If those details remain unavailable, stop rather than
+reverse-engineer or assume the contract.

@@ -59,6 +59,15 @@ function logFailedResponse(
   }, "Lazada API response failed");
 }
 
+function providerSellerId(value: unknown): string | null {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  if (typeof value !== "string") return null;
+  const sellerId = value.trim();
+  return sellerId.length > 0 && sellerId.length <= 128 && !/[\u0000-\u001f\u007f]/.test(sellerId)
+    ? sellerId : null;
+}
+
 // Explicit allowlist: OAuth, seller verification, order reads and manual digital delivery only.
 export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal,
   diagnosticLogger: DiagnosticLogger = logger) {
@@ -126,8 +135,13 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
       const countries = Array.isArray(body.country_user_info) ? body.country_user_info : [];
       if (body.country !== config.country && !countries.some((c: { country?: string }) => c?.country === config.country))
         throw new LazadaError("wrong_country");
+      const matchingCountryInfo = countries.filter((value: unknown): value is Record<string, unknown> =>
+        !!value && typeof value === "object" && !Array.isArray(value)
+        && (value as Record<string, unknown>).country === config.country);
+      const sellerId = matchingCountryInfo.length === 1
+        ? providerSellerId(matchingCountryInfo[0].seller_id) : null;
       return { accessToken: body.access_token as string, refreshToken: body.refresh_token as string,
-        expiresIn: body.expires_in as number, refreshExpiresIn: body.refresh_expires_in as number };
+        expiresIn: body.expires_in as number, refreshExpiresIn: body.refresh_expires_in as number, sellerId };
     },
     async check(accessToken: string) {
       const body = await call("/seller/get", { access_token: accessToken });

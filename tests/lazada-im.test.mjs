@@ -282,7 +282,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
   };
   const getImConnection = async fixture => {
     const { rows: [row] } = await fixture.pool.query(
-      `SELECT encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at
+      `SELECT lazada_seller_id, encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at
        FROM lazada_im_connections WHERE user_id=$1`,
       [fixture.id],
     );
@@ -330,10 +330,10 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         .find(value => value.startsWith("zetas_lazada_oauth="));
       assert.ok(sellerCookieHeader);
       const sellerCookie = sellerCookieHeader.split(";")[0];
-      const startFlow = async () => {
-        const response = await request("/lazada/im/oauth/authorize", oauthUser, "POST", {
+      const startFlow = async (target = oauthUser) => {
+        const response = await request("/lazada/im/oauth/authorize", target, "POST", {
           Origin: env.APP_ORIGIN,
-          "X-CSRF-Token": oauthUser.csrfToken,
+          "X-CSRF-Token": target.csrfToken,
         });
         assert.equal(response.status, 200);
         const authorization = await response.json();
@@ -391,6 +391,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       assert.equal(callback.headers.get("location"), "/settings?lazada_im=connected");
       assert.equal(callback.headers.get("referrer-policy"), "no-referrer");
       const row = await getImConnection(oauthUser);
+      assert.equal(row.lazada_seller_id, "fixture-im-seller-1");
       assert.ok(row.encrypted_tokens.startsWith("v1."));
       assert.ok(!JSON.stringify(row).includes("test-only-im-access-token"));
       assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore,
@@ -406,9 +407,30 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore);
       assert.deepEqual(await getImConnection(oauthUser), row, "replayed IM state must not alter the stored IM token");
 
+      const differentSellerFlow = await startFlow();
+      const differentSellerCallback = await request(
+        `/lazada/oauth/callback?state=${differentSellerFlow.state}&code=different-seller`, null, "GET",
+        { Cookie: differentSellerFlow.flowCookie }, "manual",
+      );
+      assert.equal(differentSellerCallback.headers.get("location"), "/settings?lazada_im=authorization_failed");
+      assert.deepEqual(await getImConnection(oauthUser), row,
+        "reauthorizing a different seller must not overwrite the existing connection");
+
+      const duplicateSellerFlow = await startFlow(other);
+      const duplicateSellerCallback = await request(
+        `/lazada/oauth/callback?state=${duplicateSellerFlow.state}&code=valid`, null, "GET",
+        { Cookie: duplicateSellerFlow.flowCookie }, "manual",
+      );
+      assert.equal(duplicateSellerCallback.headers.get("location"), "/settings?lazada_im=authorization_failed");
+      assert.equal(await getImConnection(other), null,
+        "the same app-scoped seller cannot be claimed by a second ZETAS user");
+      assert.deepEqual(await getImConnection(oauthUser), row,
+        "a conflicting authorization must not alter the existing seller connection");
+
       for (const [code, outcome] of [
         ["wrong-country", "wrong_country"],
         ["invalid-response", "authorization_failed"],
+        ["missing-seller-id", "invalid_response"],
       ]) {
         const failedFlow = await startFlow();
         const imBefore = await getImConnection(oauthUser);
@@ -563,7 +585,8 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       call.appKey === env.LAZADA_IM_APP_KEY && call.tokenSource === null));
     for (const sensitive of [
       "test-only-im-access-token", "test-only-im-refresh-token", env.LAZADA_APP_SECRET, env.LAZADA_IM_APP_SECRET,
-      "synthetic test message", "private-fixture-buyer-id",
+      "synthetic test message", "private-fixture-buyer-id", "Synthetic private reply",
+      "fixture-im-seller-1", "fixture-im-seller-2",
     ]) assert.ok(!logs.includes(sensitive), `Logs must not contain ${sensitive}`);
   } finally {
     child.kill("SIGTERM");

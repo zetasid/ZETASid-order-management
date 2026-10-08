@@ -64,6 +64,13 @@
       "when": 1791445128389,
       "tag": "0008_lazada_im_chat_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791448589581,
+      "tag": "0009_broad_mentallo",
+      "breakpoints": true
     }
   ]
 }

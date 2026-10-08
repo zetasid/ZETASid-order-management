@@ -1,0 +1,2 @@
+ALTER TABLE "lazada_im_connections" ADD COLUMN "lazada_seller_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "lazada_im_connections_app_country_seller_uq" ON "lazada_im_connections" USING btree ("app_fingerprint","country","lazada_seller_id") WHERE "lazada_im_connections"."lazada_seller_id" IS NOT NULL;

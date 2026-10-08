@@ -80,6 +80,23 @@ test("Production migration runner: install, data-preserving update, repeat/concu
         assert.equal(Number(after.amount), before.amount, "Numeric upgrade preserves the legacy monetary value");
         assert.deepEqual({ ...after, amount: Number(after.amount) }, before);
         assert.equal(lazada_order_id, before.marketplace_order_id);
+        const sellerColumn = await pool.query(
+          `SELECT is_nullable FROM information_schema.columns
+           WHERE table_schema=$1 AND table_name='lazada_im_connections' AND column_name='lazada_seller_id'`,
+          [schema],
+        );
+        assert.equal(sellerColumn.rows[0]?.is_nullable, "YES",
+          "the new seller identity must be nullable for existing IM connections");
+        const sellerIndex = await pool.query(
+          `SELECT i.indisunique, pg_get_expr(i.indpred, i.indrelid) AS predicate
+           FROM pg_index i
+           JOIN pg_class c ON c.oid=i.indexrelid
+           JOIN pg_namespace n ON n.oid=c.relnamespace
+           WHERE n.nspname=$1 AND c.relname='lazada_im_connections_app_country_seller_uq'`,
+          [schema],
+        );
+        assert.equal(sellerIndex.rows[0]?.indisunique, true);
+        assert.match(sellerIndex.rows[0]?.predicate ?? "", /lazada_seller_id IS NOT NULL/);
       });
 
       await t.test("Repeated and concurrent migration tasks are safe no-ops", async () => {

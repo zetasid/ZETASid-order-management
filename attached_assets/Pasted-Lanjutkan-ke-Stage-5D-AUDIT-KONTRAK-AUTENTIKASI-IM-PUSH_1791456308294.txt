@@ -1,0 +1,66 @@
+Lanjutkan ke Stage 5D — AUDIT KONTRAK AUTENTIKASI IM PUSH LAZADA.
+
+PENTING:
+Ini AUDIT READ-ONLY terlebih dahulu.
+Jangan mengubah source code.
+Jangan mengubah database.
+Jangan commit.
+Jangan push.
+Jangan merge.
+Jangan deploy.
+Jangan mengubah Lazada Console.
+Jangan menggunakan credential nyata.
+
+Gunakan dokumentasi Lazada yang sudah tersedia di workspace/referensi proyek dan bukti dokumentasi yang sudah dikumpulkan sebelumnya.
+
+Tujuan:
+Menentukan kontrak resmi autentikasi/verifikasi callback IM Push Lazada sebelum verifier production dibuat.
+
+Audit:
+
+1. Cari dokumentasi resmi untuk IM Push / IM Session Update:
+   - message_type = 19
+   - sync_type = SESSION_UPDATE
+   - Auth required
+   - retry behavior
+
+2. Tentukan secara eksplisit:
+   - apakah callback memiliki signature;
+   - parameter/header yang digunakan untuk autentikasi;
+   - bagaimana signature diverifikasi;
+   - apakah app_key/app_secret/access_token digunakan;
+   - bagaimana timestamp digunakan;
+   - apakah ada request body canonicalization;
+   - bagaimana ACK/HTTP response yang diharapkan.
+
+3. Jangan menebak.
+   Jika dokumentasi yang tersedia tidak cukup untuk menentukan algoritma signature, nyatakan:
+   "BELUM TERKONFIRMASI".
+   Jangan membuat algoritma sendiri.
+
+4. Cocokkan hasil audit dengan receiver Stage 5C saat ini:
+   - authentication abstraction
+   - verifier unavailable
+   - HTTP 503 ketika verifier belum tersedia
+   - durable queue
+   - ACK setelah enqueue
+   - seller_id routing
+
+5. Tentukan apa yang benar-benar perlu diubah pada Stage 5C agar kompatibel dengan kontrak Lazada.
+
+6. Pastikan Order Push tidak perlu diubah.
+
+7. Jangan melakukan implementasi sampai kontrak autentikasi benar-benar terbukti.
+
+HASIL:
+- Status Stage 5D: LULUS / BELUM LULUS
+- Bukti dokumentasi yang digunakan
+- Kontrak authentication/signature
+- Kontrak ACK/HTTP response
+- Retry behavior
+- Bagian Stage 5C yang sudah sesuai
+- Bagian yang masih kurang
+- Rekomendasi implementasi verifier
+- File yang nantinya perlu diubah
+
+Hanya laporan. Jangan melakukan perubahan kode.

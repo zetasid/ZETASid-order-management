@@ -90,12 +90,36 @@ function logProviderFailure(
   }, "Lazada IM API response failed");
 }
 
+function logSessionListDataStructure(data: unknown) {
+  const source = isRecord(data) ? data : null;
+  const sessionList = source?.session_list;
+  const hasSessionList = Array.isArray(sessionList);
+  const firstItem = hasSessionList ? sessionList[0] : undefined;
+  const hasFirstItem = hasSessionList && sessionList.length > 0;
+  logger.warn({
+    path: sessionPath,
+    dataType: Array.isArray(data) ? "array" : typeof data,
+    dataKeys: source ? Object.keys(source) : [],
+    hasMoreType: source ? typeof source.has_more : "undefined",
+    sessionListType: hasSessionList ? "array" : typeof sessionList,
+    nextStartTimeType: source ? typeof source.next_start_time : "undefined",
+    lastSessionIdType: source ? typeof source.last_session_id : "undefined",
+    ...(hasSessionList ? { sessionListLength: sessionList.length } : {}),
+    ...(hasFirstItem ? {
+      firstItemType: typeof firstItem,
+      firstItemKeys: isRecord(firstItem) ? Object.keys(firstItem) : [],
+    } : {}),
+  }, "Lazada IM data structure diagnostic");
+}
+
 function parseProviderData<T>(response: ImProviderResponse, parse: (data: JsonRecord) => T): T {
   try {
     return parse(response.data);
   } catch (error) {
-    if (error instanceof LazadaError && error.reason === "invalid_response")
+    if (error instanceof LazadaError && error.reason === "invalid_response") {
       logProviderFailure(response.path, response.httpStatus, response.body, response.sensitiveValues);
+      if (response.path === sessionPath) logSessionListDataStructure(response.data);
+    }
     throw error;
   }
 }
@@ -268,6 +292,7 @@ export function createImClient(config: LazadaConfig, transport: typeof fetch = f
     }
     if (!isRecord(body.data)) {
       logProviderFailure(path, httpStatus, body, sensitiveValues);
+      if (path === sessionPath) logSessionListDataStructure(body.data);
       throw new LazadaError("invalid_response");
     }
     return { path, httpStatus, body, data: body.data, sensitiveValues };

@@ -1,0 +1,228 @@
+ZETAS — AUDIT IM WEBHOOK FINAL (READ-ONLY)
+JANGAN MENGUBAH KODE, DATABASE, ENV, COMMIT, ATAU DEPLOY.
+
+Konteks:
+Kita sudah memverifikasi secara resmi bahwa:
+
+1. Lazada IM Session Update Webhook:
+   - message_type = 19
+   - Auth Required = true
+   - Retry = 12 kali
+   - Retry interval = 30 menit
+   - payload memiliki seller_id di level utama
+   - data berisi sync_type=SESSION_UPDATE, user_account_id,
+     user_account_type, session_id, unread_count, to_position,
+     self_position, site_id.
+
+2. Lazada Push Mechanism:
+   - Authorization ada di HTTP header.
+   - Signature menggunakan Hex-encoded HMAC-SHA256.
+   - Base = AppKey + exact received message body.
+   - Secret = AppSecret.
+   - Client harus memverifikasi signature sebelum mengonsumsi pesan.
+   - ACK HTTP 200 harus diberikan dalam 500ms.
+   - Jika gagal, retry setelah 30 menit, maksimum 12 percobaan.
+   - Lazada menyarankan signature Authorization untuk memverifikasi
+     asal push, bukan IP whitelist.
+   - Push bersifat at-least-once sehingga duplicate harus ditangani
+     secara idempotent.
+
+3. API Explorer Lazada juga sudah berhasil memanggil:
+   GET /im/session/list
+   dengan response:
+   success=true
+   err_code=0
+   err_message=SUCCESS
+   session_list=[]
+
+Tujuan audit:
+Tentukan kondisi IMPLEMENTASI ZETAS SAAT INI untuk menerima
+Lazada IM Session Update Webhook message_type=19.
+
+WAJIB AUDIT HAL-HAL BERIKUT:
+
+A. WEBHOOK RECEIVER
+- Cari semua route/controller/handler yang berhubungan dengan:
+  IM webhook
+  IM push
+  Session Update
+  message_type=19
+  /im/*
+- Sebutkan file dan fungsi yang ditemukan.
+- Pastikan apakah receiver IM webhook BENAR-BENAR ADA.
+- Bedakan dengan existing Lazada ORDER PUSH receiver.
+- Jangan menganggap order push receiver sebagai IM receiver.
+
+B. RAW HTTP BODY
+- Periksa apakah receiver dapat memperoleh EXACT RAW HTTP BODY
+  sebelum JSON.parse().
+- Tunjukkan file/fungsi yang menangani raw body.
+- Pastikan body tidak di-parse lalu di-stringify sebelum signature
+  verification.
+- Jika belum ada, tandai BELUM ADA.
+- JANGAN memperbaikinya.
+
+C. AUTHORIZATION / HMAC
+Cari implementasi verifikasi:
+- HTTP header Authorization
+- HMAC-SHA256
+- AppKey + received raw body
+- AppSecret
+- Hex lowercase
+- constant-time comparison
+
+Tentukan:
+1. Sudah ada atau belum.
+2. Jika ada, file/fungsi tepatnya.
+3. Apakah verifier dipanggil SEBELUM parsing/routing event.
+4. Apakah gagal closed.
+5. Apakah ada fallback yang berbahaya.
+
+JANGAN mencetak AppSecret, token, encryption key, atau credential apa pun.
+
+D. SELLER_ID ROUTING
+Periksa apakah webhook dapat mengambil:
+- top-level seller_id
+- message_type
+- data[]
+
+Cari apakah seller_id sudah disimpan pada koneksi Lazada IM.
+
+Periksa juga mapping:
+Lazada seller_id -> ZETAS user_id / connection
+
+Tentukan apakah routing multi-account aman.
+
+JANGAN menggunakan:
+- user_account_id sebagai pengganti seller_id
+- session_id sebagai identitas seller
+- site_id saja sebagai mapping seller.
+
+E. MESSAGE_TYPE 19
+Pastikan parser dapat mengenali:
+
+message_type = 19
+
+dan:
+
+sync_type = SESSION_UPDATE
+
+Laporkan apa yang dilakukan kode terhadap event tersebut.
+
+F. ACK / 500ms
+Periksa apakah receiver:
+- dapat memberikan HTTP 200 dengan cepat setelah event diterima
+- menggunakan queue/background processing
+- menunggu API Lazada/database/proses berat sebelum ACK
+
+Jangan mengubah kode.
+Jika tidak dapat membuktikan ACK <500ms dari kode, tandai:
+"BELUM TERBUKTI".
+
+G. QUEUE / DURABLE PROCESSING
+Periksa apakah event:
+- dimasukkan ke queue sebelum ACK
+- memiliki retry internal
+- idempotent
+- dapat diproses ulang jika worker gagal
+
+Periksa juga apakah ada risiko event hilang setelah HTTP 200.
+
+H. IDEMPOTENCY
+Periksa apakah ada deduplication untuk IM event/message.
+Cari:
+- message_id
+- session_id
+- event ID
+- unique constraint
+- upsert
+- duplicate protection
+
+Jangan membuat migration.
+
+I. IM API FOLLOW-UP
+Periksa bagaimana kode menangani Session Update.
+
+Cari penggunaan:
+- /im/session/list
+- /im/session/get
+- /im/message/list
+- /im/session/read
+- /im/message/send
+
+Perhatikan aturan Lazada bahwa IM API tidak boleh dipolling
+terus-menerus dan PUSH harus menjadi mekanisme utama.
+
+J. SECURITY
+Pastikan audit tidak menemukan:
+- logging AppSecret
+- logging Access Token
+- logging encryption key
+- logging Authorization signature secara sensitif
+- penyimpanan raw webhook body yang tidak diperlukan
+- bypass signature verification
+- IP whitelist sebagai satu-satunya keamanan.
+
+OUTPUT WAJIB:
+
+Berikan laporan dengan format:
+
+# ZETAS IM WEBHOOK AUDIT
+
+## 1. STATUS AKHIR
+Pilih salah satu:
+- SIAP IMPLEMENTASI
+- SEBAGIAN SUDAH ADA
+- BELUM ADA / BELUM SIAP
+
+## 2. HASIL PER KOMPONEN
+
+| Komponen | Status | File/Fungsi | Catatan |
+|---|---|---|---|
+| IM Webhook receiver | | | |
+| Raw body | | | |
+| Authorization | | | |
+| HMAC-SHA256 | | | |
+| seller_id routing | | | |
+| message_type=19 | | | |
+| ACK 200/500ms | | | |
+| Queue | | | |
+| Idempotency | | | |
+| IM message retrieval | | | |
+| Security | | | |
+
+Gunakan hanya:
+ADA / TIDAK ADA / SEBAGIAN / BELUM TERBUKTI.
+
+## 3. FILE YANG TERLIBAT
+Daftar path file dan fungsi yang relevan.
+
+## 4. ALUR KODE SAAT INI
+Gambarkan alur aktual kode, misalnya:
+
+Lazada
+→ route
+→ verifier
+→ parser
+→ routing seller
+→ queue
+→ worker
+→ database
+
+Jika salah satu belum ada, tandai jelas.
+
+## 5. GAP YANG HARUS DIBUAT
+Hanya daftar kekurangan.
+JANGAN membuat perubahan.
+
+## 6. REKOMENDASI TAHAP BERIKUTNYA
+Pisahkan:
+- wajib sebelum testing webhook
+- wajib sebelum production
+- opsional
+
+## 7. PERUBAHAN
+Tulis secara eksplisit:
+"NO CODE CHANGES MADE"
+"NO DATABASE CHANGES MADE"
+"NO DEPLOYMENT MADE"

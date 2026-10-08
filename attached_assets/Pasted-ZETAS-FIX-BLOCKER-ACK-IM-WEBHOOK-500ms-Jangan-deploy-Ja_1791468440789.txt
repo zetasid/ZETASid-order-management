@@ -1,0 +1,66 @@
+ZETAS — FIX BLOCKER ACK IM WEBHOOK ≤500ms
+
+Jangan deploy.
+Jangan merge.
+Jangan mengubah HMAC verifier yang sudah lulus.
+Jangan mengubah parser yang sudah lulus.
+Jangan mengubah Order Push.
+Jangan mengubah OAuth.
+Jangan membuat migration/database schema baru tanpa alasan yang benar-benar diperlukan.
+
+Masalah:
+Audit final menemukan ACK HTTP 200 ≤500ms belum terbukti.
+
+Kontrak Lazada:
+Webhook callback harus ACK dengan HTTP status 200 dalam waktu ≤500ms.
+
+Audit terlebih dahulu arsitektur queue yang SUDAH ADA di project.
+
+Tujuan:
+Pastikan webhook tidak menunggu proses database/pengambilan pesan/worker sebelum memberikan HTTP 200.
+
+Cari mekanisme queue/job infrastructure yang sudah tersedia di repository.
+
+Jika sudah ada durable queue yang dapat digunakan:
+- gunakan mekanisme tersebut.
+- enqueue event setelah signature verification dan validasi minimum.
+- setelah event berhasil masuk durable queue, segera return HTTP 200.
+- processing IM dilakukan asynchronous oleh worker.
+
+Jika repository TIDAK memiliki durable queue:
+JANGAN langsung menambahkan Redis atau dependency baru.
+Laporkan bahwa durable queue belum tersedia dan jelaskan opsi paling aman.
+Jangan mengklaim ACK production-ready hanya dengan setImmediate().
+
+WAJIB:
+- signature tetap diverifikasi sebelum event diterima.
+- jangan ACK event dengan signature invalid.
+- jangan ACK sebelum event berhasil masuk ke mekanisme durable yang dipilih.
+- jangan melakukan /im/message/list sebelum ACK.
+- jangan melakukan operasi berat sebelum ACK.
+- jangan log secret/token/Authorization/raw credential.
+- pertahankan idempotency yang sudah ada.
+
+TEST:
+Buat/update test yang membuktikan:
+1. valid webhook dapat ACK.
+2. invalid signature tidak ACK 200.
+3. verifier unavailable tidak ACK 200.
+4. proses downstream lambat tidak menahan ACK.
+5. ACK path memiliki batas waktu yang dapat diuji secara deterministic.
+6. event tetap dapat diproses worker setelah ACK.
+7. duplicate message tetap idempotent.
+
+Jangan menggunakan request nyata ke Lazada.
+
+Setelah selesai tampilkan:
+- queue yang ditemukan
+- perubahan file
+- alur baru sebelum dan sesudah ACK
+- hasil semua test
+- apakah ACK ≤500ms terbukti
+- apakah ada migration
+- apakah ada dependency baru
+- apakah Order Push berubah
+
+STOP setelah laporan.

@@ -1,0 +1,113 @@
+LANJUTKAN PROYEK ZETAS – INTEGRASI LAZADA IM API
+
+Kita sekarang sudah menemukan dokumentasi resmi Lazada Open Platform untuk endpoint IM yang sebelumnya belum terverifikasi.
+
+JANGAN langsung mengubah production, jangan deploy, jangan commit, dan jangan membuat asumsi terhadap parameter yang belum terdokumentasi.
+
+Tujuan tahap ini hanya mengimplementasikan dan menguji 2 endpoint resmi berikut:
+
+1. ReadSession
+POST /im/session/read
+
+Parameter wajib:
+- session_id
+- last_read_message_id
+
+2. SendMessage
+POST /im/message/send
+
+Parameter wajib:
+- session_id
+- template_id
+
+Untuk pesan teks:
+- template_id = 1
+- txt = isi pesan
+
+Response SendMessage yang terdokumentasi:
+- err_code
+- success
+- err_message
+- data.current_time
+- data.message_id
+- data.template_id
+
+Gunakan endpoint Indonesia yang sudah digunakan ZETAS:
+https://api.lazada.co.id/rest
+
+ATURAN PENTING:
+
+1. Pertahankan mekanisme autentikasi dan signature Lazada yang sudah ada di ZETAS.
+2. Jangan membuat mekanisme signature baru jika helper yang sudah ada bisa digunakan.
+3. Jangan mengubah OAuth/credential/token yang sudah berjalan.
+4. Jangan mengubah LAZADA_APP_SECRET, LAZADA_IM_APP_SECRET, encryption key, atau credential apa pun.
+5. Jangan mengubah UI.
+6. Jangan membuat database chat baru pada tahap ini.
+7. Jangan membuat long-polling/worker terlebih dahulu.
+8. Jangan membuat Push/Webhook terlebih dahulu.
+9. Jangan mengubah Order Push yang sudah berjalan.
+10. Jangan menghapus atau merusak endpoint IM yang sudah ada:
+   - /im/session/list
+   - /im/session/get
+   - /im/message/list
+11. Jangan melakukan API call nyata ke akun Lazada saya selama tahap development/test kecuali saya meminta secara eksplisit.
+12. Gunakan mock/fixture untuk test.
+13. Jangan mengarang parameter atau response yang tidak ada dalam dokumentasi.
+
+LANGKAH KERJA:
+
+A. Audit kode yang sekarang
+Periksa:
+- artifacts/api-server/src/modules/lazada/im-client.ts
+- artifacts/api-server/src/modules/lazada/im-chat.ts
+- artifacts/api-server/src/routes/lazada-im.ts
+- helper signature/authentication Lazada
+- tests IM yang sudah ada
+
+B. Implementasikan:
+- client method readSession()
+- client method sendMessage()
+
+Gunakan pola kode yang sama dengan endpoint IM yang sudah ada.
+
+C. Tambahkan route/service hanya jika memang diperlukan oleh arsitektur ZETAS saat ini.
+Jika route belum diperlukan, cukup siapkan client/service terlebih dahulu.
+
+D. Tambahkan test fixture/mock untuk:
+- ReadSession success
+- ReadSession error
+- SendMessage text success
+- SendMessage error
+
+E. Pastikan:
+- session_id dikirim dengan benar
+- last_read_message_id dikirim dengan benar
+- template_id dikirim sebagai parameter yang benar
+- txt hanya digunakan untuk template_id=1
+- response error dari Lazada tidak dianggap sebagai success
+- message_id dari response SendMessage dapat dibaca
+- tidak ada token/secret yang masuk ke log
+
+F. Jalankan:
+- test IM
+- typecheck
+- API build
+- git diff --check
+
+Setelah selesai, JANGAN commit dan JANGAN deploy.
+
+Berikan laporan dengan format:
+
+1. File yang diubah
+2. Fungsi yang ditambahkan
+3. Endpoint Lazada yang digunakan
+4. Parameter yang digunakan
+5. Hasil test
+6. Hasil typecheck
+7. Hasil build
+8. Apakah ada perubahan database
+9. Apakah ada perubahan UI
+10. Apakah ada perubahan OAuth/token
+11. Risiko atau hal yang masih belum terverifikasi
+
+Berhenti setelah laporan. Tunggu instruksi saya berikutnya.

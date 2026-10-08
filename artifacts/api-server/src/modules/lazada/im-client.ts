@@ -7,6 +7,11 @@ const MAX_RESPONSE_LENGTH = 2_000_000;
 const sessionPath = "/im/session/list";
 const detailPath = "/im/session/get";
 const messagesPath = "/im/message/list";
+const readSessionPath = "/im/session/read";
+const sendMessagePath = "/im/message/send";
+
+type ImPath = typeof sessionPath | typeof detailPath | typeof messagesPath | typeof readSessionPath | typeof sendMessagePath;
+type DiagnosticLogger = Pick<typeof logger, "warn">;
 
 export type ImPageInput = {
   startTime: string;
@@ -42,14 +47,21 @@ export type ImMessage = {
   site_id?: string;
 };
 
+export type ImSendMessageResult = {
+  current_time: string | number;
+  message_id: string | number;
+  template_id: string | number;
+};
+
 type JsonRecord = Record<string, unknown>;
 
 type ImProviderResponse = {
-  path: typeof sessionPath | typeof detailPath | typeof messagesPath;
+  path: ImPath;
   httpStatus: number | null;
   body: JsonRecord;
   data: JsonRecord;
   sensitiveValues: readonly string[];
+  diagnosticLogger: DiagnosticLogger;
 };
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -69,23 +81,26 @@ function safeDiagnosticValue(value: unknown, sensitiveValues: readonly string[])
   }
   return result
     .replace(/https?(?::|%3a)(?:\/|%2f){2}[^\s"'<>]+/gi, "[redacted-url]")
-    .replace(/\b(access_token|refresh_token|app_secret|app_key|code|sign|timestamp|session_id|last_session_id|last_message_id)(?:=|%3d)[^&\s"'<>]*/gi,
+    .replace(/\b(access_token|refresh_token|app_secret|app_key|code|sign|timestamp|session_id|last_session_id|last_message_id|last_read_message_id|txt|content)(?:=|%3d)[^&\s"'<>]*/gi,
       "$1=[redacted]")
     .slice(0, 512);
 }
 
 function logProviderFailure(
-  path: typeof sessionPath | typeof detailPath | typeof messagesPath,
+  path: ImPath,
   httpStatus: number | null,
   body: unknown,
   sensitiveValues: readonly string[],
+  diagnosticLogger: DiagnosticLogger,
 ) {
   const responseBody = isRecord(body) ? body : {};
-  logger.warn({
+  diagnosticLogger.warn({
     path,
     httpStatus,
     providerCode: safeDiagnosticValue(responseErrorCode(responseBody), sensitiveValues),
-    providerMessage: safeDiagnosticValue(responseBody.err_message ?? responseBody.message, sensitiveValues),
+    providerMessage: path === sendMessagePath
+      ? null
+      : safeDiagnosticValue(responseBody.err_message ?? responseBody.message, sensitiveValues),
     providerRequestId: safeDiagnosticValue(responseBody.request_id, sensitiveValues),
   }, "Lazada IM API response failed");
 }
@@ -117,7 +132,8 @@ function parseProviderData<T>(response: ImProviderResponse, parse: (data: JsonRe
     return parse(response.data);
   } catch (error) {
     if (error instanceof LazadaError && error.reason === "invalid_response") {
-      logProviderFailure(response.path, response.httpStatus, response.body, response.sensitiveValues);
+      logProviderFailure(response.path, response.httpStatus, response.body, response.sensitiveValues,
+        response.diagnosticLogger);
       if (response.path === sessionPath) logSessionListDataStructure(response.data);
     }
     throw error;
@@ -128,6 +144,13 @@ function requiredText(value: unknown, maxLength = 256): string {
   if (typeof value !== "string" || value.length === 0 || value.length > maxLength)
     throw new LazadaError("invalid_response");
   return value;
+}
+
+function requiredScalar(source: JsonRecord, key: string): string | number {
+  const value = source[key];
+  if (typeof value === "string" && value.length > 0) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  throw new LazadaError("invalid_response");
 }
 
 function optionalText(source: JsonRecord, key: string, maxLength = 4096): string | undefined {
@@ -302,66 +325,76 @@ function responseErrorCode(body: JsonRecord): unknown {
   return body.code ?? body.err_code;
 }
 
-export function createImClient(config: LazadaConfig, transport: typeof fetch = fetch) {
-  async function call(path: typeof sessionPath | typeof detailPath | typeof messagesPath,
-    accessToken: string, business: Record<string, string>): Promise<ImProviderResponse> {
+export function createImClient(config: LazadaConfig, transport: typeof fetch = fetch,
+  diagnosticLogger: DiagnosticLogger = logger) {
+  async function call(path: ImPath, accessToken: string, business: Record<string, string>,
+    method: "GET" | "POST" = "GET", dataRequired = true): Promise<ImProviderResponse> {
     if (!accessToken || accessToken.length > 8192) throw new LazadaError("authorization_failed");
     const params = { ...business, app_key: config.appKey, access_token: accessToken,
       sign_method: "sha256", timestamp: String(Date.now()) };
     const signatureValue = signature(path, params, config.appSecret);
     const signedParams = new URLSearchParams({ ...params, sign: signatureValue });
-    const sensitiveValues = [
-      config.appSecret, params.app_key, params.access_token, signatureValue,
-      business.session_id, business.last_session_id, business.last_message_id,
-    ].filter((value): value is string => typeof value === "string" && value.length >= 4);
+    const sensitiveValues = [...Object.values(params), config.appSecret, signatureValue]
+      .filter(value => value.length > 0);
     const url = new URL(`${endpoints[config.country]}${path}`);
-    url.search = signedParams.toString();
+    if (method === "GET") url.search = signedParams.toString();
     let response: Response;
     let text: string;
     let httpStatus: number | null = null;
     try {
-      response = await transport(url, { method: "GET", redirect: "error", signal: AbortSignal.timeout(10_000) });
+      response = await transport(url, {
+        method,
+        redirect: "error",
+        signal: AbortSignal.timeout(10_000),
+        ...(method === "POST" ? {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: signedParams.toString(),
+        } : {}),
+      });
       httpStatus = response.status;
       text = await response.text();
     } catch {
-      logProviderFailure(path, httpStatus, null, sensitiveValues);
+      logProviderFailure(path, httpStatus, null, sensitiveValues, diagnosticLogger);
       throw new LazadaError("api_unavailable");
     }
     if (text.length > MAX_RESPONSE_LENGTH) {
-      logProviderFailure(path, httpStatus, null, sensitiveValues);
+      logProviderFailure(path, httpStatus, null, sensitiveValues, diagnosticLogger);
       throw new LazadaError("api_unavailable");
     }
     let body: unknown;
     try { body = JSON.parse(text); } catch {
-      logProviderFailure(path, httpStatus, null, sensitiveValues);
+      logProviderFailure(path, httpStatus, null, sensitiveValues, diagnosticLogger);
       throw new LazadaError("invalid_response");
     }
     if (!isRecord(body)) {
-      logProviderFailure(path, httpStatus, null, sensitiveValues);
+      logProviderFailure(path, httpStatus, null, sensitiveValues, diagnosticLogger);
       throw new LazadaError("invalid_response");
     }
     if (!response.ok) {
-      logProviderFailure(path, httpStatus, body, sensitiveValues);
+      logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
       throw providerFailure(responseErrorCode(body), response.status);
     }
     if (body.success !== true) {
-      logProviderFailure(path, httpStatus, body, sensitiveValues);
+      logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
       throw providerFailure(responseErrorCode(body));
     }
     if (!isSuccessCode(body.err_code)) {
-      logProviderFailure(path, httpStatus, body, sensitiveValues);
+      logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
       throw providerFailure(body.err_code);
     }
     if (body.code !== undefined && !isSuccessCode(body.code)) {
-      logProviderFailure(path, httpStatus, body, sensitiveValues);
+      logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
       throw providerFailure(body.code);
     }
     if (!isRecord(body.data)) {
-      logProviderFailure(path, httpStatus, body, sensitiveValues);
+      if (!dataRequired) {
+        return { path, httpStatus, body, data: {}, sensitiveValues, diagnosticLogger };
+      }
+      logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
       if (path === sessionPath) logSessionListDataStructure(body.data);
       throw new LazadaError("invalid_response");
     }
-    return { path, httpStatus, body, data: body.data, sensitiveValues };
+    return { path, httpStatus, body, data: body.data, sensitiveValues, diagnosticLogger };
   }
 
   return {
@@ -401,6 +434,24 @@ export function createImClient(config: LazadaConfig, transport: typeof fetch = f
           message_list: page.entries.map(projectMessage),
         };
       });
+    },
+    async readSession(accessToken: string, sessionId: string, lastReadMessageId: string): Promise<void> {
+      await call(readSessionPath, accessToken, {
+        session_id: sessionId,
+        last_read_message_id: lastReadMessageId,
+      }, "POST", false);
+    },
+    async sendMessage(accessToken: string, sessionId: string, txt: string): Promise<ImSendMessageResult> {
+      const response = await call(sendMessagePath, accessToken, {
+        session_id: sessionId,
+        template_id: "1",
+        txt,
+      }, "POST");
+      return parseProviderData(response, data => ({
+        current_time: requiredScalar(data, "current_time"),
+        message_id: requiredScalar(data, "message_id"),
+        template_id: requiredScalar(data, "template_id"),
+      }));
     },
   };
 }

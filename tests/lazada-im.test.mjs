@@ -77,6 +77,129 @@ test("IM client accepts the IM success envelope without requiring code and signs
   assert.ok(!JSON.stringify(response).includes("test-only-im-access-token"));
 });
 
+test("ReadSession posts the documented IDs as signed form data and accepts a success ACK without data", async () => {
+  let receivedUrl;
+  let receivedInit;
+  const diagnostics = [];
+  const client = createImClient(config, async (input, init) => {
+    receivedUrl = new URL(String(input));
+    receivedInit = init;
+    return new Response(JSON.stringify({ success: true, err_code: "0", err_message: "SUCCESS" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }, { warn: (...args) => diagnostics.push(args) });
+  const result = await client.readSession(
+    "test-only-im-access-token",
+    "fixture-session-1",
+    "fixture-last-read-message-2",
+  );
+
+  assert.equal(result, undefined);
+  assert.equal(receivedUrl.origin, "https://api.lazada.co.id");
+  assert.equal(receivedUrl.pathname, "/rest/im/session/read");
+  assert.equal(receivedUrl.search, "");
+  assert.equal(receivedInit.method, "POST");
+  assert.equal(receivedInit.headers["Content-Type"], "application/x-www-form-urlencoded");
+  const params = Object.fromEntries(new URLSearchParams(receivedInit.body));
+  const sign = params.sign;
+  delete params.sign;
+  assert.equal(params.app_key, env.LAZADA_IM_APP_KEY);
+  assert.notEqual(params.app_key, env.LAZADA_APP_KEY);
+  assert.equal(params.access_token, "test-only-im-access-token");
+  assert.equal(params.sign_method, "sha256");
+  assert.equal(params.session_id, "fixture-session-1");
+  assert.equal(params.last_read_message_id, "fixture-last-read-message-2");
+  assert.match(params.timestamp, /^\d+$/);
+  assert.equal(sign, signature("/im/session/read", params, env.LAZADA_IM_APP_SECRET));
+  assert.deepEqual(diagnostics, []);
+});
+
+test("ReadSession propagates provider errors and redacts request values from diagnostics", async () => {
+  const token = "test-only-im-read-token";
+  const secret = env.LAZADA_IM_APP_SECRET;
+  const lastReadMessageId = "fixture-read-cursor";
+  const diagnostics = [];
+  const client = createImClient(config, async () => new Response(JSON.stringify({
+    success: false,
+    err_code: "PermissionDenied",
+    err_message: `denied ${token} ${secret} ${lastReadMessageId}`,
+  })), { warn: (...args) => diagnostics.push(args) });
+
+  await assert.rejects(client.readSession(token, "fixture-session-2", lastReadMessageId),
+    error => error.reason === "permission_denied");
+  const logged = JSON.stringify(diagnostics);
+  assert.ok(!logged.includes(token));
+  assert.ok(!logged.includes(secret));
+  assert.ok(!logged.includes(lastReadMessageId));
+});
+
+test("SendMessage posts template 1 text as signed form data and parses the documented result", async () => {
+  let receivedUrl;
+  let receivedInit;
+  const client = createImClient(config, async (input, init) => {
+    receivedUrl = new URL(String(input));
+    receivedInit = init;
+    return new Response(JSON.stringify({
+      success: true,
+      err_code: 0,
+      err_message: "SUCCESS",
+      data: { current_time: "1700000000000", message_id: "fixture-sent-message-3", template_id: 1 },
+    }), { headers: { "Content-Type": "application/json" } });
+  });
+  const result = await client.sendMessage(
+    "test-only-im-access-token",
+    "fixture-session-3",
+    "Synthetic test reply",
+  );
+
+  assert.equal(receivedUrl.origin, "https://api.lazada.co.id");
+  assert.equal(receivedUrl.pathname, "/rest/im/message/send");
+  assert.equal(receivedUrl.search, "");
+  assert.equal(receivedInit.method, "POST");
+  assert.equal(receivedInit.headers["Content-Type"], "application/x-www-form-urlencoded");
+  const params = Object.fromEntries(new URLSearchParams(receivedInit.body));
+  const sign = params.sign;
+  delete params.sign;
+  assert.equal(params.app_key, env.LAZADA_IM_APP_KEY);
+  assert.notEqual(params.app_key, env.LAZADA_APP_KEY);
+  assert.equal(params.access_token, "test-only-im-access-token");
+  assert.equal(params.sign_method, "sha256");
+  assert.equal(params.session_id, "fixture-session-3");
+  assert.equal(params.template_id, "1");
+  assert.equal(params.txt, "Synthetic test reply");
+  assert.match(params.timestamp, /^\d+$/);
+  assert.equal(sign, signature("/im/message/send", params, env.LAZADA_IM_APP_SECRET));
+  assert.deepEqual(result, {
+    current_time: "1700000000000",
+    message_id: "fixture-sent-message-3",
+    template_id: 1,
+  });
+});
+
+test("SendMessage propagates provider errors without logging tokens, secrets, signatures or chat text", async () => {
+  const token = "test-only-im-send-token";
+  const secret = env.LAZADA_IM_APP_SECRET;
+  const txt = "Synthetic private reply";
+  const diagnostics = [];
+  let requestSign;
+  const client = createImClient(config, async (_input, init) => {
+    requestSign = new URLSearchParams(init.body).get("sign");
+    return new Response(JSON.stringify({
+      success: false,
+      err_code: "PermissionDenied",
+      err_message: `denied ${token} ${secret} ${requestSign} ${txt}`,
+    }));
+  }, { warn: (...args) => diagnostics.push(args) });
+
+  await assert.rejects(client.sendMessage(token, "fixture-session-4", txt),
+    error => error.reason === "permission_denied");
+  const logged = JSON.stringify(diagnostics);
+  assert.ok(!logged.includes(token));
+  assert.ok(!logged.includes(secret));
+  assert.ok(!logged.includes(requestSign));
+  assert.ok(!logged.includes(txt));
+});
+
 test("IM client fails closed for permission, token, and malformed provider responses", async () => {
   const permission = createImClient(config, async () => new Response(JSON.stringify({
     success: false, err_code: "PermissionDenied", err_message: "denied", data: null,

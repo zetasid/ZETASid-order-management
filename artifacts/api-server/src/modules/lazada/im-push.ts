@@ -15,6 +15,9 @@ const MAX_BODY_BYTES = 16 * 1024;
 const MAX_PAGES_PER_JOB = 10;
 const IM_PAGE_SIZE = 20;
 const JOB_LEASE_MS = 2 * 60 * 1000;
+const QUEUE_RECOVERY_INTERVAL_MS = 5_000;
+const BASE_SYNC_RETRY_DELAY_MS = 5_000;
+const MAX_SYNC_RETRY_DELAY_MS = 30 * 60 * 1000;
 const sessionIdPattern = /^[A-Za-z0-9._:-]{1,256}$/;
 
 export type ImSessionUpdateEvent = {
@@ -61,6 +64,11 @@ type ClaimedJob = {
   syncAttempts: number;
   leaseToken: string;
 };
+
+function syncRetryDelayMs(attempt: number): number {
+  const exponent = Math.max(0, Math.min(attempt - 1, 9));
+  return Math.min(BASE_SYNC_RETRY_DELAY_MS * 2 ** exponent, MAX_SYNC_RETRY_DELAY_MS);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -178,7 +186,6 @@ async function claimNextJob(): Promise<ClaimedJob | null> {
         isNotNull(lazadaImSessionsTable.syncRequestedAt),
         lte(lazadaImSessionsTable.syncNextAttemptAt, now),
         or(isNull(lazadaImSessionsTable.syncLeaseUntil), lt(lazadaImSessionsTable.syncLeaseUntil, now)),
-        eq(lazadaImSessionsTable.syncAttempts, 0),
       ))
       .orderBy(asc(lazadaImSessionsTable.syncNextAttemptAt), asc(lazadaImSessionsTable.syncRequestedAt))
       .limit(1)
@@ -292,9 +299,11 @@ async function recordSyncFailure(job: ClaimedJob): Promise<void> {
       .for("update");
     if (!session) return;
     const sameRequest = session.syncRequestVersion === job.syncRequestVersion;
+    const nextAttempt = sameRequest ? session.syncAttempts + 1 : 0;
+    const retryAt = new Date(Date.now() + (sameRequest ? syncRetryDelayMs(nextAttempt) : 0));
     await tx.update(lazadaImSessionsTable).set({
-      syncAttempts: sameRequest ? session.syncAttempts + 1 : 0,
-      syncNextAttemptAt: new Date(),
+      syncAttempts: nextAttempt,
+      syncNextAttemptAt: retryAt,
       syncLeaseUntil: null,
       syncLeaseToken: null,
     }).where(eq(lazadaImSessionsTable.id, session.id));
@@ -311,7 +320,7 @@ export async function processNextImSessionSync(
     return await persistMessages(job, messages, checkpoint);
   } catch {
     await recordSyncFailure(job);
-    logger.warn("Lazada IM session sync failed; awaiting a new provider event");
+    logger.warn("Lazada IM session sync failed; retry state retained in durable queue");
     return { kind: "failed" };
   }
 }
@@ -319,6 +328,8 @@ export async function processNextImSessionSync(
 const MAX_JOBS_PER_DRAIN = 3;
 let drainingImQueue = false;
 let drainRequestedWhileBusy = false;
+let queueRecoveryTimer: ReturnType<typeof setInterval> | null = null;
+let stopQueueRecovery: (() => void) | null = null;
 
 export function scheduleImSessionSyncDrain(
   fetchMessages: ImMessagePageFetcher = getImMessages,
@@ -347,6 +358,33 @@ export function scheduleImSessionSyncDrain(
       }
     })();
   });
+}
+
+/**
+ * Recover queued work on process start and periodically inspect only the local
+ * durable queue. Lazada IM is called only when a due queue item is claimed.
+ */
+export function startImSessionSyncWorker(
+  fetchMessages: ImMessagePageFetcher = getImMessages,
+  recoveryIntervalMs = QUEUE_RECOVERY_INTERVAL_MS,
+): () => void {
+  if (!Number.isSafeInteger(recoveryIntervalMs) || recoveryIntervalMs < 1 || recoveryIntervalMs > 60_000)
+    throw new Error("Invalid IM queue recovery interval");
+  if (queueRecoveryTimer && stopQueueRecovery) return stopQueueRecovery;
+
+  scheduleImSessionSyncDrain(fetchMessages);
+  const timer = setInterval(() => scheduleImSessionSyncDrain(fetchMessages), recoveryIntervalMs);
+  timer.unref?.();
+  queueRecoveryTimer = timer;
+  const stop = () => {
+    clearInterval(timer);
+    if (queueRecoveryTimer === timer) {
+      queueRecoveryTimer = null;
+      stopQueueRecovery = null;
+    }
+  };
+  stopQueueRecovery = stop;
+  return stop;
 }
 
 // Keep an explicit closed verifier available for environments/tests that have

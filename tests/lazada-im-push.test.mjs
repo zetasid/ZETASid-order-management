@@ -89,7 +89,8 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         stdin: {
           contents: `export { imConfiguration, seal } from "./artifacts/api-server/src/modules/lazada/security.ts";
             export { createLazadaImPushRouter } from "./artifacts/api-server/src/routes/lazada-im-push.ts";
-            export { enqueueImSessionUpdate, processNextImSessionSync } from "./artifacts/api-server/src/modules/lazada/im-push.ts";
+            export { enqueueImSessionUpdate, processNextImSessionSync, startImSessionSyncWorker }
+              from "./artifacts/api-server/src/modules/lazada/im-push.ts";
             export { pool } from "./lib/db/src/index.ts";`,
           resolveDir: process.cwd(),
           sourcefile: "lazada-im-push-test-loader.ts",
@@ -249,14 +250,80 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         assert.equal(failedJob.kind, "failed");
         assert.equal(failedFetchCount, 1);
         assert.equal((await loaded.processNextImSessionSync(mockFetchMessages)).kind, "empty",
-          "provider failures are not automatically retried without a new event");
+          "a failed item must observe its backoff before retry");
         const failedQueue = await ownerA.pool.query(
-          `SELECT sync_requested_at, sync_attempts FROM lazada_im_sessions
+          `SELECT id, sync_requested_at, sync_attempts, sync_next_attempt_at
+           FROM lazada_im_sessions
            WHERE user_id=$1 AND lazada_session_id=$2`,
           [ownerA.id, failedSessionId],
         );
         assert.ok(failedQueue.rows[0].sync_requested_at, "failure remains visible as pending work");
         assert.equal(failedQueue.rows[0].sync_attempts, 1);
+        assert.ok(new Date(failedQueue.rows[0].sync_next_attempt_at).getTime() > Date.now(),
+          "retry is persisted for a future due time");
+
+        // Simulate the backoff period passing, then let the periodic queue worker
+        // recover the failed durable item without another webhook or IM polling.
+        await ownerA.pool.query(
+          `UPDATE lazada_im_sessions
+           SET sync_next_attempt_at = now() + interval '40 milliseconds'
+           WHERE id=$1`,
+          [failedQueue.rows[0].id],
+        );
+        const waitForQueueClear = async (fixture, sessionId) => {
+          const deadline = Date.now() + 3_000;
+          while (Date.now() < deadline) {
+            const pending = await fixture.pool.query(
+              `SELECT sync_requested_at FROM lazada_im_sessions
+               WHERE user_id=$1 AND lazada_session_id=$2`,
+              [fixture.id, sessionId],
+            );
+            if (pending.rows[0]?.sync_requested_at === null) return;
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+          assert.fail("IM durable queue item was not recovered in time");
+        };
+        const stopRetryWorker = loaded.startImSessionSyncWorker(mockFetchMessages, 10);
+        try {
+          await waitForQueueClear(ownerA, failedSessionId);
+        } finally {
+          stopRetryWorker();
+        }
+        const retriedMessages = await ownerA.pool.query(
+          `SELECT count(*)::int AS count FROM lazada_im_messages WHERE session_id=$1`,
+          [failedQueue.rows[0].id],
+        );
+        assert.equal(retriedMessages.rows[0].count, 1,
+          "retry inserts duplicate provider message IDs only once");
+
+        // Simulate a prior worker crashing with a live lease. A restarted worker
+        // scans the durable queue until the lease expires, then processes it.
+        const strandedSessionId = "synthetic-worker-restart-session";
+        assert.equal((await post(makeEvent("push-seller-a", strandedSessionId, ownerB.id))).status, 200);
+        const stranded = await ownerA.pool.query(
+          `SELECT id FROM lazada_im_sessions
+           WHERE user_id=$1 AND lazada_session_id=$2`,
+          [ownerA.id, strandedSessionId],
+        );
+        assert.equal(stranded.rows.length, 1);
+        await ownerA.pool.query(
+          `UPDATE lazada_im_sessions
+           SET sync_lease_until = now() + interval '50 milliseconds',
+               sync_lease_token = $2
+           WHERE id=$1`,
+          [stranded.rows[0].id, randomUUID()],
+        );
+        const stopRestartedWorker = loaded.startImSessionSyncWorker(mockFetchMessages, 10);
+        try {
+          await waitForQueueClear(ownerA, strandedSessionId);
+        } finally {
+          stopRestartedWorker();
+        }
+        const recoveredMessages = await ownerA.pool.query(
+          `SELECT count(*)::int AS count FROM lazada_im_messages WHERE session_id=$1`,
+          [stranded.rows[0].id],
+        );
+        assert.equal(recoveredMessages.rows[0].count, 1);
 
         assert.equal((await post({ ...eventA, seller_id: "unmapped-seller" })).status, 404);
         assert.equal((await post({ ...eventA, seller_id: undefined })).status, 400);

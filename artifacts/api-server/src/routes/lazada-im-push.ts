@@ -12,6 +12,12 @@ import {
 } from "../modules/lazada/im-push";
 
 const MAX_BODY_BYTES = 16 * 1024;
+const ACK_QUEUE_WAIT_MS = 350;
+
+type EnqueueBatchResult = {
+  kind: "queued" | "unmapped" | "failed";
+  durableCount: number;
+};
 
 export type LazadaImPushRouterDependencies = {
   getConfig?: () => LazadaConfig | null;
@@ -21,6 +27,8 @@ export type LazadaImPushRouterDependencies = {
     event: ImSessionUpdateEvent,
   ) => Promise<ImSessionUpdateQueueResult>;
   scheduleProcessing?: () => void;
+  /** Test seam; production uses the fixed ACK_QUEUE_WAIT_MS budget. */
+  ackDeadlineMs?: number;
 };
 
 export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDependencies = {}) {
@@ -28,6 +36,9 @@ export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDepende
   const verifySignature = dependencies.verifySignature ?? verifyImPushSignature;
   const enqueueSessionUpdate = dependencies.enqueueSessionUpdate ?? enqueueImSessionUpdate;
   const scheduleProcessing = dependencies.scheduleProcessing ?? scheduleImSessionSyncDrain;
+  const ackDeadlineMs = dependencies.ackDeadlineMs ?? ACK_QUEUE_WAIT_MS;
+  if (!Number.isSafeInteger(ackDeadlineMs) || ackDeadlineMs < 1 || ackDeadlineMs > ACK_QUEUE_WAIT_MS)
+    throw new Error("Invalid IM webhook ACK queue budget");
   const router = Router();
 
   router.post("/", express.raw({
@@ -75,14 +86,52 @@ export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDepende
     }
 
     try {
-      for (const event of parsed.events) {
-        const result = await enqueueSessionUpdate(config, event);
-        if (result.kind === "unmapped") {
-          res.status(404).json({ error: "Event IM tidak dapat diproses." });
-          return;
+      const enqueueBatch = async (): Promise<EnqueueBatchResult> => {
+        let durableCount = 0;
+        for (const event of parsed.events) {
+          try {
+            const result = await enqueueSessionUpdate(config, event);
+            if (result.kind === "unmapped") return { kind: "unmapped", durableCount };
+            durableCount += 1;
+          } catch {
+            return { kind: "failed", durableCount };
+          }
         }
+        return { kind: "queued", durableCount };
+      };
+      const enqueuePromise = enqueueBatch();
+      let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+      const deadlinePromise = new Promise<{ kind: "timeout" }>(resolve => {
+        deadlineTimer = setTimeout(() => resolve({ kind: "timeout" }), ackDeadlineMs);
+      });
+      const outcome = await Promise.race([
+        enqueuePromise.then(result => ({ kind: "completed" as const, result })),
+        deadlinePromise,
+      ]);
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+
+      if (outcome.kind === "timeout") {
+        // Do not ACK work that has not reached the durable session queue.
+        // If the write completes late, schedule its already-durable work; Lazada
+        // receives 503 and may safely retry because queue/message writes are idempotent.
+        void enqueuePromise.then(result => {
+          if (result.durableCount > 0) scheduleProcessing();
+        }).catch(() => {
+          req.log.warn("Lazada IM session sync scheduling failed after ACK deadline");
+        });
+        res.status(503).json({ error: "Event IM belum dapat diproses." });
+        return;
       }
-      scheduleProcessing();
+
+      if (outcome.result.durableCount > 0) scheduleProcessing();
+      if (outcome.result.kind === "unmapped") {
+        res.status(404).json({ error: "Event IM tidak dapat diproses." });
+        return;
+      }
+      if (outcome.result.kind === "failed") {
+        res.status(503).json({ error: "Event IM belum dapat diproses." });
+        return;
+      }
       res.status(200).end();
     } catch {
       res.status(503).json({ error: "Event IM belum dapat diproses." });

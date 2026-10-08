@@ -174,6 +174,14 @@ test("default IM push router applies HMAC before parsing and queues the document
   const raw = `{\n  "data":[{"sync_type":"SESSION_UPDATE","session_id":"fixture-session-1","unread_count":1}],\n  "seller_id":"20240305",\n  "message_type":19\n}`;
   const queued = [];
   let scheduleCount = 0;
+  let downstreamFinished = false;
+  let finishDownstream;
+  const blockedDownstream = new Promise(resolve => {
+    finishDownstream = () => {
+      downstreamFinished = true;
+      resolve();
+    };
+  });
   const app = express();
   app.set("trust proxy", 1);
   app.use("/api/lazada/im/push", createLazadaImPushRouter({
@@ -182,7 +190,10 @@ test("default IM push router applies HMAC before parsing and queues the document
       queued.push(event);
       return { kind: "queued", userId: "fixture-user", sessionId: event.session_id };
     },
-    scheduleProcessing: () => { scheduleCount += 1; },
+    scheduleProcessing: () => {
+      scheduleCount += 1;
+      return blockedDownstream;
+    },
   }));
   const server = http.createServer(app);
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -200,7 +211,9 @@ test("default IM push router applies HMAC before parsing and queues the document
     assert.equal((await send(undefined)).status, 401);
     assert.equal((await send("0".repeat(64))).status, 401);
     assert.equal(queued.length, 0);
+    const ackStartedAt = Date.now();
     assert.equal((await send(imPushSignature(raw))).status, 200);
+    assert.ok(Date.now() - ackStartedAt < 500, "valid callback ACK must stay within the provider budget");
     assert.deepEqual(queued, [{
       message_type: 19,
       sync_type: "SESSION_UPDATE",
@@ -209,6 +222,57 @@ test("default IM push router applies HMAC before parsing and queues the document
       unread_count: 1,
     }]);
     assert.equal(scheduleCount, 1);
+    assert.equal(downstreamFinished, false, "ACK must not wait for downstream processing");
+    finishDownstream();
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test("IM webhook deadline returns 503 before a delayed durable enqueue and schedules only after it commits", async () => {
+  const raw = `{"data":[{"sync_type":"SESSION_UPDATE","session_id":"fixture-delayed-session"}],"seller_id":"20240305","message_type":19}`;
+  let finishEnqueue;
+  let durable = false;
+  let scheduleCount = 0;
+  const app = express();
+  app.set("trust proxy", 1);
+  app.use("/api/lazada/im/push", createLazadaImPushRouter({
+    getConfig: () => config,
+    ackDeadlineMs: 30,
+    enqueueSessionUpdate: () => new Promise(resolve => {
+      finishEnqueue = () => {
+        durable = true;
+        resolve({ kind: "queued", userId: "fixture-user", sessionId: "fixture-delayed-session" });
+      };
+    }),
+    scheduleProcessing: () => {
+      assert.equal(durable, true, "worker may only be scheduled after durable enqueue completes");
+      scheduleCount += 1;
+    },
+  }));
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}/api/lazada/im/push`;
+  try {
+    const startedAt = Date.now();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Forwarded-Proto": "https",
+        "Content-Type": "application/json",
+        Authorization: imPushSignature(raw),
+      },
+      body: raw,
+    });
+    assert.equal(response.status, 503, "an unpersisted event must never receive HTTP 200");
+    assert.ok(Date.now() - startedAt < 500, "slow queue writes must not exceed the callback deadline");
+    assert.equal(durable, false);
+    assert.equal(scheduleCount, 0);
+
+    finishEnqueue();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(durable, true);
+    assert.equal(scheduleCount, 1, "late durable work remains processable after the 503 retry response");
   } finally {
     await new Promise(resolve => server.close(resolve));
   }

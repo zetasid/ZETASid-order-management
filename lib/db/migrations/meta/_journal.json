@@ -57,6 +57,13 @@
       "when": 1791367464993,
       "tag": "0007_wild_skrulls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791445128389,
+      "tag": "0008_lazada_im_chat_storage",
+      "breakpoints": true
     }
   ]
 }

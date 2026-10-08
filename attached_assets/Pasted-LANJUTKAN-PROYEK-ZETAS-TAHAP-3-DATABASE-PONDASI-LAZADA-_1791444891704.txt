@@ -1,0 +1,117 @@
+LANJUTKAN PROYEK ZETAS — TAHAP 3: DATABASE PONDASI LAZADA IM
+
+Tujuan:
+Membuat pondasi database untuk menyimpan session dan message Lazada IM agar nantinya bisa digunakan oleh menu Chat ZETAS.
+
+ATURAN PENTING:
+1. Jangan mengubah sistem Order/Pesanan yang sudah berjalan.
+2. Jangan mengubah Order Push/Webhook yang sudah ada.
+3. Jangan mengubah OAuth/token Lazada yang sudah ada.
+4. Jangan mengubah UI/menu Chat pada tahap ini.
+5. Jangan membuat long-polling atau worker realtime pada tahap ini.
+6. Jangan melakukan request nyata ke Lazada.
+7. Jangan menggunakan atau menampilkan credential/secret/token dalam log.
+8. Jangan melakukan deploy.
+9. Jangan commit/push/merge tanpa instruksi saya.
+10. Gunakan pola database/migration yang sudah dipakai project ZETAS.
+
+DATABASE YANG DIBUTUHKAN:
+
+A. Tabel koneksi/identitas IM
+Gunakan koneksi Lazada IM yang sudah ada sebagai referensi.
+Pastikan setiap data chat terikat dengan koneksi/user ZETAS yang benar.
+
+B. Tabel SESSION
+Simpan minimal:
+- id internal
+- user_id ZETAS / pemilik koneksi
+- connection_id bila struktur project mendukung
+- Lazada session_id
+- unread_count
+- last_message_id
+- last_message_at bila tersedia
+- metadata penting yang aman
+- created_at
+- updated_at
+
+Buat unique constraint agar session Lazada yang sama tidak menjadi duplikat untuk koneksi/user yang sama.
+
+C. Tabel MESSAGE
+Simpan minimal:
+- id internal
+- session_id internal
+- Lazada message_id
+- sender/from account id bila tersedia
+- receiver/to account id bila tersedia
+- content/text
+- template_id bila tersedia
+- timestamp dari Lazada
+- status bila kontraknya sudah jelas
+- raw/metadata hanya jika memang diperlukan dan aman
+- created_at
+
+Buat unique constraint untuk mencegah message Lazada yang sama tersimpan dua kali.
+
+KEAMANAN:
+- Jangan menyimpan access_token, app_secret, encryption key, atau credential Lazada di tabel message/session.
+- Jangan menulis token atau isi credential ke log.
+- Data harus terisolasi berdasarkan user/koneksi ZETAS.
+- Jangan sampai user A dapat membaca session/message user B.
+
+RELASI:
+ZETAS user
+  ↓
+Lazada IM connection
+  ↓
+Chat session
+  ↓
+Chat messages
+
+MIGRATION:
+- Buat migration baru sesuai pola project.
+- Jangan mengubah migration lama.
+- Jangan menghapus data/tabel lama.
+- Pastikan migration bisa dijalankan pada database development/test.
+- Jika project menggunakan schema/index registry, daftarkan sesuai pola yang sudah ada.
+
+MODEL/SCHEMA:
+Gunakan tipe data dan naming convention yang sudah digunakan project.
+Jangan membuat desain database baru yang bertentangan dengan pola existing.
+
+TEST:
+Tambahkan test database/schema untuk memastikan:
+1. Session bisa dibuat.
+2. Session yang sama tidak menjadi duplikat.
+3. Message bisa dibuat.
+4. Message yang sama tidak menjadi duplikat.
+5. Message terhubung ke session yang benar.
+6. Data antar user/koneksi tidak tercampur.
+7. Migration berjalan.
+8. Existing test tetap lulus.
+
+JANGAN:
+- Jangan membuat endpoint baru pada tahap ini kecuali benar-benar diperlukan oleh migration/schema.
+- Jangan membuat UI inbox.
+- Jangan membuat polling.
+- Jangan membuat WebSocket/SSE.
+- Jangan membuat webhook.
+- Jangan mengirim pesan ke Lazada.
+- Jangan mengubah Order Push.
+
+SEBELUM SELESAI:
+Jalankan:
+- test yang relevan
+- typecheck
+- build API
+- git diff --check
+
+Lalu berikan laporan:
+1. File yang berubah
+2. Migration yang dibuat
+3. Tabel/kolom yang dibuat
+4. Index/unique constraint
+5. Test yang dijalankan dan hasilnya
+6. Pastikan tidak ada request nyata ke Lazada
+7. Pastikan tidak ada perubahan Order/OAuth/UI
+8. Status working tree
+9. Jangan commit/push/deploy.

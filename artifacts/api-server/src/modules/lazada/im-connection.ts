@@ -11,6 +11,41 @@ import { hash, imConfiguration, nonce, seal, unseal, validNonce, type LazadaConf
 export const imOAuthCookieName = "zetas_lazada_im_oauth";
 const imStatePattern = /^im_[A-Za-z0-9_-]{43}$/;
 
+function providerSellerId(value: unknown): string | null {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  if (typeof value !== "string") return null;
+  const sellerId = value.trim();
+  return sellerId.length > 0 && sellerId.length <= 128 && !/[\u0000-\u001f\u007f]/.test(sellerId)
+    ? sellerId : null;
+}
+
+export async function resolveImSessionUpdateUserId(config: LazadaConfig, payload: unknown): Promise<string | null> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const event = payload as Record<string, unknown>;
+  if (event.message_type !== 19 || event.sync_type !== "SESSION_UPDATE") return null;
+  const sellerId = providerSellerId(event.seller_id);
+  if (!sellerId) return null;
+
+  const matches = await db.select({
+    userId: lazadaImConnectionsTable.userId,
+    sellerId: lazadaImConnectionsTable.lazadaSellerId,
+    appFingerprint: lazadaImConnectionsTable.appFingerprint,
+    country: lazadaImConnectionsTable.country,
+  }).from(lazadaImConnectionsTable).where(and(
+    eq(lazadaImConnectionsTable.lazadaSellerId, sellerId),
+    eq(lazadaImConnectionsTable.appFingerprint, config.fingerprint),
+    eq(lazadaImConnectionsTable.country, config.country),
+  )).limit(2);
+
+  if (matches.length !== 1) return null;
+  const [match] = matches;
+  return match.sellerId === sellerId
+    && match.appFingerprint === config.fingerprint
+    && match.country === config.country
+    ? match.userId : null;
+}
+
 export function isImOAuthState(value: unknown): value is string {
   return typeof value === "string" && imStatePattern.test(value);
 }

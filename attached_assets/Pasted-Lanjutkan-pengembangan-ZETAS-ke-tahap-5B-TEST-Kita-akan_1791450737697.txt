@@ -1,0 +1,67 @@
+Lanjutkan pengembangan ZETAS ke tahap 5B-TEST.
+
+Kita akan menyelesaikan seluruh kode dan pengujian di Replit terlebih dahulu. 
+Jangan deploy ke VPS dan jangan melakukan perubahan pada Lazada Console.
+
+Tujuan:
+Membuat test simulasi yang membuktikan bahwa mapping seller_id untuk kebutuhan IM Push aman, tanpa membutuhkan koneksi langsung ke Lazada.
+
+ATURAN:
+- Jangan mengubah UI.
+- Jangan mengubah Order Push.
+- Jangan mengubah digital delivery.
+- Jangan mengubah OAuth production.
+- Jangan membuat fitur multi-seller.
+- Jangan mengubah credential/token/encryption key.
+- Jangan melakukan commit, push, merge, atau deploy.
+- Jangan mencetak token, secret, signature, atau credential ke log.
+- Jangan menggunakan user_account_id, session_id, site_id, atau app_fingerprint sebagai pengganti seller_id.
+
+TEST YANG HARUS DIBUAT:
+
+1. Simulasikan hasil OAuth Lazada yang memiliki:
+   country_user_info[].seller_id
+
+2. Pastikan seller_id dapat disimpan ke koneksi IM.
+
+3. Simulasikan IM Session Update webhook Lazada yang memiliki:
+   message_type = 19
+   sync_type = SESSION_UPDATE
+   seller_id
+   user_account_id
+   session_id
+   site_id
+
+4. Test mapping:
+   - OAuth seller_id = webhook seller_id → koneksi ditemukan.
+   - OAuth seller_id berbeda → koneksi tidak ditemukan.
+   - koneksi tanpa seller_id → tidak crash.
+   - dua user ZETAS dengan seller_id berbeda → tidak tertukar.
+   - jangan menggunakan fallback ke session_id/user_account_id.
+
+5. Test security:
+   - event tanpa seller_id tidak boleh dirouting secara sembarangan.
+   - seller_id berbeda tidak boleh masuk ke koneksi user lain.
+   - tidak ada token/secret/signature yang masuk log.
+
+6. Jangan membuat endpoint webhook production dulu jika kontrak routing belum siap.
+
+7. Jalankan:
+   - seluruh IM tests
+   - migration/schema tests
+   - typecheck
+   - API build
+   - git diff --check
+
+8. Jika ada kode baru, tampilkan file yang berubah dan alasan setiap perubahan.
+
+HASIL AKHIR:
+Berikan laporan:
+- Status 5B-TEST: LULUS/BELUM LULUS
+- File yang berubah
+- Test yang dijalankan dan hasilnya
+- Apakah mapping seller_id aman
+- Masalah/risiko yang masih ada
+- Rekomendasi Stage 5C
+
+Jangan commit, push, merge, atau deploy.

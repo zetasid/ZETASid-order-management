@@ -26,9 +26,24 @@ await build({
   outExtension: { ".js": ".mjs" },
   logLevel: "silent",
 });
+await build({
+  stdin: {
+    contents: `export { resolveImSessionUpdateUserId } from "./artifacts/api-server/src/modules/lazada/im-connection.ts";
+      export { pool } from "./lib/db/src/index.ts";`,
+    resolveDir: process.cwd(),
+    sourcefile: "lazada-im-identity-test-loader.ts",
+  },
+  outfile: `${temporary}/im-connection-test.mjs`,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  logLevel: "silent",
+});
 const security = await import(pathToFileURL(`${temporary}/security.mjs`));
 const { createImClient } = await import(pathToFileURL(`${temporary}/im-client.mjs`));
 const { signature } = await import(pathToFileURL(`${temporary}/client.mjs`));
+const { resolveImSessionUpdateUserId, pool: identityTestPool } =
+  await import(pathToFileURL(`${temporary}/im-connection-test.mjs`));
 const env = {
   LAZADA_MODE: "testing",
   LAZADA_COUNTRY: "id",
@@ -42,7 +57,10 @@ const env = {
 };
 const sellerConfig = security.configuration(env);
 const config = security.imConfiguration(env);
-test.after(async () => { await rm(temporary, { recursive: true, force: true }); });
+test.after(async () => {
+  await identityTestPool.end();
+  await rm(temporary, { recursive: true, force: true });
+});
 
 test("IM client accepts the IM success envelope without requiring code and signs one HTTPS Indonesia GET", async () => {
   let receivedUrl;
@@ -288,15 +306,15 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
     );
     return row ?? null;
   };
-  const addImConnection = async fixture => {
+  const addImConnection = async (fixture, { sellerId = null, connectionConfig = config } = {}) => {
     const encryptedTokens = security.seal(JSON.stringify({
       accessToken: "test-only-im-access-token",
       refreshToken: "test-only-im-refresh-token",
-    }), config, fixture.id);
+    }), connectionConfig, fixture.id);
     await fixture.pool.query(`INSERT INTO lazada_im_connections
-      (user_id, encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at)
-      VALUES ($1, $2, $3, $4, $5, $6)`, [
-      fixture.id, encryptedTokens, config.fingerprint, config.country,
+      (user_id, lazada_seller_id, encrypted_tokens, app_fingerprint, country, expires_at, refresh_expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+      fixture.id, sellerId, encryptedTokens, connectionConfig.fingerprint, connectionConfig.country,
       new Date(Date.now() + 3_600_000), new Date(Date.now() + 7_200_000),
     ]);
   };
@@ -448,6 +466,72 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         assert.deepEqual(await getSellerConnection(oauthUser), sellerBeforeFailure,
           `${code} callback must not change the Seller connection`);
       }
+    });
+
+    await t.test("Session Update identity maps only by seller ID within the IM app and country scope", async () => {
+      const differentSellerUser = await createFixture();
+      const differentScopeUser = await createFixture();
+      const differentScopeConfig = security.imConfiguration({
+        ...env,
+        LAZADA_IM_APP_KEY: "999002",
+        LAZADA_COUNTRY: "sg",
+      });
+      assert.ok(differentScopeConfig);
+      await addImConnection(differentSellerUser, { sellerId: "fixture-im-seller-2" });
+      await addImConnection(differentScopeUser, {
+        sellerId: "fixture-im-seller-1",
+        connectionConfig: differentScopeConfig,
+      });
+
+      const sessionUpdate = {
+        message_type: 19,
+        sync_type: "SESSION_UPDATE",
+        seller_id: "fixture-im-seller-1",
+        user_account_id: differentSellerUser.id,
+        user_account_type: 1,
+        session_id: "fixture-session-for-mapping",
+        site_id: "lazada_id",
+      };
+      assert.equal(await resolveImSessionUpdateUserId(config, sessionUpdate), oauthUser.id,
+        "seller_id selects the matching IM connection even if user_account_id names another ZETAS user");
+      assert.equal(await resolveImSessionUpdateUserId(config, {
+        ...sessionUpdate,
+        seller_id: "unconnected-seller",
+      }), null, "a different seller ID must not map to an existing connection");
+      assert.equal(await resolveImSessionUpdateUserId(config, {
+        ...sessionUpdate,
+        seller_id: undefined,
+      }), null, "missing seller_id must not fall back to user_account_id or session_id");
+      assert.equal(await resolveImSessionUpdateUserId(config, {
+        ...sessionUpdate,
+        message_type: 2,
+      }), null, "non-session-update events must not use this identity resolver");
+
+      const sellerTwoEvent = {
+        ...sessionUpdate,
+        seller_id: "fixture-im-seller-2",
+        user_account_id: oauthUser.id,
+      };
+      assert.equal(await resolveImSessionUpdateUserId(config, sellerTwoEvent), differentSellerUser.id,
+        "distinct sellers owned by different ZETAS users must not be crossed");
+
+      const sameSellerOtherScope = await resolveImSessionUpdateUserId(differentScopeConfig, {
+        ...sessionUpdate,
+        site_id: "lazada_sg",
+      });
+      assert.equal(sameSellerOtherScope, differentScopeUser.id,
+        "the same provider seller ID is isolated by its separate app/country scope");
+
+      assert.equal(await resolveImSessionUpdateUserId(config, {
+        ...sessionUpdate,
+        seller_id: null,
+        user_account_id: owner.id,
+      }), null, "a legacy connection with no seller ID is not selected by account/session IDs");
+      assert.equal(await resolveImSessionUpdateUserId(config, {
+        ...sessionUpdate,
+        sync_type: "OTHER",
+      }), null);
+      assert.ok(!JSON.stringify(sellerTwoEvent).includes(env.LAZADA_IM_APP_SECRET));
     });
 
     await t.test("Authentication, connection ownership and input validation", async () => {

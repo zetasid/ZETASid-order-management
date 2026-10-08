@@ -169,6 +169,62 @@ function optionalTags(source: JsonRecord): string[] | undefined {
   return value as string[];
 }
 
+const sessionDiagnosticFieldNames = [
+  "session_id",
+  "summary",
+  "unread_count",
+  "last_message_id",
+  "head_url",
+  "self_position",
+  "last_message_time",
+  "site_id",
+  "title",
+  "buyer_id",
+  "to_position",
+  "tags",
+] as const;
+
+const sessionDiagnosticValidators: {
+  field: typeof sessionDiagnosticFieldNames[number];
+  validator: "requiredText" | "optionalText" | "optionalNumber" | "optionalTimestamp" | "optionalTags";
+  validate: (source: JsonRecord) => unknown;
+}[] = [
+  { field: "session_id", validator: "requiredText", validate: source => requiredText(source.session_id) },
+  { field: "summary", validator: "optionalText", validate: source => optionalText(source, "summary") },
+  { field: "unread_count", validator: "optionalNumber", validate: source => optionalNumber(source, "unread_count") },
+  { field: "last_message_id", validator: "optionalText", validate: source => optionalText(source, "last_message_id") },
+  { field: "self_position", validator: "optionalTimestamp", validate: source => optionalTimestamp(source, "self_position") },
+  { field: "last_message_time", validator: "optionalTimestamp", validate: source => optionalTimestamp(source, "last_message_time") },
+  { field: "site_id", validator: "optionalText", validate: source => optionalText(source, "site_id", 16) },
+  { field: "title", validator: "optionalText", validate: source => optionalText(source, "title", 512) },
+  { field: "to_position", validator: "optionalTimestamp", validate: source => optionalTimestamp(source, "to_position") },
+  { field: "tags", validator: "optionalTags", validate: source => optionalTags(source) },
+];
+
+function logSessionProjectFieldDiagnostics(value: unknown) {
+  const source = isRecord(value) ? value : null;
+  const fields = sessionDiagnosticFieldNames.map(field => {
+    const fieldValue = source?.[field];
+    return {
+      field,
+      valueType: Array.isArray(fieldValue) ? "array" : typeof fieldValue,
+      isNull: fieldValue === null,
+      isUndefined: fieldValue === undefined,
+    };
+  });
+  const failedValidators = source
+    ? sessionDiagnosticValidators.flatMap(({ field, validator, validate }) => {
+      try {
+        validate(source);
+        return [];
+      } catch {
+        return [{ field, validator }];
+      }
+    })
+    : [{ field: "item", validator: "projectSession" }];
+  logger.warn({ fields, failedValidators }, "Lazada IM session item validation diagnostic");
+}
+
 function projectSession(value: unknown, detail = false): ImSession {
   if (!isRecord(value)) throw new LazadaError("invalid_response");
   return {
@@ -187,6 +243,16 @@ function projectSession(value: unknown, detail = false): ImSession {
     ...(optionalTags(value) !== undefined ? { tags: optionalTags(value) } : {}),
     ...(optionalText(value, "site_id", 16) !== undefined ? { site_id: optionalText(value, "site_id", 16) } : {}),
   };
+}
+
+function projectSessionListEntry(value: unknown, index: number): ImSession {
+  try {
+    return projectSession(value);
+  } catch (error) {
+    if (index === 0 && error instanceof LazadaError && error.reason === "invalid_response")
+      logSessionProjectFieldDiagnostics(value);
+    throw error;
+  }
 }
 
 function projectMessage(value: unknown): ImMessage {
@@ -311,7 +377,7 @@ export function createImClient(config: LazadaConfig, transport: typeof fetch = f
           has_more: page.has_more,
           next_start_time: page.next_start_time,
           last_session_id: page.cursor,
-          session_list: page.entries.map(entry => projectSession(entry)),
+          session_list: page.entries.map((entry, index) => projectSessionListEntry(entry, index)),
         };
       });
     },

@@ -21,6 +21,26 @@ type EnqueueBatchResult = {
   newJobCount: number;
 };
 
+function scheduleProcessingAfterResponseFinish(
+  res: import("express").Response,
+  scheduleProcessing: () => void,
+): void {
+  const schedule = () => {
+    try {
+      scheduleProcessing();
+    } catch {
+      // The durable queue recovery worker will pick up this job if immediate
+      // scheduling fails. Never try to change an ACK that has already finished.
+      logger.warn("Lazada IM session sync scheduling failed after response");
+    }
+  };
+  if (res.writableFinished) {
+    schedule();
+    return;
+  }
+  res.once("finish", schedule);
+}
+
 export type LazadaImPushRouterDependencies = {
   getConfig?: () => LazadaConfig | null;
   verifySignature?: ImPushSignatureVerifier;
@@ -164,19 +184,20 @@ export function createLazadaImPushRouter(dependencies: LazadaImPushRouterDepende
         // If the write completes late, schedule its already-durable work; Lazada
         // receives 503 and may safely retry because queue/message writes are idempotent.
         void enqueuePromise.then(result => {
-          if (result.newJobCount > 0) scheduleProcessing();
+          if (result.newJobCount > 0)
+            scheduleProcessingAfterResponseFinish(res, scheduleProcessing);
         }).catch(() => logger.warn("Lazada IM session sync scheduling failed after ACK deadline"));
         if (!res.writableEnded)
           res.status(503).json({ error: "Event IM belum dapat diproses." });
         return;
       }
 
+      if (outcome.result.newJobCount > 0)
+        scheduleProcessingAfterResponseFinish(res, scheduleProcessing);
       if (expired(req) || remainingBudgetMs(req) <= 0) {
-        if (outcome.result.newJobCount > 0) scheduleProcessing();
         if (!res.writableEnded) res.status(503).json({ error: "Event IM belum dapat diproses." });
         return;
       }
-      if (outcome.result.newJobCount > 0) scheduleProcessing();
       if (expired(req) || remainingBudgetMs(req) <= 0) {
         if (!res.writableEnded) res.status(503).json({ error: "Event IM belum dapat diproses." });
         return;

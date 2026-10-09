@@ -141,16 +141,35 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
       const receivedRawBodies = [];
       let authentication = "valid";
       let scheduleCount = 0;
+      const firstEventOrder = [];
+      const mockGetMessages = () => firstEventOrder.push("mock-get-messages-start");
       const app = express();
       app.set("trust proxy", 1);
+      app.use((_req, res, next) => {
+        res.once("finish", () => firstEventOrder.push("ack-finished"));
+        next();
+      });
       app.use("/api/lazada/im/push", loaded.createLazadaImPushRouter({
         getConfig: () => config,
         verifySignature: async rawBody => {
           receivedRawBodies.push(Buffer.from(rawBody));
           return authentication;
         },
-        enqueueSessionUpdate: loaded.enqueueImSessionUpdate,
-        scheduleProcessing: () => { scheduleCount += 1; },
+        enqueueSessionUpdate: async (...args) => {
+          const result = await loaded.enqueueImSessionUpdate(...args);
+          if (result.kind === "queued") firstEventOrder.push("durable-enqueue");
+          return result;
+        },
+        scheduleProcessing: () => {
+          scheduleCount += 1;
+          if (scheduleCount === 1) {
+            firstEventOrder.push("worker-start");
+            // This mock is the worker's first provider-fetch boundary.
+            // Recording it synchronously makes the ordering assertion
+            // deterministic rather than dependent on a later event-loop turn.
+            mockGetMessages();
+          }
+        },
       }));
       const server = http.createServer(app);
       await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -207,6 +226,12 @@ test("Lazada IM Session Update receiver durably queues and processes only seller
         assert.equal(first.status, 200);
         assert.equal(await first.text(), "");
         assert.equal(scheduleCount, 1, "message retrieval is scheduled after durable ACK");
+        assert.deepEqual(firstEventOrder.slice(0, 4), [
+          "durable-enqueue",
+          "ack-finished",
+          "worker-start",
+          "mock-get-messages-start",
+        ], "durable enqueue must precede completed HTTP ACK, then worker/provider fetch may start");
         assert.equal(receivedRawBodies.at(-1).toString("utf8"), raw,
           "verifier receives exact raw bytes");
         assert.equal(fetchCalls.length, 0, "the public ACK does not wait for GetMessages");

@@ -122,6 +122,11 @@ export interface LazadaImAuthorization {
   authorizationUrl: string;
 }
 
+export const LazadaImSessionSyncRetryValue = {
+  queued: true,
+} as const;
+export type LazadaImSessionSyncRetry = typeof LazadaImSessionSyncRetryValue;
+
 export interface LoginCredentials {
   /**
      * @minLength 3

@@ -34,6 +34,7 @@ import type {
   LazadaConnection,
   LazadaImAuthorization,
   LazadaImConnection,
+  LazadaImSessionSyncRetry,
   LazadaOAuthCallbackParams,
   LazadaOrderNotification,
   LazadaOrderPushStatus,
@@ -610,6 +611,80 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getAuthorizeLazadaImMutationOptions(options), queryClient);
+    }
+
+export const getRetryLazadaImSessionSyncUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/lazada/im/sessions/${sessionId}/retry`
+}
+
+/**
+ * @summary Manually requeue a blocked IM session sync owned by the authenticated user
+ */
+export const retryLazadaImSessionSync = async (sessionId: string, options?: Parameters<typeof customFetch>[1]): Promise<LazadaImSessionSyncRetry> => {
+
+  return customFetch<LazadaImSessionSyncRetry>(getRetryLazadaImSessionSyncUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryLazadaImSessionSyncMutationKey = () => ['retryLazadaImSessionSync'] as const;
+
+export const getRetryLazadaImSessionSyncMutationOptions = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryLazadaImSessionSync>>, TError,RetryLazadaImSessionSyncMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryLazadaImSessionSync>>, TError,RetryLazadaImSessionSyncMutationVariables, TContext> => {
+
+const mutationKey = getRetryLazadaImSessionSyncMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryLazadaImSessionSync>>, RetryLazadaImSessionSyncMutationVariables> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  retryLazadaImSessionSync(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryLazadaImSessionSyncMutationResult = NonNullable<Awaited<ReturnType<typeof retryLazadaImSessionSync>>>
+
+    export type RetryLazadaImSessionSyncMutationError = ErrorType<AuthErrorResponse>
+    export type RetryLazadaImSessionSyncMutationVariables = {sessionId: string}
+
+    /**
+ * @summary Manually requeue a blocked IM session sync owned by the authenticated user
+ */
+export const useRetryLazadaImSessionSync = <TError = ErrorType<AuthErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryLazadaImSessionSync>>, TError,RetryLazadaImSessionSyncMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retryLazadaImSessionSync>>,
+        TError,
+        RetryLazadaImSessionSyncMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRetryLazadaImSessionSyncMutationOptions(options), queryClient);
     }
 
 export const getAuthorizeLazadaUrl = () => {

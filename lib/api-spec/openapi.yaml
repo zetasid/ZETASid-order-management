@@ -136,6 +136,38 @@ paths:
           $ref: "#/components/responses/AuthError"
         "503":
           $ref: "#/components/responses/AuthError"
+  /lazada/im/sessions/{sessionId}/retry:
+    post:
+      operationId: retryLazadaImSessionSync
+      tags: [lazada]
+      summary: Manually requeue a blocked IM session sync owned by the authenticated user
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        "202":
+          description: The blocked session sync was safely requeued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LazadaImSessionSyncRetry"
+        "400":
+          $ref: "#/components/responses/AuthError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "403":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          $ref: "#/components/responses/AuthError"
+        "503":
+          $ref: "#/components/responses/AuthError"
   /lazada/oauth/authorize:
     post:
       operationId: authorizeLazada
@@ -494,6 +526,11 @@ components:
       required: [authorizationUrl]
       properties:
         authorizationUrl: { type: string }
+    LazadaImSessionSyncRetry:
+      type: object
+      required: [queued]
+      properties:
+        queued: { type: boolean, const: true }
     LoginCredentials:
       type: object
       additionalProperties: false

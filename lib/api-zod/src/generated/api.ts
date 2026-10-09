@@ -119,6 +119,22 @@ export const AuthorizeLazadaImResponse = zod.object({
 })
 
 
+/**
+ * @summary Manually requeue a blocked IM session sync owned by the authenticated user
+ */
+export const retryLazadaImSessionSyncPathSessionIdMax = 256;
+
+
+
+export const RetryLazadaImSessionSyncParams = zod.object({
+  "sessionId": zod.coerce.string().min(1).max(retryLazadaImSessionSyncPathSessionIdMax)
+})
+
+export const RetryLazadaImSessionSyncResponse = zod.object({
+  "queued": zod.literal(true)
+})
+
+
 export const AuthorizeLazadaResponse = zod.object({
   "authorizationUrl": zod.string()
 })

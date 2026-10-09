@@ -1,0 +1,1 @@
+CREATE INDEX "lazada_im_messages_created_at_idx" ON "lazada_im_messages" USING btree ("created_at");

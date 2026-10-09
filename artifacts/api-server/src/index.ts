@@ -3,6 +3,8 @@ import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 import { removeExpiredAuthData } from "./modules/auth/session";
 import { startOrderPushWorker } from "./modules/lazada/order-push-worker";
+import { startImMessageRetentionWorker, startImSessionSyncWorker } from "./modules/lazada/im-push";
+import { imPushConfiguration } from "./modules/lazada/security";
 
 const rawPort = process.env["PORT"];
 
@@ -34,16 +36,28 @@ const maintenance = setInterval(() => {
 }, 10 * 60 * 1000);
 maintenance.unref();
 const stopOrderPushWorker = startOrderPushWorker();
+const imPushEnabled = imPushConfiguration() !== null;
+const stopImSessionSyncWorker = imPushEnabled ? startImSessionSyncWorker() : () => {};
+const stopImMessageRetentionWorker = startImMessageRetentionWorker();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
     clearInterval(maintenance);
     stopOrderPushWorker();
+    const pendingImShutdown = Promise.resolve(stopImSessionSyncWorker());
+    stopImMessageRetentionWorker();
     logger.info({ signal }, "Shutting down");
     const timeout = setTimeout(() => process.exit(1), 10_000);
     timeout.unref();
     server.close(() => {
-      void pool.end().then(() => process.exit(0));
+      void pendingImShutdown
+        .then(() => Promise.resolve(stopImSessionSyncWorker()))
+        .then(() => pool.end())
+        .then(() => process.exit(0))
+        .catch(() => {
+          logger.error("Failed to stop cleanly");
+          process.exit(1);
+        });
     });
   });
 }

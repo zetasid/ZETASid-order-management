@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { AuthorizeLazadaImResponse, GetLazadaImConnectionResponse } from "@workspace/api-zod";
+import {
+  AuthorizeLazadaImResponse,
+  GetLazadaImConnectionResponse,
+  RetryLazadaImSessionSyncResponse,
+} from "@workspace/api-zod";
 import { LazadaError } from "../modules/lazada/client";
 import { getImMessages, getImSessionDetail, getImSessionList } from "../modules/lazada/im-chat";
 import { imPageSizeLimit } from "../modules/lazada/im-client";
-import { imConfiguration } from "../modules/lazada/security";
+import { imConfiguration, imPushConfiguration } from "../modules/lazada/security";
+import { requeueImSessionSync, scheduleImSessionSyncDrain } from "../modules/lazada/im-push";
 import {
   imConnectionStatus,
   imOAuthCookieName,
@@ -37,6 +42,27 @@ router.post("/lazada/im/oauth/authorize", async (req, res) => {
   res.set("Referrer-Policy", "no-referrer").json(AuthorizeLazadaImResponse.parse({
     authorizationUrl: result.authorizationUrl,
   }));
+});
+
+router.post("/lazada/im/sessions/:sessionId/retry", async (req, res) => {
+  if (!imPushConfiguration()) {
+    res.status(503).json({ error: "Pemulihan antrean IM belum diaktifkan." });
+    return;
+  }
+  const sessionId: unknown = req.params.sessionId;
+  if (!validSessionId(sessionId)) {
+    res.status(400).json({ error: "ID sesi IM Lazada tidak valid." });
+    return;
+  }
+  try {
+    const result = await requeueImSessionSync(res.locals.auth.user.id, sessionId);
+    if (result === "not_found") { res.status(404).json({ error: "Sesi IM tidak ditemukan." }); return; }
+    if (result === "not_blocked") { res.status(409).json({ error: "Sesi IM tidak sedang menunggu pemulihan." }); return; }
+    scheduleImSessionSyncDrain();
+    res.status(202).json(RetryLazadaImSessionSyncResponse.parse({ queued: true }));
+  } catch {
+    res.status(503).json({ error: "Pemulihan antrean IM belum dapat diproses." });
+  }
 });
 
 function queryString(value: unknown): string | undefined | null {

@@ -5,10 +5,15 @@ import { logger } from "./lib/logger";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { lazadaPushRouter } from "./routes/lazada-push";
+import { lazadaImPushRouter } from "./routes/lazada-im-push";
 import { trustedProxyAddresses } from "./lib/trusted-proxy";
 
 const app: Express = express();
 app.set("trust proxy", trustedProxyAddresses());
+app.use((_req, res, next) => {
+  (res.locals as { requestStartedAt?: number }).requestStartedAt = performance.now();
+  next();
+});
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, strictTransportSecurity: process.env.NODE_ENV === "production" ? { maxAge: 31536000 } : false }));
 
 app.use(
@@ -35,6 +40,8 @@ app.use(cookieParser());
 app.use("/api", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 // Outside cookie/CSRF auth, but protected by LPM signature over exact raw bytes.
 app.use("/api/lazada/orders/push", lazadaPushRouter);
+// Separate public receiver; its IM-specific signature verifier fails closed until verified.
+app.use("/api/lazada/im/push", lazadaImPushRouter);
 app.use(express.json({ limit: "16kb" }));
 
 app.use("/api", router);

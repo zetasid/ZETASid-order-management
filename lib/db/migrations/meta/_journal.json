@@ -57,6 +57,48 @@
       "when": 1791367464993,
       "tag": "0007_wild_skrulls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791445128389,
+      "tag": "0008_lazada_im_chat_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791448589581,
+      "tag": "0009_broad_mentallo",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791452822197,
+      "tag": "0010_yummy_power_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791452930537,
+      "tag": "0011_daily_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791473298188,
+      "tag": "0012_big_ultron",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791509700383,
+      "tag": "0013_bright_earthquake",
+      "breakpoints": true
     }
   ]
 }

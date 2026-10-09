@@ -1,0 +1,2 @@
+ALTER TABLE "lazada_im_sessions" ADD COLUMN "sync_request_version" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "lazada_im_sessions" ADD CONSTRAINT "lazada_im_sessions_sync_request_version_nonnegative" CHECK ("lazada_im_sessions"."sync_request_version" >= 0);

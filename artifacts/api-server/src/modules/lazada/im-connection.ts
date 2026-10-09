@@ -11,6 +11,41 @@ import { hash, imConfiguration, nonce, seal, unseal, validNonce, type LazadaConf
 export const imOAuthCookieName = "zetas_lazada_im_oauth";
 const imStatePattern = /^im_[A-Za-z0-9_-]{43}$/;
 
+function providerSellerId(value: unknown): string | null {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  if (typeof value !== "string") return null;
+  const sellerId = value.trim();
+  return sellerId.length > 0 && sellerId.length <= 128 && !/[\u0000-\u001f\u007f]/.test(sellerId)
+    ? sellerId : null;
+}
+
+export async function resolveImSessionUpdateUserId(config: LazadaConfig, payload: unknown): Promise<string | null> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const event = payload as Record<string, unknown>;
+  if (event.message_type !== 19 || event.sync_type !== "SESSION_UPDATE") return null;
+  const sellerId = providerSellerId(event.seller_id);
+  if (!sellerId) return null;
+
+  const matches = await db.select({
+    userId: lazadaImConnectionsTable.userId,
+    sellerId: lazadaImConnectionsTable.lazadaSellerId,
+    appFingerprint: lazadaImConnectionsTable.appFingerprint,
+    country: lazadaImConnectionsTable.country,
+  }).from(lazadaImConnectionsTable).where(and(
+    eq(lazadaImConnectionsTable.lazadaSellerId, sellerId),
+    eq(lazadaImConnectionsTable.appFingerprint, config.fingerprint),
+    eq(lazadaImConnectionsTable.country, config.country),
+  )).limit(2);
+
+  if (matches.length !== 1) return null;
+  const [match] = matches;
+  return match.sellerId === sellerId
+    && match.appFingerprint === config.fingerprint
+    && match.country === config.country
+    ? match.userId : null;
+}
+
 export function isImOAuthState(value: unknown): value is string {
   return typeof value === "string" && imStatePattern.test(value);
 }
@@ -71,28 +106,41 @@ export async function finishImAuthorization(
 
   const issuedAt = Date.now();
   const tokens = await createClient(config).exchange(code);
+  const sellerId = tokens.sellerId;
+  if (!sellerId) throw new LazadaError("invalid_response");
   const expiresAt = new Date(issuedAt + tokens.expiresIn * 1000);
   if (expiresAt <= new Date()) throw new LazadaError("authorization_failed");
 
-  await db.transaction(async tx => {
-    if (!await activeSession(tx, pending.userId, pending.sessionHash))
-      throw new LazadaError("authorization_failed");
-    const values = {
-      userId: pending.userId,
-      appFingerprint: config.fingerprint,
-      country: config.country,
-      encryptedTokens: seal(JSON.stringify({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      }), config, pending.userId),
-      expiresAt,
-      refreshExpiresAt: new Date(issuedAt + tokens.refreshExpiresIn * 1000),
-    };
-    await tx.insert(lazadaImConnectionsTable).values(values).onConflictDoUpdate({
-      target: lazadaImConnectionsTable.userId,
-      set: values,
+  try {
+    await db.transaction(async tx => {
+      if (!await activeSession(tx, pending.userId, pending.sessionHash))
+        throw new LazadaError("authorization_failed");
+      const values = {
+        userId: pending.userId,
+        lazadaSellerId: sellerId,
+        appFingerprint: config.fingerprint,
+        country: config.country,
+        encryptedTokens: seal(JSON.stringify({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        }), config, pending.userId),
+        expiresAt,
+        refreshExpiresAt: new Date(issuedAt + tokens.refreshExpiresIn * 1000),
+      };
+      const [saved] = await tx.insert(lazadaImConnectionsTable).values(values).onConflictDoUpdate({
+        target: lazadaImConnectionsTable.userId,
+        set: values,
+        // A user-scoped row cannot be silently rebound to a different or unknown seller.
+        setWhere: eq(lazadaImConnectionsTable.lazadaSellerId, sellerId),
+      }).returning({ userId: lazadaImConnectionsTable.userId });
+      if (!saved) throw new LazadaError("authorization_failed");
     });
-  });
+  } catch (error) {
+    if (error instanceof LazadaError) throw error;
+    if (error && typeof error === "object" && "code" in error && error.code === "23505")
+      throw new LazadaError("authorization_failed");
+    throw error;
+  }
 }
 
 export async function imConnectionStatus(userId: string) {

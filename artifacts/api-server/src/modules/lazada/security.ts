@@ -55,6 +55,16 @@ export function imConfiguration(env: NodeJS.ProcessEnv = process.env): LazadaCon
   } catch { return null; }
 }
 
+/**
+ * Public IM push is an explicit opt-in for non-production testing only.
+ * Merely configuring the separate IM OAuth credentials must not activate callbacks.
+ */
+export function imPushConfiguration(env: NodeJS.ProcessEnv = process.env): LazadaConfig | null {
+  if (env.NODE_ENV === "production" || env.LAZADA_MODE !== "testing"
+    || env.LAZADA_IM_PUSH_ENABLED !== "true") return null;
+  return imConfiguration(env);
+}
+
 export function seal(value: string, config: LazadaConfig, userId: string): string {
   const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", config.key, iv);
   cipher.setAAD(Buffer.from(`lazada:v1:${userId}:${config.fingerprint}`));
@@ -66,6 +76,31 @@ export function unseal(value: string, config: LazadaConfig, userId: string): str
   if (version !== "v1" || !iv || !tag || !ciphertext || extra) throw new Error("Invalid encrypted connection");
   const decipher = createDecipheriv("aes-256-gcm", config.key, Buffer.from(iv, "base64url"));
   decipher.setAAD(Buffer.from(`lazada:v1:${userId}:${config.fingerprint}`));
+  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
+}
+
+function imMessageContentKey(config: LazadaConfig): Buffer {
+  // Domain-separate persisted customer content from OAuth token encryption.
+  return createHash("sha256").update("zetas:lazada:im-message-content:v1\u0000", "utf8")
+    .update(config.key).digest();
+}
+
+export function sealImMessageContent(value: string, config: LazadaConfig, userId: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", imMessageContentKey(config), iv);
+  cipher.setAAD(Buffer.from(`lazada-im-message:v1:${userId}:${config.fingerprint}`));
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return ["imc1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"),
+    ciphertext.toString("base64url")].join(".");
+}
+
+export function unsealImMessageContent(value: string, config: LazadaConfig, userId: string): string {
+  const [version, iv, tag, ciphertext, extra] = value.split(".");
+  if (version !== "imc1" || !iv || !tag || !ciphertext || extra)
+    throw new Error("Invalid encrypted IM message");
+  const decipher = createDecipheriv("aes-256-gcm", imMessageContentKey(config), Buffer.from(iv, "base64url"));
+  decipher.setAAD(Buffer.from(`lazada-im-message:v1:${userId}:${config.fingerprint}`));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
 }

@@ -92,10 +92,14 @@ globalThis.fetch = async (input, options = {}) => {
     });
     if (params.code === "slow") await setTimeout(250);
     const isImApp = params.app_key === process.env.LAZADA_IM_APP_KEY;
+    const country = params.code === "wrong-country" ? "sg" : "id";
+    const countryInfo = { country, user_id: "fixture-provider-user", account_platform: "fixture" };
+    if (params.code !== "missing-seller-id")
+      countryInfo.seller_id = params.code === "different-seller" ? "fixture-im-seller-2" : "fixture-im-seller-1";
     return json({ code: "0", country: params.code === "wrong-country" ? "sg" : "id",
       access_token: isImApp ? "test-only-im-access-token" : "test-only-access-token",
       refresh_token: isImApp ? "test-only-im-refresh-token" : "test-only-refresh-token",
-      expires_in: 3600, refresh_expires_in: 7200 });
+      expires_in: 3600, refresh_expires_in: 7200, country_user_info: [countryInfo] });
   }
   const control = readFileSync(process.env.LAZADA_TEST_CONTROL_FILE, "utf8");
   if (path === "/order/digital/delivered") {

@@ -29,7 +29,7 @@ await build({
 });
 await build({
   stdin: {
-    contents: `export { resolveImSessionUpdateUserId } from "./artifacts/api-server/src/modules/lazada/im-connection.ts";
+    contents: `export { isUniqueConstraintViolation, resolveImSessionUpdateUserId } from "./artifacts/api-server/src/modules/lazada/im-connection.ts";
       export { createLazadaImPushRouter } from "./artifacts/api-server/src/routes/lazada-im-push.ts";
       export { createInternalImPushDeduplicationKey, enqueueImSessionUpdate,
         parseImSessionUpdate, processNextImSessionSync, requeueImSessionSync,
@@ -49,6 +49,7 @@ const security = await import(pathToFileURL(`${temporary}/security.mjs`));
 const { createImClient } = await import(pathToFileURL(`${temporary}/im-client.mjs`));
 const { signature } = await import(pathToFileURL(`${temporary}/client.mjs`));
 const {
+  isUniqueConstraintViolation,
   resolveImSessionUpdateUserId,
   createLazadaImPushRouter,
   createInternalImPushDeduplicationKey,
@@ -86,6 +87,16 @@ const imPushSignature = raw => createHmac("sha256", env.LAZADA_IM_APP_SECRET)
 test.after(async () => {
   await identityTestPool.end();
   await rm(temporary, { recursive: true, force: true });
+});
+
+test("seller conflict classifier recognizes PostgreSQL 23505 wrapped by Drizzle", () => {
+  const pgError = Object.assign(new Error("unique violation"), { code: "23505" });
+  const drizzleError = Object.assign(new Error("query failed"), { cause: pgError });
+  assert.equal(isUniqueConstraintViolation(drizzleError), true);
+  assert.equal(isUniqueConstraintViolation({ code: "23503" }), false);
+  const cyclic = { code: "XX000", cause: undefined };
+  cyclic.cause = cyclic;
+  assert.equal(isUniqueConstraintViolation(cyclic), false);
 });
 
 test("IM message content encryption is scoped to user and does not expose plaintext at rest", () => {

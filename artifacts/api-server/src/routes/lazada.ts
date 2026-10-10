@@ -4,13 +4,12 @@ import { Router, type CookieOptions } from "express";
 import { db, lazadaImOauthStatesTable, lazadaOauthStatesTable } from "@workspace/db";
 import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaOrdersBody, SyncLazadaOrdersResponse } from "@workspace/api-zod";
 import { checkConnection, connectionStatus, finishAuthorization, isSellerOAuthState, startAuthorization } from "../modules/lazada/connection";
-import { configuration, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
+import { configuration, hash, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
 import {
   logImOAuthDiagnostic,
   type ImOAuthDiagnosticDetails,
 } from "../modules/lazada/im-oauth-diagnostics";
-import { hash } from "../modules/lazada/security";
 import { resolveLazadaOAuthFlow } from "../modules/lazada/oauth-state-dispatch";
 import { syncOrders } from "../modules/lazada/order-sync";
 import {
@@ -51,6 +50,16 @@ lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  if (!req.secure) {
+    res.redirect(303, "/settings");
+    return;
+  }
+  const sellerConfig = configuration();
+  const imConfig = imConfiguration();
+  if (!sellerConfig && !imConfig) {
+    res.redirect(303, "/settings");
+    return;
+  }
   let flow;
   try {
     flow = await resolveLazadaOAuthFlow(req.query.state, async state => {
@@ -85,11 +94,7 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
         diagnostic("state_cookie", "failed", "state_invalid");
         throw new LazadaError("authorization_failed");
       }
-      const config: LazadaConfig | null = imConfiguration();
-      if (!req.secure) {
-        diagnostic("callback_validation", "failed", "insecure_request");
-        throw new LazadaError("authorization_failed");
-      }
+      const config: LazadaConfig | null = imConfig;
       if (!config) {
         diagnostic("callback_validation", "failed", "configuration_unavailable");
         throw new LazadaError("authorization_failed");
@@ -118,11 +123,11 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   const browser: unknown = req.cookies?.[BROWSER_COOKIE];
   let outcome = "authorization_failed";
   try {
-    if (!req.secure || !config || !isSellerOAuthState(req.query.state) || !validNonce(browser))
+    if (!sellerConfig || !isSellerOAuthState(req.query.state) || !validNonce(browser))
       throw new LazadaError("authorization_failed");
     const code = typeof req.query.code === "string" && req.query.code.length > 0 && req.query.code.length <= 2048
       && !req.query.error ? req.query.code : null;
-    await finishAuthorization(config, req.query.state, browser, code);
+    await finishAuthorization(sellerConfig, req.query.state, browser, code);
     outcome = "connected";
   } catch (error) {
     if (error instanceof LazadaError) outcome = error.reason;

@@ -7,6 +7,7 @@ import {
 import { activeSession } from "./connection";
 import { createClient, LazadaError } from "./client";
 import { hash, imConfiguration, nonce, seal, unseal, validNonce, type LazadaConfig } from "./security";
+import type { ImOAuthDiagnosticCategory, ImOAuthDiagnosticStage } from "./im-oauth-diagnostics";
 
 export const imOAuthCookieName = "zetas_lazada_im_oauth";
 const imStatePattern = /^im_[A-Za-z0-9_-]{43}$/;
@@ -104,28 +105,85 @@ export async function finishImAuthorization(
   state: string,
   browser: string,
   code: string | null,
+  diagnostic?: (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
+    category?: ImOAuthDiagnosticCategory) => void,
 ): Promise<void> {
-  if (!isImOAuthState(state) || !validNonce(browser)) throw new LazadaError("authorization_failed");
-  const [pending] = await db.delete(lazadaImOauthStatesTable).where(and(
-    eq(lazadaImOauthStatesTable.stateHash, hash(state)),
-    eq(lazadaImOauthStatesTable.browserHash, hash(browser)),
-    gt(lazadaImOauthStatesTable.expiresAt, new Date()),
-  )).returning();
-  if (!pending || !code) throw new LazadaError("authorization_failed");
-  if (!await db.transaction(tx => activeSession(tx, pending.userId, pending.sessionHash)))
+  if (!isImOAuthState(state)) {
+    diagnostic?.("state_cookie", "failed", "state_invalid");
     throw new LazadaError("authorization_failed");
+  }
+  if (!validNonce(browser)) {
+    diagnostic?.("state_cookie", "failed", "cookie_invalid");
+    throw new LazadaError("authorization_failed");
+  }
+  diagnostic?.("state_cookie", "started");
+  let pending;
+  try {
+    [pending] = await db.delete(lazadaImOauthStatesTable).where(and(
+      eq(lazadaImOauthStatesTable.stateHash, hash(state)),
+      eq(lazadaImOauthStatesTable.browserHash, hash(browser)),
+      gt(lazadaImOauthStatesTable.expiresAt, new Date()),
+    )).returning();
+  } catch {
+    diagnostic?.("state_cookie", "failed", "database_error");
+    throw new Error("OAuth state claim failed");
+  }
+  if (!pending) {
+    diagnostic?.("state_cookie", "failed", "state_not_found_expired_or_used");
+    throw new LazadaError("authorization_failed");
+  }
+  diagnostic?.("state_cookie", "succeeded");
+  if (!code) {
+    diagnostic?.("authorization_code", "failed", "code_missing_or_rejected");
+    throw new LazadaError("authorization_failed");
+  }
+  diagnostic?.("authorization_code", "succeeded");
+
+  diagnostic?.("session_check", "started");
+  let sessionActive: boolean;
+  try {
+    sessionActive = await db.transaction(tx => activeSession(tx, pending.userId, pending.sessionHash));
+  } catch {
+    diagnostic?.("session_check", "failed", "database_error");
+    throw new Error("OAuth session check failed");
+  }
+  if (!sessionActive) {
+    diagnostic?.("session_check", "failed", "session_inactive");
+    throw new LazadaError("authorization_failed");
+  }
+  diagnostic?.("session_check", "succeeded");
 
   const issuedAt = Date.now();
-  const tokens = await createClient(config).exchange(code);
+  diagnostic?.("token_exchange", "started");
+  let tokens;
+  try {
+    tokens = await createClient(config, undefined, undefined, undefined, diagnostic).exchange(code);
+    diagnostic?.("token_exchange", "succeeded");
+  } catch (error) {
+    diagnostic?.("token_exchange", "failed", error instanceof LazadaError
+      ? "provider_or_transport_error" : "unexpected_error");
+    throw error;
+  }
   const sellerId = tokens.sellerId;
-  if (!sellerId) throw new LazadaError("invalid_response");
+  if (!sellerId) {
+    diagnostic?.("seller_validation", "failed", "seller_identity_invalid");
+    throw new LazadaError("invalid_response");
+  }
+  diagnostic?.("seller_validation", "succeeded");
   const expiresAt = new Date(issuedAt + tokens.expiresIn * 1000);
-  if (expiresAt <= new Date()) throw new LazadaError("authorization_failed");
+  if (expiresAt <= new Date()) {
+    diagnostic?.("token_validation", "failed", "expiry_invalid");
+    throw new LazadaError("authorization_failed");
+  }
+  diagnostic?.("token_validation", "succeeded");
 
+  diagnostic?.("connection_storage", "started");
   try {
     await db.transaction(async tx => {
-      if (!await activeSession(tx, pending.userId, pending.sessionHash))
+      if (!await activeSession(tx, pending.userId, pending.sessionHash)) {
+        diagnostic?.("session_check", "failed", "session_inactive");
         throw new LazadaError("authorization_failed");
+      }
       const values = {
         userId: pending.userId,
         lazadaSellerId: sellerId,
@@ -144,12 +202,19 @@ export async function finishImAuthorization(
         // A user-scoped row cannot be silently rebound to a different or unknown seller.
         setWhere: eq(lazadaImConnectionsTable.lazadaSellerId, sellerId),
       }).returning({ userId: lazadaImConnectionsTable.userId });
-      if (!saved) throw new LazadaError("authorization_failed");
+      if (!saved) {
+        diagnostic?.("connection_storage", "failed", "seller_conflict");
+        throw new LazadaError("authorization_failed");
+      }
     });
+    diagnostic?.("connection_storage", "succeeded");
   } catch (error) {
     if (error instanceof LazadaError) throw error;
-    if (isUniqueConstraintViolation(error))
+    if (isUniqueConstraintViolation(error)) {
+      diagnostic?.("connection_storage", "failed", "seller_conflict");
       throw new LazadaError("authorization_failed");
+    }
+    diagnostic?.("connection_storage", "failed", "storage_error");
     throw error;
   }
 }

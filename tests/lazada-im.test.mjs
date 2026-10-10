@@ -680,9 +680,24 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
       assert.equal(await getImConnection(oauthUser), null);
       assert.deepEqual(await getSellerConnection(oauthUser), sellerBefore);
 
-      const callback = await request(`/lazada/oauth/callback?state=${flow.state}&code=valid`, null, "GET", {
-        Cookie: flow.flowCookie,
-      }, "manual");
+      const callsBeforeConcurrentCallbacks = (await calls())
+        .filter(call => call.path === "/auth/token/create").length;
+      const callbackPath = `/lazada/oauth/callback?state=${encodeURIComponent(flow.state)}&code=slow`;
+      const concurrentCallbacks = await Promise.all([
+        request(callbackPath, null, "GET", { Cookie: flow.flowCookie }, "manual"),
+        request(callbackPath, null, "GET", { Cookie: flow.flowCookie }, "manual"),
+      ]);
+      assert.ok(concurrentCallbacks.every(response => response.status === 303));
+      const callbackLocations = concurrentCallbacks.map(response => response.headers.get("location"));
+      assert.deepEqual(callbackLocations.slice().sort(), [
+        "/settings?lazada_im=authorization_failed",
+        "/settings?lazada_im=connected",
+      ].sort(), "only one concurrent callback may claim the PostgreSQL state");
+      assert.equal((await calls()).filter(call => call.path === "/auth/token/create").length,
+        callsBeforeConcurrentCallbacks + 1, "only the successful claim may exchange its code");
+      const callback = concurrentCallbacks.find(response =>
+        response.headers.get("location") === "/settings?lazada_im=connected");
+      assert.ok(callback, "one callback must complete successfully");
       assert.equal(callback.status, 303);
       assert.equal(callback.headers.get("location"), "/settings?lazada_im=connected");
       assert.equal(callback.headers.get("referrer-policy"), "no-referrer");

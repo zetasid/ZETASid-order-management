@@ -20,6 +20,17 @@ function providerSellerId(value: unknown): string | null {
     ? sellerId : null;
 }
 
+export function isUniqueConstraintViolation(error: unknown): boolean {
+  const seen = new Set<object>();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if ("code" in current && current.code === "23505") return true;
+    current = "cause" in current ? current.cause : undefined;
+  }
+  return false;
+}
+
 export async function resolveImSessionUpdateUserId(config: LazadaConfig, payload: unknown): Promise<string | null> {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   const event = payload as Record<string, unknown>;
@@ -137,7 +148,7 @@ export async function finishImAuthorization(
     });
   } catch (error) {
     if (error instanceof LazadaError) throw error;
-    if (error && typeof error === "object" && "code" in error && error.code === "23505")
+    if (isUniqueConstraintViolation(error))
       throw new LazadaError("authorization_failed");
     throw error;
   }

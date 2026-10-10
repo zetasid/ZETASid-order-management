@@ -648,7 +648,7 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         assert.notEqual(url.searchParams.get("client_id"), env.LAZADA_APP_KEY);
         assert.equal(url.searchParams.get("redirect_uri"), env.LAZADA_REDIRECT_URI);
         const state = url.searchParams.get("state");
-        assert.match(state, /^im_[A-Za-z0-9_-]{43}$/);
+        assert.match(state, /^im1_[A-Za-z0-9_-]{43}$/);
         return { state, flowCookie: cookieHeader.split(";")[0] };
       };
       const flow = await startFlow();
@@ -785,6 +785,37 @@ test("Lazada In-house IM Phase 1 routes are authenticated, isolated, validated a
         session_id: "fixture-session-for-mapping",
         site_id: "lazada_id",
       };
+      const oauthUserConnection = await oauthUser.pool.query(
+        `SELECT user_id, lazada_seller_id, app_fingerprint, country
+         FROM lazada_im_connections WHERE user_id = $1`,
+        [oauthUser.id],
+      );
+      assert.equal(oauthUserConnection.rowCount, 1,
+        "OAuth setup must create one IM connection for the fixture user before identity resolution");
+      assert.equal(oauthUserConnection.rows[0].lazada_seller_id, sessionUpdate.seller_id);
+      assert.equal(oauthUserConnection.rows[0].app_fingerprint, config.fingerprint);
+      assert.equal(oauthUserConnection.rows[0].country, config.country);
+      const fixtureScopedRows = await oauthUser.pool.query(
+        `SELECT user_id FROM lazada_im_connections
+         WHERE lazada_seller_id = $1 AND app_fingerprint = $2 AND country = $3`,
+        [sessionUpdate.seller_id, config.fingerprint, config.country],
+      );
+      assert.equal(fixtureScopedRows.rowCount, 1,
+        "fixture database must contain exactly one seller/app/country match");
+      assert.equal(fixtureScopedRows.rows[0].user_id, oauthUser.id);
+      const scopedSellerRows = await identityTestPool.query(
+        `SELECT user_id, lazada_seller_id, app_fingerprint, country
+         FROM lazada_im_connections
+         WHERE lazada_seller_id = $1 AND app_fingerprint = $2 AND country = $3`,
+        [sessionUpdate.seller_id, config.fingerprint, config.country],
+      );
+      assert.equal(scopedSellerRows.rowCount, 1,
+        "the resolver's PostgreSQL pool must see exactly one row for this seller/app/country scope");
+      assert.equal(scopedSellerRows.rows[0].user_id, oauthUser.id,
+        "the scoped seller fixture must belong to the OAuth user");
+      assert.equal(scopedSellerRows.rows[0].lazada_seller_id, sessionUpdate.seller_id);
+      assert.equal(scopedSellerRows.rows[0].app_fingerprint, config.fingerprint);
+      assert.equal(scopedSellerRows.rows[0].country, config.country);
       assert.equal(await resolveImSessionUpdateUserId(config, sessionUpdate), oauthUser.id,
         "seller_id selects the matching IM connection even if user_account_id names another ZETAS user");
       assert.equal(await resolveImSessionUpdateUserId(config, {

@@ -55,9 +55,13 @@ const categories = new Set<ImOAuthDiagnosticCategory>([
   "storage_error", "unexpected_error",
 ]);
 const correlationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const safeProviderIdentifier = (value: string, maxLength: number) =>
-  value.length <= maxLength && /^[A-Za-z0-9_.-]+$/.test(value)
-  && !/(?:secret|access.?token|refresh.?token|seller|cookie|state|authorization)/i.test(value);
+export function sanitizeImOAuthProviderIdentifier(value: unknown, maxLength: number): string {
+  if (typeof value !== "string" || value.length < 1 || value.length > maxLength
+    || !/^[A-Za-z0-9_.-]+$/.test(value)
+    || /(?:token|secret|cookie|state|auth|signature|seller|code|customer|email|phone|password|credential|session|user)/i.test(value))
+    return "[redacted]";
+  return value;
+}
 
 /** Emits only allowlisted diagnostic metadata. Logging must never affect OAuth behavior. */
 export function logImOAuthDiagnostic(
@@ -76,10 +80,10 @@ export function logImOAuthDiagnostic(
   if (details?.httpStatus !== undefined && Number.isInteger(details.httpStatus)
     && details.httpStatus >= 100 && details.httpStatus <= 599)
     fields.httpStatus = String(details.httpStatus);
-  if (details?.providerCode && safeProviderIdentifier(details.providerCode, 64))
-    fields.providerCode = details.providerCode;
-  if (details?.providerRequestId && safeProviderIdentifier(details.providerRequestId, 96))
-    fields.providerRequestId = details.providerRequestId;
+  if (details?.providerCode !== undefined)
+    fields.providerCode = sanitizeImOAuthProviderIdentifier(details.providerCode, 64);
+  if (details?.providerRequestId !== undefined)
+    fields.providerRequestId = sanitizeImOAuthProviderIdentifier(details.providerRequestId, 96);
   try {
     logger.info(fields, "Lazada IM OAuth diagnostic");
   } catch {

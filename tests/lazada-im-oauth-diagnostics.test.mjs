@@ -29,6 +29,7 @@ await build({
   logLevel: "silent",
 });
 const { logImOAuthDiagnostic } = await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
+const { sanitizeImOAuthProviderIdentifier } = await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
 const { createClient } = require(`${temporary}/client.cjs`);
 const { imConfiguration } = await import(pathToFileURL(`${temporary}/security.mjs`));
 
@@ -74,8 +75,18 @@ test("IM OAuth diagnostic records use one correlation ID and only allowlisted me
   });
   assert.equal(records.length, beforeInvalid + 1);
   assert.equal(records.at(-1).httpStatus, undefined);
-  assert.equal(records.at(-1).providerCode, undefined);
-  assert.equal(records.at(-1).providerRequestId, undefined);
+  assert.equal(records.at(-1).providerCode, "[redacted]");
+  assert.equal(records.at(-1).providerRequestId, "[redacted]");
+  for (const [value, maxLength] of [
+    ["", 64],
+    ["x".repeat(65), 64],
+    ["bad value", 64],
+    ["token-like-value", 64],
+    ["secret-like-value", 64],
+    ["cookie-state-value", 96],
+    ["customer@example.invalid", 96],
+  ]) assert.equal(sanitizeImOAuthProviderIdentifier(value, maxLength), "[redacted]");
+  assert.equal(sanitizeImOAuthProviderIdentifier("E_PROVIDER_1", 64), "E_PROVIDER_1");
   const serialized = JSON.stringify(records);
   for (const sensitive of ["synthetic-code", "synthetic-state", "synthetic-cookie",
     "synthetic-access-token", "synthetic-refresh-token", "synthetic-secret", "synthetic-seller-id"])
@@ -116,17 +127,30 @@ test("mocked token exchange distinguishes network, provider, invalid response an
     record.category === "network_error" && record.stage === "token_exchange"));
 
   const provider = makeRun(async () => new Response(JSON.stringify({
-    code: "InvalidCode", message: "synthetic-access-token synthetic-app-secret",
+    code: "E_PROVIDER_1", message: "synthetic-access-token synthetic-app-secret",
     request_id: "req-test-123",
   }), { status: 400 }));
   await assert.rejects(provider.exchange(), error => error.reason === "api_unavailable");
   const providerFailure = provider.diagnostics.find(record => record.category === "provider_response_error");
   assert.equal(providerFailure.httpStatus, "400");
-  assert.equal(providerFailure.providerCode, "InvalidCode");
+  assert.equal(providerFailure.providerCode, "E_PROVIDER_1");
   assert.equal(providerFailure.providerRequestId, "req-test-123");
   assert.ok(!JSON.stringify(provider).includes("synthetic-access-token"));
   assert.ok(!JSON.stringify(provider.warnings).includes("synthetic-app-secret"));
   assert.ok(!JSON.stringify(provider.warnings).includes("synthetic-code"));
+
+  const sensitiveProviderFields = makeRun(async () => new Response(JSON.stringify({
+    code: "synthetic-secret-token", message: "synthetic raw sensitive response",
+    request_id: "synthetic-cookie-state-value",
+  }), { status: 400 }));
+  await assert.rejects(sensitiveProviderFields.exchange(), error => error.reason === "api_unavailable");
+  const safeProviderFailure = sensitiveProviderFields.diagnostics.find(
+    record => record.category === "provider_response_error");
+  assert.equal(safeProviderFailure.providerCode, "[redacted]");
+  assert.equal(safeProviderFailure.providerRequestId, "[redacted]");
+  assert.ok(!JSON.stringify(sensitiveProviderFields).includes("synthetic-secret-token"));
+  assert.ok(!JSON.stringify(sensitiveProviderFields).includes("synthetic-cookie-state-value"));
+  assert.ok(!JSON.stringify(sensitiveProviderFields).includes("synthetic raw sensitive response"));
 
   const malformed = makeRun(async () => new Response("not-json", { status: 200 }));
   await assert.rejects(malformed.exchange(), error => error.reason === "api_unavailable");

@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { logger } from "../../lib/logger";
 import { endpoints, type LazadaConfig } from "./security";
+import { sanitizeImOAuthProviderIdentifier } from "./im-oauth-diagnostics";
 import type {
   ImOAuthDiagnosticCategory,
   ImOAuthDiagnosticDetails,
@@ -59,13 +60,13 @@ function logFailedResponse(
   diagnosticLogger.warn({
     path,
     httpStatus,
-    providerCode: omitProviderMessage && typeof responseBody.code === "string"
-      && /^[A-Za-z0-9_.-]{1,64}$/.test(responseBody.code)
-      ? responseBody.code : safeDiagnosticValue(responseBody.code, sensitiveValues),
+    providerCode: omitProviderMessage
+      ? responseBody.code === undefined ? null : sanitizeImOAuthProviderIdentifier(String(responseBody.code), 64)
+      : safeDiagnosticValue(responseBody.code, sensitiveValues),
     ...(omitProviderMessage ? {} : { providerMessage: safeDiagnosticValue(responseBody.message, sensitiveValues) }),
-    providerRequestId: omitProviderMessage && typeof responseBody.request_id === "string"
-      && /^[A-Za-z0-9_.-]{1,96}$/.test(responseBody.request_id)
-      ? responseBody.request_id : safeDiagnosticValue(responseBody.request_id, sensitiveValues),
+    providerRequestId: omitProviderMessage
+      ? responseBody.request_id === undefined ? null : sanitizeImOAuthProviderIdentifier(responseBody.request_id, 96)
+      : safeDiagnosticValue(responseBody.request_id, sensitiveValues),
   }, "Lazada API response failed");
 }
 

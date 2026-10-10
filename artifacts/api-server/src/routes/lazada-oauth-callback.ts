@@ -44,7 +44,11 @@ export function createLazadaOAuthCallbackRouter(deps: LazadaOAuthCallbackDepende
     }
     const sellerConfig = deps.sellerConfig();
     const imConfig = deps.imConfig();
-    if (!sellerConfig && !imConfig) {
+    const sellerStateShape = deps.isSellerState(req.query.state);
+    const imStateShape = deps.isImState(req.query.state);
+    if ((!sellerStateShape && !imStateShape)
+      || (sellerStateShape && !sellerConfig)
+      || (imStateShape && !imConfig)) {
       res.redirect(303, "/settings");
       return;
     }

@@ -7,7 +7,11 @@ import {
 import { activeSession } from "./connection";
 import { createClient, LazadaError } from "./client";
 import { hash, imConfiguration, nonce, seal, unseal, validNonce, type LazadaConfig } from "./security";
-import type { ImOAuthDiagnosticCategory, ImOAuthDiagnosticStage } from "./im-oauth-diagnostics";
+import type {
+  ImOAuthDiagnosticCategory,
+  ImOAuthDiagnosticDetails,
+  ImOAuthDiagnosticStage,
+} from "./im-oauth-diagnostics";
 
 export const imOAuthCookieName = "zetas_lazada_im_oauth";
 const imStatePattern = /^im_[A-Za-z0-9_-]{43}$/;
@@ -106,11 +110,11 @@ export async function finishImAuthorization(
   browser: string,
   code: string | null,
   diagnostic?: (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
-    category?: ImOAuthDiagnosticCategory) => void,
+    category?: ImOAuthDiagnosticCategory, details?: ImOAuthDiagnosticDetails) => void,
 ): Promise<void> {
   const report = (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
-    category?: ImOAuthDiagnosticCategory) => {
-    try { diagnostic?.(stage, result, category); } catch { /* Diagnostics must not affect OAuth. */ }
+    category?: ImOAuthDiagnosticCategory, details?: ImOAuthDiagnosticDetails) => {
+    try { diagnostic?.(stage, result, category, details); } catch { /* Diagnostics must not affect OAuth. */ }
   };
   if (!isImOAuthState(state)) {
     report("state_cookie", "failed", "state_invalid");
@@ -130,7 +134,7 @@ export async function finishImAuthorization(
     )).returning();
   } catch (error) {
     report("state_cookie", "failed", "database_error");
-    throw error;
+    throw new Error("OAuth state claim failed");
   }
   if (!pending) {
     report("state_cookie", "failed", "state_not_found_expired_or_used");
@@ -149,7 +153,7 @@ export async function finishImAuthorization(
     sessionActive = await db.transaction(tx => activeSession(tx, pending.userId, pending.sessionHash));
   } catch (error) {
     report("session_check", "failed", "database_error");
-    throw error;
+    throw new Error("OAuth session check failed");
   }
   if (!sessionActive) {
     report("session_check", "failed", "session_inactive");
@@ -160,12 +164,18 @@ export async function finishImAuthorization(
   const issuedAt = Date.now();
   report("token_exchange", "started");
   let tokens;
+  let exchangeOutcomeReported = false;
+  const exchangeDiagnostic = (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
+    category?: ImOAuthDiagnosticCategory, details?: ImOAuthDiagnosticDetails) => {
+    if (stage === "token_exchange" && (result === "succeeded" || result === "failed"))
+      exchangeOutcomeReported = true;
+    report(stage, result, category, details);
+  };
   try {
-    tokens = await createClient(config, undefined, undefined, undefined, report).exchange(code);
-    report("token_exchange", "succeeded");
+    tokens = await createClient(config, undefined, undefined, undefined, exchangeDiagnostic).exchange(code);
   } catch (error) {
-    report("token_exchange", "failed", error instanceof LazadaError
-      ? "provider_or_transport_error" : "unexpected_error");
+    if (!exchangeOutcomeReported)
+      report("token_exchange", "failed", "local_failure");
     throw error;
   }
   const sellerId = tokens.sellerId;

@@ -4,7 +4,7 @@ import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaO
 import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
 import { configuration, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
-import { logImOAuthDiagnostic } from "../modules/lazada/im-oauth-diagnostics";
+import { logImOAuthDiagnostic, type ImOAuthDiagnosticDetails } from "../modules/lazada/im-oauth-diagnostics";
 import { syncOrders } from "../modules/lazada/order-sync";
 import {
   finishImAuthorization,
@@ -56,8 +56,9 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
     const correlationId = randomUUID();
     const diagnostic = (stage: Parameters<typeof logImOAuthDiagnostic>[2],
       result: Parameters<typeof logImOAuthDiagnostic>[3],
-      category?: Parameters<typeof logImOAuthDiagnostic>[4]) =>
-      logImOAuthDiagnostic(req.log, correlationId, stage, result, category);
+      category?: Parameters<typeof logImOAuthDiagnostic>[4],
+      details?: ImOAuthDiagnosticDetails) =>
+      logImOAuthDiagnostic(req.log, correlationId, stage, result, category, details);
     diagnostic("callback_received", "started");
     let outcome = "authorization_failed";
     try {

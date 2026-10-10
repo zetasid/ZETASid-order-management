@@ -1,7 +1,11 @@
 import { createHmac } from "node:crypto";
 import { logger } from "../../lib/logger";
 import { endpoints, type LazadaConfig } from "./security";
-import type { ImOAuthDiagnosticCategory, ImOAuthDiagnosticStage } from "./im-oauth-diagnostics";
+import type {
+  ImOAuthDiagnosticCategory,
+  ImOAuthDiagnosticDetails,
+  ImOAuthDiagnosticStage,
+} from "./im-oauth-diagnostics";
 
 export class LazadaError extends Error {
   constructor(public readonly reason: "authorization_failed" | "permission_denied" | "api_unavailable" | "wrong_country" | "invalid_response" | "sync_busy") {
@@ -48,15 +52,20 @@ function logFailedResponse(
   httpStatus: number | null,
   body: unknown,
   sensitiveValues: readonly string[],
+  omitProviderMessage = false,
 ) {
   const responseBody = body && typeof body === "object" && !Array.isArray(body)
     ? body as Record<string, unknown> : {};
   diagnosticLogger.warn({
     path,
     httpStatus,
-    providerCode: safeDiagnosticValue(responseBody.code, sensitiveValues),
-    providerMessage: safeDiagnosticValue(responseBody.message, sensitiveValues),
-    providerRequestId: safeDiagnosticValue(responseBody.request_id, sensitiveValues),
+    providerCode: omitProviderMessage && typeof responseBody.code === "string"
+      && /^[A-Za-z0-9_.-]{1,64}$/.test(responseBody.code)
+      ? responseBody.code : safeDiagnosticValue(responseBody.code, sensitiveValues),
+    ...(omitProviderMessage ? {} : { providerMessage: safeDiagnosticValue(responseBody.message, sensitiveValues) }),
+    providerRequestId: omitProviderMessage && typeof responseBody.request_id === "string"
+      && /^[A-Za-z0-9_.-]{1,96}$/.test(responseBody.request_id)
+      ? responseBody.request_id : safeDiagnosticValue(responseBody.request_id, sensitiveValues),
   }, "Lazada API response failed");
 }
 
@@ -73,7 +82,7 @@ function providerSellerId(value: unknown): string | null {
 export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal,
   diagnosticLogger: DiagnosticLogger = logger,
   imOAuthDiagnostic?: (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
-    category?: ImOAuthDiagnosticCategory) => void) {
+    category?: ImOAuthDiagnosticCategory, details?: ImOAuthDiagnosticDetails) => void) {
   async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get" | "/order/digital/delivered",
     business: Record<string, string>, method?: "GET" | "POST") {
     const params = { ...business, app_key: config.appKey, sign_method: "sha256", timestamp: String(Date.now()) };
@@ -85,18 +94,27 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
     if (!tokenRequest && requestMethod === "GET") url.search = signed.toString();
     let httpStatus: number | null = null;
     let diagnosticLogged = false;
+    let responseReceived = false;
+    let responseBodyRead = false;
+    const reportExchangeFailure = (category: ImOAuthDiagnosticCategory,
+      details?: ImOAuthDiagnosticDetails) => {
+      if (tokenRequest) imOAuthDiagnostic?.("token_exchange", "failed", category, details);
+    };
     const logFailure = (body: unknown = null) => {
-      logFailedResponse(diagnosticLogger, path, httpStatus, body, sensitiveValues);
+      logFailedResponse(diagnosticLogger, path, httpStatus, body, sensitiveValues, tokenRequest);
       diagnosticLogged = true;
     };
     try {
       const response = await transport(url, { method: requestMethod, redirect: "error",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
         ...(requestMethod === "POST" ? { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: signed.toString() } : {}) });
+      responseReceived = true;
       httpStatus = response.status;
       // Limit provider payloads. Raw bodies/URLs/errors never reach logs or API responses.
       const text = await response.text();
+      responseBodyRead = true;
       if (text.length > 2_000_000) {
+        reportExchangeFailure("invalid_provider_response", { httpStatus });
         logFailure();
         throw new LazadaError("api_unavailable");
       }
@@ -104,26 +122,41 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
       try {
         body = JSON.parse(text);
       } catch {
+        reportExchangeFailure("invalid_provider_response", { httpStatus });
         logFailure();
         throw new LazadaError("api_unavailable");
       }
       if (!body || typeof body !== "object" || Array.isArray(body)) {
+        reportExchangeFailure("invalid_provider_response", { httpStatus });
         logFailure();
         throw new LazadaError("api_unavailable");
       }
       if (!response.ok) {
+        reportExchangeFailure("provider_response_error", {
+          httpStatus,
+          providerCode: typeof body.code === "string" ? body.code : undefined,
+          providerRequestId: typeof body.request_id === "string" ? body.request_id : undefined,
+        });
         logFailure(body);
         throw new LazadaError("api_unavailable");
       }
       if (String(body.code) !== "0") {
+        reportExchangeFailure("provider_response_error", {
+          httpStatus,
+          providerCode: typeof body.code === "string" || typeof body.code === "number" ? String(body.code) : undefined,
+          providerRequestId: typeof body.request_id === "string" ? body.request_id : undefined,
+        });
         logFailure(body);
         const code = String(body.code);
         throw new LazadaError(/IllegalAccessToken|InvalidAccessToken|InvalidCode|TokenExpired/i.test(code)
           ? "authorization_failed" : /Permission|Forbidden|AccessDenied|Scope/i.test(code) ? "permission_denied" : "api_unavailable");
       }
+      if (tokenRequest) imOAuthDiagnostic?.("token_exchange", "succeeded", undefined, { httpStatus });
       return body;
     } catch (error) {
       if (error instanceof LazadaError) throw error;
+      reportExchangeFailure(responseReceived && !responseBodyRead ? "network_error"
+        : responseReceived ? "local_failure" : "network_error", { httpStatus: httpStatus ?? undefined });
       if (!diagnosticLogged) logFailure();
       throw new LazadaError("api_unavailable");
     }

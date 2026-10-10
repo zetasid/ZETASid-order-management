@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { logger } from "../../lib/logger";
 import { endpoints, type LazadaConfig } from "./security";
+import type { ImOAuthDiagnosticCategory, ImOAuthDiagnosticStage } from "./im-oauth-diagnostics";
 
 export class LazadaError extends Error {
   constructor(public readonly reason: "authorization_failed" | "permission_denied" | "api_unavailable" | "wrong_country" | "invalid_response" | "sync_busy") {
@@ -70,7 +71,9 @@ function providerSellerId(value: unknown): string | null {
 
 // Explicit allowlist: OAuth, seller verification, order reads and manual digital delivery only.
 export function createClient(config: LazadaConfig, transport: typeof fetch = fetch, signal?: AbortSignal,
-  diagnosticLogger: DiagnosticLogger = logger) {
+  diagnosticLogger: DiagnosticLogger = logger,
+  imOAuthDiagnostic?: (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
+    category?: ImOAuthDiagnosticCategory) => void) {
   async function call(path: "/auth/token/create" | "/seller/get" | "/orders/get" | "/order/get" | "/order/items/get" | "/order/digital/delivered",
     business: Record<string, string>, method?: "GET" | "POST") {
     const params = { ...business, app_key: config.appKey, sign_method: "sha256", timestamp: String(Date.now()) };
@@ -131,10 +134,15 @@ export function createClient(config: LazadaConfig, transport: typeof fetch = fet
       const validToken = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 8192;
       const duration = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) > 0 && Number(v) <= 366 * 86400;
       if (!validToken(body.access_token) || !validToken(body.refresh_token)
-        || !duration(body.expires_in) || !duration(body.refresh_expires_in)) throw new LazadaError("authorization_failed");
+        || !duration(body.expires_in) || !duration(body.refresh_expires_in)) {
+        imOAuthDiagnostic?.("token_validation", "failed", "invalid_token_response");
+        throw new LazadaError("authorization_failed");
+      }
       const countries = Array.isArray(body.country_user_info) ? body.country_user_info : [];
-      if (body.country !== config.country && !countries.some((c: { country?: string }) => c?.country === config.country))
+      if (body.country !== config.country && !countries.some((c: { country?: string }) => c?.country === config.country)) {
+        imOAuthDiagnostic?.("token_validation", "failed", "wrong_country");
         throw new LazadaError("wrong_country");
+      }
       const matchingCountryInfo = countries.filter((value: unknown): value is Record<string, unknown> =>
         !!value && typeof value === "object" && !Array.isArray(value)
         && (value as Record<string, unknown>).country === config.country);

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router, type CookieOptions } from "express";
 import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaOrdersBody, SyncLazadaOrdersResponse } from "@workspace/api-zod";
 import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
@@ -43,9 +44,16 @@ lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  if (typeof req.query.state === "string" && req.query.state.startsWith("im_")
+    && !isImOAuthState(req.query.state)) {
+    const correlationId = randomUUID();
+    logImOAuthDiagnostic(req.log, correlationId, "callback_received", "started");
+    logImOAuthDiagnostic(req.log, correlationId, "state_cookie", "failed", "state_invalid");
+    logImOAuthDiagnostic(req.log, correlationId, "callback_complete", "failed");
+  }
   if (isImOAuthState(req.query.state)) {
     const browser: unknown = req.cookies?.[imOAuthCookieName];
-    const correlationId = String(req.id);
+    const correlationId = randomUUID();
     const diagnostic = (stage: Parameters<typeof logImOAuthDiagnostic>[2],
       result: Parameters<typeof logImOAuthDiagnostic>[3],
       category?: Parameters<typeof logImOAuthDiagnostic>[4]) =>
@@ -69,15 +77,13 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
       }
       const code = typeof req.query.code === "string" && req.query.code.length > 0 && req.query.code.length <= 2048
         && !req.query.error ? req.query.code : null;
-      if (!code) diagnostic("authorization_code", "failed", "code_missing_or_rejected");
       await finishImAuthorization(config, req.query.state, browser, code, diagnostic);
       outcome = "connected";
       diagnostic("callback_complete", "succeeded");
     } catch (error) {
       if (error instanceof LazadaError) outcome = error.reason;
-      diagnostic("callback_complete", "failed", outcome === "authorization_failed"
-        ? "unexpected_error" : "provider_or_transport_error");
-      req.log.warn({ outcome }, "Lazada IM authorization not completed");
+      diagnostic("callback_complete", "failed");
+      req.log.warn({ outcome, correlationId }, "Lazada IM authorization not completed");
     }
     res.clearCookie(imOAuthCookieName, options);
     res.redirect(303, `/settings?lazada_im=${outcome}`);

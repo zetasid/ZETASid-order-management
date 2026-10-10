@@ -108,15 +108,19 @@ export async function finishImAuthorization(
   diagnostic?: (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
     category?: ImOAuthDiagnosticCategory) => void,
 ): Promise<void> {
+  const report = (stage: ImOAuthDiagnosticStage, result: "started" | "succeeded" | "failed",
+    category?: ImOAuthDiagnosticCategory) => {
+    try { diagnostic?.(stage, result, category); } catch { /* Diagnostics must not affect OAuth. */ }
+  };
   if (!isImOAuthState(state)) {
-    diagnostic?.("state_cookie", "failed", "state_invalid");
+    report("state_cookie", "failed", "state_invalid");
     throw new LazadaError("authorization_failed");
   }
   if (!validNonce(browser)) {
-    diagnostic?.("state_cookie", "failed", "cookie_invalid");
+    report("state_cookie", "failed", "cookie_invalid");
     throw new LazadaError("authorization_failed");
   }
-  diagnostic?.("state_cookie", "started");
+  report("state_cookie", "started");
   let pending;
   try {
     [pending] = await db.delete(lazadaImOauthStatesTable).where(and(
@@ -124,64 +128,64 @@ export async function finishImAuthorization(
       eq(lazadaImOauthStatesTable.browserHash, hash(browser)),
       gt(lazadaImOauthStatesTable.expiresAt, new Date()),
     )).returning();
-  } catch {
-    diagnostic?.("state_cookie", "failed", "database_error");
-    throw new Error("OAuth state claim failed");
+  } catch (error) {
+    report("state_cookie", "failed", "database_error");
+    throw error;
   }
   if (!pending) {
-    diagnostic?.("state_cookie", "failed", "state_not_found_expired_or_used");
+    report("state_cookie", "failed", "state_not_found_expired_or_used");
     throw new LazadaError("authorization_failed");
   }
-  diagnostic?.("state_cookie", "succeeded");
+  report("state_cookie", "succeeded");
   if (!code) {
-    diagnostic?.("authorization_code", "failed", "code_missing_or_rejected");
+    report("authorization_code", "failed", "code_missing_or_rejected");
     throw new LazadaError("authorization_failed");
   }
-  diagnostic?.("authorization_code", "succeeded");
+  report("authorization_code", "succeeded");
 
-  diagnostic?.("session_check", "started");
+  report("session_check", "started");
   let sessionActive: boolean;
   try {
     sessionActive = await db.transaction(tx => activeSession(tx, pending.userId, pending.sessionHash));
-  } catch {
-    diagnostic?.("session_check", "failed", "database_error");
-    throw new Error("OAuth session check failed");
+  } catch (error) {
+    report("session_check", "failed", "database_error");
+    throw error;
   }
   if (!sessionActive) {
-    diagnostic?.("session_check", "failed", "session_inactive");
+    report("session_check", "failed", "session_inactive");
     throw new LazadaError("authorization_failed");
   }
-  diagnostic?.("session_check", "succeeded");
+  report("session_check", "succeeded");
 
   const issuedAt = Date.now();
-  diagnostic?.("token_exchange", "started");
+  report("token_exchange", "started");
   let tokens;
   try {
-    tokens = await createClient(config, undefined, undefined, undefined, diagnostic).exchange(code);
-    diagnostic?.("token_exchange", "succeeded");
+    tokens = await createClient(config, undefined, undefined, undefined, report).exchange(code);
+    report("token_exchange", "succeeded");
   } catch (error) {
-    diagnostic?.("token_exchange", "failed", error instanceof LazadaError
+    report("token_exchange", "failed", error instanceof LazadaError
       ? "provider_or_transport_error" : "unexpected_error");
     throw error;
   }
   const sellerId = tokens.sellerId;
   if (!sellerId) {
-    diagnostic?.("seller_validation", "failed", "seller_identity_invalid");
+    report("seller_validation", "failed", "seller_identity_invalid");
     throw new LazadaError("invalid_response");
   }
-  diagnostic?.("seller_validation", "succeeded");
+  report("seller_validation", "succeeded");
   const expiresAt = new Date(issuedAt + tokens.expiresIn * 1000);
   if (expiresAt <= new Date()) {
-    diagnostic?.("token_validation", "failed", "expiry_invalid");
+    report("token_validation", "failed", "expiry_invalid");
     throw new LazadaError("authorization_failed");
   }
-  diagnostic?.("token_validation", "succeeded");
+  report("token_validation", "succeeded");
 
-  diagnostic?.("connection_storage", "started");
+  report("connection_storage", "started");
   try {
     await db.transaction(async tx => {
       if (!await activeSession(tx, pending.userId, pending.sessionHash)) {
-        diagnostic?.("session_check", "failed", "session_inactive");
+        report("session_check", "failed", "session_inactive");
         throw new LazadaError("authorization_failed");
       }
       const values = {
@@ -203,18 +207,18 @@ export async function finishImAuthorization(
         setWhere: eq(lazadaImConnectionsTable.lazadaSellerId, sellerId),
       }).returning({ userId: lazadaImConnectionsTable.userId });
       if (!saved) {
-        diagnostic?.("connection_storage", "failed", "seller_conflict");
+        report("connection_storage", "failed", "seller_conflict");
         throw new LazadaError("authorization_failed");
       }
     });
-    diagnostic?.("connection_storage", "succeeded");
+    report("connection_storage", "succeeded");
   } catch (error) {
     if (error instanceof LazadaError) throw error;
     if (isUniqueConstraintViolation(error)) {
-      diagnostic?.("connection_storage", "failed", "seller_conflict");
+      report("connection_storage", "failed", "seller_conflict");
       throw new LazadaError("authorization_failed");
     }
-    diagnostic?.("connection_storage", "failed", "storage_error");
+    report("connection_storage", "failed", "storage_error");
     throw error;
   }
 }

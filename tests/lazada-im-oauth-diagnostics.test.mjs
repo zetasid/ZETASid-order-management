@@ -28,12 +28,28 @@ await build({
   format: "cjs",
   logLevel: "silent",
 });
-const { logImOAuthDiagnostic } = await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
-const { sanitizeImOAuthProviderIdentifier } = await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
+const { dispatchLazadaOAuthCallback, logImOAuthDiagnostic, sanitizeImOAuthProviderIdentifier } =
+  await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
 const { createClient } = require(`${temporary}/client.cjs`);
 const { imConfiguration } = await import(pathToFileURL(`${temporary}/security.mjs`));
 
 test.after(async () => rm(temporary, { recursive: true, force: true }));
+
+test("callback dispatch sends every im_ state only to the IM handler", () => {
+  const calls = [];
+  const handlers = {
+    im: () => calls.push("im"),
+    seller: () => calls.push("seller"),
+  };
+  dispatchLazadaOAuthCallback("im_invalid-state", handlers.im, handlers.seller);
+  assert.deepEqual(calls, ["im"]);
+  calls.length = 0;
+  dispatchLazadaOAuthCallback(`im_${"a".repeat(43)}`, handlers.im, handlers.seller);
+  assert.deepEqual(calls, ["im"]);
+  calls.length = 0;
+  dispatchLazadaOAuthCallback("seller-state-fixture", handlers.im, handlers.seller);
+  assert.deepEqual(calls, ["seller"]);
+});
 
 test("IM OAuth diagnostic records use one correlation ID and only allowlisted metadata", () => {
   const records = [];

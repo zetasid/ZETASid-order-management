@@ -4,7 +4,11 @@ import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaO
 import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
 import { configuration, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
-import { logImOAuthDiagnostic, type ImOAuthDiagnosticDetails } from "../modules/lazada/im-oauth-diagnostics";
+import {
+  dispatchLazadaOAuthCallback,
+  logImOAuthDiagnostic,
+  type ImOAuthDiagnosticDetails,
+} from "../modules/lazada/im-oauth-diagnostics";
 import { syncOrders } from "../modules/lazada/order-sync";
 import {
   finishImAuthorization,
@@ -44,14 +48,7 @@ lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-  if (typeof req.query.state === "string" && req.query.state.startsWith("im_")
-    && !isImOAuthState(req.query.state)) {
-    const correlationId = randomUUID();
-    logImOAuthDiagnostic(req.log, correlationId, "callback_received", "started");
-    logImOAuthDiagnostic(req.log, correlationId, "state_cookie", "failed", "state_invalid");
-    logImOAuthDiagnostic(req.log, correlationId, "callback_complete", "failed");
-  }
-  if (isImOAuthState(req.query.state)) {
+  if (dispatchLazadaOAuthCallback(req.query.state, () => true, () => false)) {
     const browser: unknown = req.cookies?.[imOAuthCookieName];
     const correlationId = randomUUID();
     const diagnostic = (stage: Parameters<typeof logImOAuthDiagnostic>[2],
@@ -62,6 +59,10 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
     diagnostic("callback_received", "started");
     let outcome = "authorization_failed";
     try {
+      if (!isImOAuthState(req.query.state)) {
+        diagnostic("state_cookie", "failed", "state_invalid");
+        throw new LazadaError("authorization_failed");
+      }
       const config: LazadaConfig | null = imConfiguration();
       if (!req.secure) {
         diagnostic("callback_validation", "failed", "insecure_request");

@@ -41,6 +41,18 @@ export type ImOAuthDiagnosticDetails = {
   providerRequestId?: string;
 };
 
+export function isImOAuthCallbackState(state: unknown): state is string {
+  return typeof state === "string" && state.startsWith("im_");
+}
+
+export function dispatchLazadaOAuthCallback<T>(
+  state: unknown,
+  imHandler: () => T,
+  sellerHandler: () => T,
+): T {
+  return isImOAuthCallbackState(state) ? imHandler() : sellerHandler();
+}
+
 const stages = new Set<ImOAuthDiagnosticStage>([
   "callback_received", "callback_validation", "state_cookie", "authorization_code",
   "session_check", "token_exchange", "token_validation", "seller_validation",

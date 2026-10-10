@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { Router, type CookieOptions } from "express";
+import { db, lazadaImOauthStatesTable, lazadaOauthStatesTable } from "@workspace/db";
 import { GetLazadaConnectionResponse, CheckLazadaConnectionResponse, SyncLazadaOrdersBody, SyncLazadaOrdersResponse } from "@workspace/api-zod";
-import { checkConnection, connectionStatus, finishAuthorization, startAuthorization } from "../modules/lazada/connection";
+import { checkConnection, connectionStatus, finishAuthorization, isSellerOAuthState, startAuthorization } from "../modules/lazada/connection";
 import { configuration, imConfiguration, validNonce, type LazadaConfig } from "../modules/lazada/security";
 import { LazadaError } from "../modules/lazada/client";
 import {
-  dispatchLazadaOAuthCallback,
   logImOAuthDiagnostic,
   type ImOAuthDiagnosticDetails,
 } from "../modules/lazada/im-oauth-diagnostics";
+import { hash } from "../modules/lazada/security";
+import { resolveLazadaOAuthFlow } from "../modules/lazada/oauth-state-dispatch";
 import { syncOrders } from "../modules/lazada/order-sync";
 import {
   finishImAuthorization,
@@ -48,7 +51,26 @@ lazadaRouter.post("/lazada/orders/sync", async (req, res) => {
 
 lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-  if (dispatchLazadaOAuthCallback(req.query.state, () => true, () => false)) {
+  let flow;
+  try {
+    flow = await resolveLazadaOAuthFlow(req.query.state, async state => {
+      const stateHash = hash(state);
+      const [sellerStates, imStates] = await Promise.all([
+        db.select({ stateHash: lazadaOauthStatesTable.stateHash }).from(lazadaOauthStatesTable)
+          .where(eq(lazadaOauthStatesTable.stateHash, stateHash)).limit(1),
+        db.select({ stateHash: lazadaImOauthStatesTable.stateHash }).from(lazadaImOauthStatesTable)
+          .where(eq(lazadaImOauthStatesTable.stateHash, stateHash)).limit(1),
+      ]);
+      return { seller: sellerStates.length > 0, im: imStates.length > 0 };
+    });
+  } catch {
+    flow = "unknown";
+  }
+  if (flow === "ambiguous" || flow === "unknown") {
+    res.redirect(303, "/settings");
+    return;
+  }
+  if (flow === "im") {
     const browser: unknown = req.cookies?.[imOAuthCookieName];
     const correlationId = randomUUID();
     const diagnostic = (stage: Parameters<typeof logImOAuthDiagnostic>[2],
@@ -96,7 +118,7 @@ lazadaCallbackRouter.get("/lazada/oauth/callback", async (req, res) => {
   const browser: unknown = req.cookies?.[BROWSER_COOKIE];
   let outcome = "authorization_failed";
   try {
-    if (!req.secure || !config || !validNonce(req.query.state) || !validNonce(browser))
+    if (!req.secure || !config || !isSellerOAuthState(req.query.state) || !validNonce(browser))
       throw new LazadaError("authorization_failed");
     const code = typeof req.query.code === "string" && req.query.code.length > 0 && req.query.code.length <= 2048
       && !req.query.error ? req.query.code : null;

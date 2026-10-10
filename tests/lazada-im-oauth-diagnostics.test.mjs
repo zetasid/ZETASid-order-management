@@ -11,6 +11,7 @@ const temporary = await mkdtemp(`${tmpdir()}/zetas-oauth-diagnostics-`);
 await build({
   entryPoints: [
     "artifacts/api-server/src/modules/lazada/im-oauth-diagnostics.ts",
+    "artifacts/api-server/src/modules/lazada/oauth-state-dispatch.ts",
     "artifacts/api-server/src/modules/lazada/security.ts",
   ],
   outdir: temporary,
@@ -28,27 +29,23 @@ await build({
   format: "cjs",
   logLevel: "silent",
 });
-const { dispatchLazadaOAuthCallback, logImOAuthDiagnostic, sanitizeImOAuthProviderIdentifier } =
+const { logImOAuthDiagnostic, sanitizeImOAuthProviderIdentifier } =
   await import(pathToFileURL(`${temporary}/im-oauth-diagnostics.mjs`));
+const { resolveLazadaOAuthFlow } = await import(pathToFileURL(`${temporary}/oauth-state-dispatch.mjs`));
 const { createClient } = require(`${temporary}/client.cjs`);
 const { imConfiguration } = await import(pathToFileURL(`${temporary}/security.mjs`));
 
 test.after(async () => rm(temporary, { recursive: true, force: true }));
 
-test("callback dispatch sends every im_ state only to the IM handler", () => {
-  const calls = [];
-  const handlers = {
-    im: () => calls.push("im"),
-    seller: () => calls.push("seller"),
-  };
-  dispatchLazadaOAuthCallback("im_invalid-state", handlers.im, handlers.seller);
-  assert.deepEqual(calls, ["im"]);
-  calls.length = 0;
-  dispatchLazadaOAuthCallback(`im_${"a".repeat(43)}`, handlers.im, handlers.seller);
-  assert.deepEqual(calls, ["im"]);
-  calls.length = 0;
-  dispatchLazadaOAuthCallback("seller-state-fixture", handlers.im, handlers.seller);
-  assert.deepEqual(calls, ["seller"]);
+test("OAuth state resolver prefers stored flow and rejects ambiguous or unknown legacy states", async () => {
+  const record = async (seller, im) => async () => ({ seller, im });
+  assert.equal(await resolveLazadaOAuthFlow(`im_${"a".repeat(43)}`, await record(true, false)), "seller");
+  assert.equal(await resolveLazadaOAuthFlow(`im_${"a".repeat(43)}`, await record(false, true)), "im");
+  assert.equal(await resolveLazadaOAuthFlow(`seller1_${"a".repeat(43)}`, await record(false, false)), "seller");
+  assert.equal(await resolveLazadaOAuthFlow(`im1_${"a".repeat(43)}`, await record(false, false)), "im");
+  assert.equal(await resolveLazadaOAuthFlow("im_legacy-unmatched", await record(false, false)), "unknown");
+  assert.equal(await resolveLazadaOAuthFlow("seller-legacy-unmatched", await record(false, false)), "unknown");
+  assert.equal(await resolveLazadaOAuthFlow("im_collision", await record(true, true)), "ambiguous");
 });
 
 test("IM OAuth diagnostic records use one correlation ID and only allowlisted metadata", () => {

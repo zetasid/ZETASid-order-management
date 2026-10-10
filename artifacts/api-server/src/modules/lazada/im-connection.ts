@@ -14,7 +14,7 @@ import type {
 } from "./im-oauth-diagnostics";
 
 export const imOAuthCookieName = "zetas_lazada_im_oauth";
-const imStatePattern = /^im_[A-Za-z0-9_-]{43}$/;
+const imStatePattern = /^(?:im_|im1_)[A-Za-z0-9_-]{43}$/;
 
 function providerSellerId(value: unknown): string | null {
   if (typeof value === "number")
@@ -79,11 +79,10 @@ function storedAccessToken(encryptedTokens: string, config: LazadaConfig, userId
 }
 
 export async function startImAuthorization(config: LazadaConfig, userId: string, sessionHash: string) {
-  const state = `im_${nonce()}`;
+  const state = `im1_${nonce()}`;
   const browser = nonce();
   await db.transaction(async tx => {
     if (!await activeSession(tx, userId, sessionHash)) throw new LazadaError("authorization_failed");
-    await tx.delete(lazadaImOauthStatesTable).where(eq(lazadaImOauthStatesTable.userId, userId));
     await tx.delete(lazadaImOauthStatesTable).where(lt(lazadaImOauthStatesTable.expiresAt, new Date()));
     await tx.insert(lazadaImOauthStatesTable).values({
       stateHash: hash(state),

@@ -16,10 +16,9 @@ export async function activeSession(tx: Parameters<Parameters<typeof db.transact
 }
 
 export async function startAuthorization(config: LazadaConfig, userId: string, sessionHash: string) {
-  const state = nonce(), browser = nonce();
+  const state = `seller1_${nonce()}`, browser = nonce();
   await db.transaction(async tx => {
     if (!await activeSession(tx, userId, sessionHash)) throw new LazadaError("authorization_failed");
-    await tx.delete(states).where(eq(states.userId, userId));
     await tx.delete(states).where(lt(states.expiresAt, new Date()));
     await tx.insert(states).values({ stateHash: hash(state), browserHash: hash(browser), userId, sessionHash,
       expiresAt: new Date(Date.now() + 10 * 60_000) });
@@ -29,6 +28,13 @@ export async function startAuthorization(config: LazadaConfig, userId: string, s
     redirect_uri: config.callback.href, state }).toString();
   // No scope parameter: permission selection belongs in the app's Lazada console.
   return { authorizationUrl: url.href, browser };
+}
+
+export function isSellerOAuthState(value: unknown): value is string {
+  return typeof value === "string" && (
+    /^[A-Za-z0-9_-]{43}$/.test(value)
+    || /^seller1_[A-Za-z0-9_-]{43}$/.test(value)
+  );
 }
 
 export async function finishAuthorization(config: LazadaConfig, state: string, browser: string, code: string | null) {

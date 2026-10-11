@@ -113,8 +113,8 @@ test("Lazada provider diagnostics contain only safe response fields and preserve
     ["path", "httpStatus", "providerCode", "providerRequestId"].sort());
   assert.equal(invalidCodeLog.path, "/auth/token/create");
   assert.equal(invalidCodeLog.httpStatus, 200);
-  assert.equal(invalidCodeLog.providerCode, "[redacted]",
-    "OAuth-related provider identifiers containing a sensitive term must be redacted");
+  assert.equal(invalidCodeLog.providerCode, "InvalidCode",
+    "the provider error category is safe to log; the authorization code itself must remain absent");
   assert.equal(invalidCodeLog.providerRequestId, "lazada-request-123");
   assert.ok(!Object.hasOwn(invalidCodeLog, "providerMessage"),
     "token-exchange diagnostics must omit the provider message entirely");

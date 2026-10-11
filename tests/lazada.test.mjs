@@ -14,10 +14,12 @@ import { createAuthorizedFixture } from "./auth-helper.mjs";
 const require = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url));
 const { build } = require("esbuild");
 const temporary = await mkdtemp(`${tmpdir()}/zetas-lazada-`);
-await build({ entryPoints: ["artifacts/api-server/src/modules/lazada/security.ts", "artifacts/api-server/src/modules/lazada/client.ts"],
+await build({ entryPoints: ["artifacts/api-server/src/modules/lazada/security.ts",
+  "artifacts/api-server/src/modules/lazada/client.ts", "artifacts/api-server/src/modules/lazada/im-client.ts"],
   outdir: temporary, bundle: true, platform: "node", format: "esm", outExtension: { ".js": ".mjs" }, logLevel: "silent" });
 const security = await import(pathToFileURL(`${temporary}/security.mjs`));
 const { createClient, signature } = await import(pathToFileURL(`${temporary}/client.mjs`));
+const { createImClient } = await import(pathToFileURL(`${temporary}/im-client.mjs`));
 const env = { LAZADA_MODE: "testing", LAZADA_COUNTRY: "id", LAZADA_APP_KEY: "999000",
   LAZADA_APP_SECRET: "test-only-not-a-real-app-secret", LAZADA_IM_APP_KEY: "999001",
   LAZADA_IM_APP_SECRET: "test-only-im-app-secret", LAZADA_TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("hex"),
@@ -135,17 +137,19 @@ test("Lazada provider diagnostics contain only safe response fields and preserve
 
   const denied = createClient(config, async () => new Response(JSON.stringify({
     code: "InsufficientPermissions",
-    message: `Permission denied; access_token=test-only-access-token; app_secret=${config.appSecret}; https://example.invalid/private`,
+    message: `buyer@example.invalid; access_token=test-only-access-token; refresh_token=test-only-refresh-token; `
+      + `app_secret=${config.appSecret}; code=test-only-oauth-code; Cookie: zetas_session=test-only-cookie; `
+      + "https://example.invalid/private?access_token=url-token",
     request_id: "lazada-request-403",
   }), { status: 403 }), undefined, diagnosticLogger);
   await assert.rejects(denied.check("test-only-access-token"), error => error.reason === "api_unavailable");
   assert.equal(diagnosticEntries[2].fields.httpStatus, 403);
   assert.equal(diagnosticEntries[2].fields.providerCode, "InsufficientPermissions");
-  const safeNonTokenMessage = diagnosticEntries[2].fields.providerMessage;
-  assert.ok(typeof safeNonTokenMessage === "string");
-  assert.ok(!safeNonTokenMessage.includes("test-only-access-token"));
-  assert.ok(!safeNonTokenMessage.includes(config.appSecret));
-  assert.ok(!safeNonTokenMessage.includes("https://"));
+  assert.ok(!Object.hasOwn(diagnosticEntries[2].fields, "providerMessage"));
+  const serializedDeniedLog = JSON.stringify(diagnosticEntries[2].fields);
+  for (const sensitive of ["buyer@example.invalid", "test-only-access-token", "test-only-refresh-token",
+    config.appSecret, "test-only-oauth-code", "test-only-cookie", "https://example.invalid/private", "url-token"])
+    assert.ok(!serializedDeniedLog.includes(sensitive), "provider diagnostics must omit sensitive provider data");
 
   const invalidJsonBody = "response contains test-only-private-provider-detail and must not be logged";
   const invalidJson = createClient(config, async () => new Response(invalidJsonBody, { status: 502 }), undefined, diagnosticLogger);
@@ -157,6 +161,32 @@ test("Lazada provider diagnostics contain only safe response fields and preserve
     providerRequestId: null,
   });
   assert.ok(!JSON.stringify(diagnosticEntries).includes(invalidJsonBody));
+});
+
+test("Lazada IM provider diagnostics omit arbitrary and sensitive provider messages", async () => {
+  const config = security.configuration(env);
+  const entries = [];
+  const diagnosticLogger = { warn: (fields, message) => entries.push({ fields, message }) };
+  const sensitiveMessage = "buyer@example.invalid token=test-only-im-token secret=test-only-im-secret "
+    + "code=test-only-im-oauth-code Cookie: zetas_session=test-only-im-cookie "
+    + "https://example.invalid/private?access_token=im-url-token";
+  const client = createImClient(config, async () => new Response(JSON.stringify({
+    success: false,
+    err_code: "InvalidAccessToken",
+    err_message: sensitiveMessage,
+    request_id: "im-request-safe-id",
+  })), diagnosticLogger);
+
+  await assert.rejects(client.getSessionList("test-only-im-token", { startTime: "1700000000000", pageSize: 10 }),
+    error => error.reason === "authorization_failed");
+  assert.equal(entries.length, 1);
+  assert.deepEqual(Object.keys(entries[0].fields).sort(), ["path", "httpStatus", "providerCode", "providerRequestId"].sort());
+  assert.equal(entries[0].fields.providerCode, "InvalidAccessToken");
+  assert.equal(entries[0].fields.providerRequestId, "im-request-safe-id");
+  const serializedLog = JSON.stringify(entries[0].fields);
+  for (const sensitive of [sensitiveMessage, "buyer@example.invalid", "test-only-im-token", "test-only-im-secret",
+    "test-only-im-oauth-code", "test-only-im-cookie", "https://example.invalid/private", "im-url-token"])
+    assert.ok(!serializedLog.includes(sensitive), "IM provider diagnostics must omit sensitive provider data");
 });
 
 test("Lazada Testing OAuth and connection API — simulated provider, real backend/PostgreSQL", async t => {

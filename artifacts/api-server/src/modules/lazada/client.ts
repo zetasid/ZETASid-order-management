@@ -54,9 +54,6 @@ function logFailedResponse(
     path,
     httpStatus,
     providerCode: safeDiagnosticValue(responseBody.code, sensitiveValues),
-    ...(path === "/auth/token/create" ? {} : {
-      providerMessage: safeDiagnosticValue(responseBody.message, sensitiveValues),
-    }),
     providerRequestId: safeDiagnosticValue(responseBody.request_id, sensitiveValues),
   }, "Lazada API response failed");
 }

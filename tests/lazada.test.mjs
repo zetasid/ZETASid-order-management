@@ -275,12 +275,12 @@ test("Lazada Testing OAuth and connection API — simulated provider, real backe
     const tokenFailureLogLines = logs.split(/\r?\n/).flatMap(line => {
       try {
         const entry = JSON.parse(line);
-        return entry.path === "/auth/token/create" && entry.providerCode === "[redacted]" ? [entry] : [];
+        return entry.path === "/auth/token/create" && entry.providerCode === "InvalidCode" ? [entry] : [];
       } catch {
         return [];
       }
     });
-    assert.ok(tokenFailureLogLines.length > 0, "a token-exchange failure must be logged with a redacted provider identifier");
+    assert.ok(tokenFailureLogLines.length > 0, "a token-exchange failure must be logged with a safe provider identifier");
     assert.ok(tokenFailureLogLines.every(entry => !Object.hasOwn(entry, "providerMessage")),
       "token-exchange logs must omit raw provider messages");
     assert.ok(!JSON.stringify(tokenFailureLogLines).includes("Invalid authorization code"));

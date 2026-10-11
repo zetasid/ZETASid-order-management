@@ -92,16 +92,16 @@ function logProviderFailure(
   }, "Lazada IM API response failed");
 }
 
-function logSessionListDataStructure(data: unknown) {
+function logSessionListDataStructure(data: unknown, diagnosticLogger: ImDiagnosticLogger = logger) {
   const source = isRecord(data) ? data : null;
   const sessionList = source?.session_list;
   const hasSessionList = Array.isArray(sessionList);
   const firstItem = hasSessionList ? sessionList[0] : undefined;
   const hasFirstItem = hasSessionList && sessionList.length > 0;
-  logger.warn({
+  diagnosticLogger.warn({
     path: sessionPath,
     dataType: Array.isArray(data) ? "array" : typeof data,
-    dataKeys: source ? Object.keys(source) : [],
+    dataKeyCount: source ? Object.keys(source).length : 0,
     hasMoreType: source ? typeof source.has_more : "undefined",
     sessionListType: hasSessionList ? "array" : typeof sessionList,
     nextStartTimeType: source ? typeof source.next_start_time : "undefined",
@@ -109,7 +109,7 @@ function logSessionListDataStructure(data: unknown) {
     ...(hasSessionList ? { sessionListLength: sessionList.length } : {}),
     ...(hasFirstItem ? {
       firstItemType: typeof firstItem,
-      firstItemKeys: isRecord(firstItem) ? Object.keys(firstItem) : [],
+      firstItemKeyCount: isRecord(firstItem) ? Object.keys(firstItem).length : 0,
     } : {}),
   }, "Lazada IM data structure diagnostic");
 }
@@ -121,7 +121,7 @@ function parseProviderData<T>(response: ImProviderResponse, parse: (data: JsonRe
     if (error instanceof LazadaError && error.reason === "invalid_response") {
       logProviderFailure(response.path, response.httpStatus, response.body, response.sensitiveValues,
         response.diagnosticLogger);
-      if (response.path === sessionPath) logSessionListDataStructure(response.data);
+      if (response.path === sessionPath) logSessionListDataStructure(response.data, response.diagnosticLogger);
     }
     throw error;
   }
@@ -362,7 +362,7 @@ export function createImClient(config: LazadaConfig, transport: typeof fetch = f
     }
     if (!isRecord(body.data)) {
       logProviderFailure(path, httpStatus, body, sensitiveValues, diagnosticLogger);
-      if (path === sessionPath) logSessionListDataStructure(body.data);
+        if (path === sessionPath) logSessionListDataStructure(body.data, diagnosticLogger);
       throw new LazadaError("invalid_response");
     }
     return { path, httpStatus, body, data: body.data, sensitiveValues, diagnosticLogger };

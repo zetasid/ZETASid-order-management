@@ -189,6 +189,51 @@ test("Lazada IM provider diagnostics omit arbitrary and sensitive provider messa
     assert.ok(!serializedLog.includes(sensitive), "IM provider diagnostics must omit sensitive provider data");
 });
 
+test("Lazada IM structure diagnostics omit arbitrary provider property names", async () => {
+  const config = security.configuration(env);
+  const entries = [];
+  const diagnosticLogger = { warn: (fields, message) => entries.push({ fields, message }) };
+  const arbitraryProviderFields = [
+    ["provider_extension_1", "test-only-im-access-token-value"],
+    ["provider_extension_2", "test-only-im-secret-value"],
+    ["provider_extension_3", "test-only-im-oauth-code-value"],
+    ["provider_extension_4", "buyer@example.invalid"],
+    ["provider_extension_5", "Cookie: zetas_session=test-only-im-cookie"],
+    ["provider_extension_6", "https://example.invalid/private?access_token=test-only-url-token"],
+  ];
+  const arbitraryFieldNames = arbitraryProviderFields.map(([name]) => name);
+  const sensitiveFieldValues = arbitraryProviderFields.map(([, value]) => value);
+  const firstItem = Object.fromEntries(arbitraryProviderFields);
+  const data = {
+    ...Object.fromEntries(arbitraryProviderFields),
+    has_more: "invalid",
+    session_list: [firstItem],
+  };
+  const client = createImClient(config, async () => new Response(JSON.stringify({
+    success: true,
+    err_code: "0",
+    data,
+  })), diagnosticLogger);
+
+  await assert.rejects(client.getSessionList("test-only-im-access-token", {
+    startTime: "1700000000000",
+    pageSize: 10,
+  }), error => error.reason === "invalid_response");
+  assert.equal(entries.length, 2);
+  const structureDiagnostic = entries.find(entry => entry.message === "Lazada IM data structure diagnostic");
+  assert.ok(structureDiagnostic);
+  assert.equal(structureDiagnostic.fields.dataKeyCount, Object.keys(data).length);
+  assert.equal(structureDiagnostic.fields.firstItemKeyCount, Object.keys(firstItem).length);
+  assert.ok(!Object.hasOwn(structureDiagnostic.fields, "dataKeys"));
+  assert.ok(!Object.hasOwn(structureDiagnostic.fields, "firstItemKeys"));
+  const serializedLogs = JSON.stringify(entries);
+  for (const fieldName of arbitraryFieldNames)
+    assert.ok(!serializedLogs.includes(fieldName), "IM structure diagnostics must not log arbitrary provider property names");
+  for (const sensitiveValue of sensitiveFieldValues)
+    assert.ok(!serializedLogs.includes(sensitiveValue), "IM structure diagnostics must not log provider field values");
+  assert.ok(!serializedLogs.includes("test-only-im-access-token"));
+});
+
 test("Lazada Testing OAuth and connection API — simulated provider, real backend/PostgreSQL", async t => {
   const reservation = http.createServer();
   await new Promise(r => reservation.listen(0, "127.0.0.1", r));
